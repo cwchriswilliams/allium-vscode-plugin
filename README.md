@@ -97,6 +97,8 @@ Implemented checks:
 - status enum values never assigned by any rule (`unreachable` state hints)
 - non-terminal status enum values with no observed exit transitions
 - contradictory `requires` constraints that imply a rule may never fire
+- obvious expression type mismatches in `requires`/`ensures` comparisons and arithmetic
+- circular dependencies across derived entity values
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section

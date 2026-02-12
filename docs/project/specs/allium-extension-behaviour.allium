@@ -363,6 +363,26 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule ExpressionTypeMismatchIsError {
+        when: RuleExpressionParsed(expression)
+        requires: expression.ordered_comparison_or_arithmetic_has_type_mismatch = true
+
+        ensures: Finding.created(
+        code: "allium.expression.typeMismatch",
+        severity: error
+        )
+    }
+
+    rule CircularDerivedDependencyIsError {
+        when: EntityDerivedFieldParsed(derived_field)
+        requires: derived_field.participates_in_cycle = true
+
+        ensures: Finding.created(
+        code: "allium.derived.circularDependency",
+        severity: error
+        )
+    }
+
     rule UnusedEntityIsWarning {
         when: EntityParsed(entity)
         requires: entity.referenced_elsewhere_in_module = false

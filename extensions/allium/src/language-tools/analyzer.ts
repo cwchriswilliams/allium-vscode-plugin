@@ -125,6 +125,8 @@ export function analyzeAllium(
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
   findings.push(...findNeverFireRuleIssues(lineStarts, blocks));
+  findings.push(...findExpressionTypeMismatchIssues(lineStarts, blocks));
+  findings.push(...findDerivedCircularDependencyIssues(text, lineStarts));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -1805,6 +1807,156 @@ function findNeverFireRuleIssues(
   return findings;
 }
 
+function findExpressionTypeMismatchIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const rules = blocks.filter((block) => block.kind === "rule");
+  for (const rule of rules) {
+    const clauseLines = collectRuleClauseLines(rule.body);
+    for (const line of clauseLines) {
+      if (line.clause !== "requires" && line.clause !== "ensures") {
+        continue;
+      }
+      if (isCommentLineAtIndex(rule.body, line.startOffset)) {
+        continue;
+      }
+
+      const comparison = line.text.match(
+        /("[^"]*"|[A-Za-z_][A-Za-z0-9_.]*)\s*(<=|>=|<|>)\s*("[^"]*"|[A-Za-z_][A-Za-z0-9_.]*|-?\d+(?:\.\d+)?)/,
+      );
+      if (comparison) {
+        const lhs = comparison[1];
+        const rhs = comparison[3];
+        if (lhs.startsWith('"') || rhs.startsWith('"')) {
+          const mismatchOffset =
+            rule.startOffset +
+            1 +
+            line.startOffset +
+            line.text.indexOf(comparison[0]);
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              mismatchOffset,
+              mismatchOffset + comparison[0].length,
+              "allium.expression.typeMismatch",
+              `Comparison '${comparison[0]}' mixes string and ordered comparison operators.`,
+              "error",
+            ),
+          );
+          continue;
+        }
+      }
+
+      const arithmetic = line.text.match(
+        /("[^"]*"|-?\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_.]*)\s*([+\-*/])\s*("[^"]*"|-?\d+(?:\.\d+)?|[A-Za-z_][A-Za-z0-9_.]*)/,
+      );
+      if (arithmetic) {
+        const lhs = arithmetic[1];
+        const rhs = arithmetic[3];
+        if (lhs.startsWith('"') || rhs.startsWith('"')) {
+          const mismatchOffset =
+            rule.startOffset +
+            1 +
+            line.startOffset +
+            line.text.indexOf(arithmetic[0]);
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              mismatchOffset,
+              mismatchOffset + arithmetic[0].length,
+              "allium.expression.typeMismatch",
+              `Arithmetic expression '${arithmetic[0]}' mixes string and numeric terms.`,
+              "error",
+            ),
+          );
+        }
+      }
+    }
+  }
+  return findings;
+}
+
+function findDerivedCircularDependencyIssues(
+  text: string,
+  lineStarts: number[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const entities = parseEntityDerivedDefinitions(text);
+  for (const entity of entities) {
+    const byName = new Map(entity.derived.map((item) => [item.name, item]));
+    const graph = new Map<string, Set<string>>();
+    for (const item of entity.derived) {
+      const deps = new Set<string>();
+      const tokenPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\b/g;
+      for (
+        let token = tokenPattern.exec(item.expression);
+        token;
+        token = tokenPattern.exec(item.expression)
+      ) {
+        const name = token[1];
+        if (name === item.name || !byName.has(name)) {
+          continue;
+        }
+        deps.add(name);
+      }
+      graph.set(item.name, deps);
+    }
+
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const cycleMembers = new Set<string>();
+
+    const dfs = (node: string): void => {
+      if (visited.has(node) || cycleMembers.has(node)) {
+        return;
+      }
+      if (visiting.has(node)) {
+        cycleMembers.add(node);
+        return;
+      }
+      visiting.add(node);
+      const deps = graph.get(node) ?? new Set<string>();
+      for (const dep of deps) {
+        if (visiting.has(dep)) {
+          cycleMembers.add(node);
+          cycleMembers.add(dep);
+          continue;
+        }
+        dfs(dep);
+        if (cycleMembers.has(dep)) {
+          cycleMembers.add(node);
+        }
+      }
+      visiting.delete(node);
+      visited.add(node);
+    };
+
+    for (const name of graph.keys()) {
+      dfs(name);
+    }
+
+    for (const name of cycleMembers) {
+      const item = byName.get(name);
+      if (!item) {
+        continue;
+      }
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          item.startOffset,
+          item.startOffset + item.name.length,
+          "allium.derived.circularDependency",
+          `Derived value '${entity.name}.${name}' participates in a circular dependency.`,
+          "error",
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
 function findDuplicateNamedSurfaceBlocks(
   surface: ReturnType<typeof parseAlliumBlocks>[number],
   lineStarts: number[],
@@ -1905,6 +2057,74 @@ function parseVariantDeclarations(
     });
   }
   return out;
+}
+
+function parseEntityDerivedDefinitions(text: string): Array<{
+  name: string;
+  derived: Array<{ name: string; expression: string; startOffset: number }>;
+}> {
+  const entities: Array<{
+    name: string;
+    derived: Array<{ name: string; expression: string; startOffset: number }>;
+  }> = [];
+  const pattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const open = text.indexOf("{", match.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const derived: Array<{
+      name: string;
+      expression: string;
+      startOffset: number;
+    }> = [];
+    let cursor = 0;
+    while (cursor < body.length) {
+      const lineEnd = body.indexOf("\n", cursor);
+      const end = lineEnd >= 0 ? lineEnd : body.length;
+      const line = body.slice(cursor, end);
+      const fieldMatch = line.match(
+        /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)\s*$/,
+      );
+      if (fieldMatch) {
+        const fieldName = fieldMatch[1];
+        const rhs = fieldMatch[2].trim();
+        if (looksLikeDerivedExpression(rhs)) {
+          derived.push({
+            name: fieldName,
+            expression: rhs,
+            startOffset: open + 1 + cursor + line.indexOf(fieldName),
+          });
+        }
+      }
+      cursor = end + 1;
+    }
+    entities.push({ name: match[1], derived });
+  }
+  return entities;
+}
+
+function looksLikeDerivedExpression(rhs: string): boolean {
+  if (/^[A-Z][A-Za-z0-9_]*(?:\??|<[A-Za-z0-9_<>, ?/|]+>)?$/.test(rhs)) {
+    return false;
+  }
+  if (/^[a-z_][a-z0-9_]*(?:\s*\|\s*[a-z_][a-z0-9_]*)+$/.test(rhs)) {
+    return false;
+  }
+  if (
+    /^[A-Za-z_][A-Za-z0-9_]*\s+for\s+this\s+[A-Za-z_][A-Za-z0-9_]*$/.test(rhs)
+  ) {
+    return false;
+  }
+  return /[.()><=+\-*/]|(\bwith\b)|(\bcount\b)|(\bany\b)|(\ball\b)|(\bnow\b)/.test(
+    rhs,
+  );
 }
 
 function collectDeclaredTypeNames(text: string): string[] {

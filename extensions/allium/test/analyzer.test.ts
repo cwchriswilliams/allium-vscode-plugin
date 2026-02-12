@@ -77,6 +77,27 @@ test("does not warn when requires clauses are compatible", () => {
   );
 });
 
+test("reports expression type mismatch for ordered comparison with string", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  requires: user.age < "old"\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.expression.typeMismatch"));
+});
+
+test("reports expression type mismatch for arithmetic with string", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  ensures: user.score = "bad" + 1\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.expression.typeMismatch"));
+});
+
+test("reports circular dependencies between derived entity values", () => {
+  const findings = analyzeAllium(`entity Stats {\n  a: b + 1\n  b: a + 1\n}\n`);
+  assert.ok(
+    findings.some((f) => f.code === "allium.derived.circularDependency"),
+  );
+});
+
 test("reports undefined config reference", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping()\n  ensures: now + config.missing\n}`,
