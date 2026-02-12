@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import { findDefinitionsAtOffset } from "./language-tools/definitions";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
+import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
 import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
@@ -101,6 +102,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerHoverProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumHoverProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerFoldingRangeProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumFoldingRangeProvider()
     )
   );
 }
@@ -270,5 +278,12 @@ class AlliumHoverProvider implements vscode.HoverProvider {
       return null;
     }
     return new vscode.Hover(message);
+  }
+}
+
+class AlliumFoldingRangeProvider implements vscode.FoldingRangeProvider {
+  provideFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
+    const blocks = collectTopLevelFoldingBlocks(document.getText());
+    return blocks.map((block) => new vscode.FoldingRange(block.startLine, block.endLine));
   }
 }

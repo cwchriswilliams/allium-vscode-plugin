@@ -223,3 +223,10 @@ rule ProvideKeywordHoverDocumentation {
 
     ensures: HoverDocumentationReturned()
 }
+
+rule ProvideTopLevelFoldingRanges {
+    when: FoldingRangesRequested(document)
+    requires: document.language_id = "allium"
+
+    ensures: FoldingRangeReturned(for: top_level_blocks)
+}
