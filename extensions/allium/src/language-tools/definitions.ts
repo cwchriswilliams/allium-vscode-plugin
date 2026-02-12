@@ -1,0 +1,120 @@
+export interface DefinitionSite {
+  name: string;
+  startOffset: number;
+  endOffset: number;
+}
+
+export interface DefinitionLookup {
+  symbols: DefinitionSite[];
+  configKeys: DefinitionSite[];
+}
+
+export function buildDefinitionLookup(text: string): DefinitionLookup {
+  return {
+    symbols: collectNamedDefinitions(text),
+    configKeys: collectConfigKeys(text)
+  };
+}
+
+export function findDefinitionsAtOffset(text: string, offset: number): DefinitionSite[] {
+  const token = tokenAtOffset(text, offset);
+  if (!token) {
+    return [];
+  }
+
+  const lookup = buildDefinitionLookup(text);
+  if (token.kind === "configKey") {
+    return lookup.configKeys.filter((entry) => entry.name === token.name);
+  }
+  return lookup.symbols.filter((entry) => entry.name === token.name);
+}
+
+function collectNamedDefinitions(text: string): DefinitionSite[] {
+  const patterns = [
+    /^\s*entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm
+  ];
+
+  const out: DefinitionSite[] = [];
+  for (const pattern of patterns) {
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      const name = match[1];
+      const startOffset = match.index + match[0].indexOf(name);
+      out.push({ name, startOffset, endOffset: startOffset + name.length });
+    }
+  }
+  return out;
+}
+
+function collectConfigKeys(text: string): DefinitionSite[] {
+  const out: DefinitionSite[] = [];
+  const blockPattern = /^\s*config\s*\{/gm;
+
+  for (let block = blockPattern.exec(text); block; block = blockPattern.exec(text)) {
+    const openOffset = text.indexOf("{", block.index);
+    if (openOffset < 0) {
+      continue;
+    }
+    const closeOffset = findMatchingBrace(text, openOffset);
+    if (closeOffset < 0) {
+      continue;
+    }
+
+    const body = text.slice(openOffset + 1, closeOffset);
+    const keyPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
+    for (let match = keyPattern.exec(body); match; match = keyPattern.exec(body)) {
+      const name = match[1];
+      const startOffset = openOffset + 1 + match.index + match[0].indexOf(name);
+      out.push({ name, startOffset, endOffset: startOffset + name.length });
+    }
+  }
+
+  return out;
+}
+
+function tokenAtOffset(text: string, offset: number): { name: string; kind: "symbol" | "configKey" } | null {
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+
+  const isIdent = (char: string | undefined): boolean => !!char && /[A-Za-z0-9_]/.test(char);
+  let start = offset;
+  while (start > 0 && isIdent(text[start - 1])) {
+    start -= 1;
+  }
+  let end = offset;
+  while (end < text.length && isIdent(text[end])) {
+    end += 1;
+  }
+  if (start === end) {
+    return null;
+  }
+
+  const name = text.slice(start, end);
+  const prefixStart = start - "config.".length;
+  if (prefixStart >= 0 && text.slice(prefixStart, start) === "config.") {
+    return { name, kind: "configKey" };
+  }
+  return { name, kind: "symbol" };
+}
+
+function findMatchingBrace(text: string, openOffset: number): number {
+  let depth = 0;
+  for (let i = openOffset; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return i;
+      }
+    }
+  }
+  return -1;
+}

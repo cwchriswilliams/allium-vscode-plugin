@@ -207,3 +207,11 @@ rule BuildOutlineSymbols {
     ensures: SymbolListed(kind: surface, label: "<surface_name>")
     ensures: SymbolListed(kind: actor, label: "<actor_name>")
 }
+
+rule ResolveLocalDefinitions {
+    when: DefinitionRequested(document, symbol_at_cursor)
+    requires: document.language_id = "allium"
+    requires: symbol_at_cursor references local declaration or config key
+
+    ensures: DefinitionLocationReturned()
+}

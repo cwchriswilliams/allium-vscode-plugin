@@ -112,6 +112,7 @@ Then migrate to semantic refactors via parser AST + symbol table.
 
 Current status:
 - Implemented: document symbols and outline for top-level Allium blocks.
+- Implemented: go to definition for local top-level symbols and `config.<key>` references.
 
 ## Engineering Approach
 

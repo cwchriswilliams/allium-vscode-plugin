@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
+import { findDefinitionsAtOffset } from "./language-tools/definitions";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
@@ -85,6 +86,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentSymbolProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumDocumentSymbolProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumDefinitionProvider()
     )
   );
 }
@@ -231,4 +239,17 @@ function toSymbolKind(type: ReturnType<typeof collectAlliumSymbols>[number]["typ
     return vscode.SymbolKind.Module;
   }
   return vscode.SymbolKind.Class;
+}
+
+class AlliumDefinitionProvider implements vscode.DefinitionProvider {
+  provideDefinition(document: vscode.TextDocument, position: vscode.Position): vscode.Location[] {
+    const text = document.getText();
+    const offset = document.offsetAt(position);
+    const matches = findDefinitionsAtOffset(text, offset);
+    return matches.map((match) => {
+      const start = document.positionAt(match.startOffset);
+      const end = document.positionAt(match.endOffset);
+      return new vscode.Location(document.uri, new vscode.Range(start, end));
+    });
+  }
 }
