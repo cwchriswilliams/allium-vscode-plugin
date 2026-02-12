@@ -1,0 +1,8 @@
+entity Invitation {
+  status: pending | active | completed
+}
+
+rule Notify {
+  when: Invitation.created()
+  ensures: Invitation.sent()
+}

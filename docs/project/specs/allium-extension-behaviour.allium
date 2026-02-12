@@ -266,6 +266,21 @@ rule RefactorExtractRepeatedLiteralToConfig {
     )
 }
 
+rule RefactorInlineEnumToNamedEnum {
+    when: RefactorRequestedFromSelection(selection)
+    requires: selection.line contains inline_enum_field
+    requires: inline_enum_field.values_are_lowercase_literals = true
+
+    ensures: EditProposed(
+    title: "Extract inline enum to named enum",
+    insertion: "enum <GeneratedName> { <values> }"
+    )
+    ensures: EditProposed(
+    title: "Extract inline enum to named enum",
+    replacement: "<field>: <GeneratedName>"
+    )
+}
+
 rule BuildOutlineSymbols {
     when: OutlineRequested(document)
     requires: document.language_id = "allium"

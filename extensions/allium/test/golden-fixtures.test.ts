@@ -4,6 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { formatAlliumText } from "../src/format";
 import { planExtractLiteralToConfig } from "../src/language-tools/extract-literal-refactor";
+import { planExtractInlineEnumToNamedEnum } from "../src/language-tools/extract-inline-enum-refactor";
 
 const fixturesRoot = path.resolve("test/fixtures");
 
@@ -34,6 +35,24 @@ test("golden fixture: extract literal refactor", () => {
   const start = input.indexOf(literal);
   const end = start + literal.length;
   const plan = planExtractLiteralToConfig(input, start, end);
+  assert.ok(plan);
+
+  const actual = applyEdits(input, plan.edits);
+  assert.equal(actual, expected);
+});
+
+test("golden fixture: extract inline enum refactor", () => {
+  const input = fs.readFileSync(
+    path.join(fixturesRoot, "refactor/extract-inline-enum.input.allium"),
+    "utf8",
+  );
+  const expected = fs.readFileSync(
+    path.join(fixturesRoot, "refactor/extract-inline-enum.expected.allium"),
+    "utf8",
+  );
+
+  const start = input.indexOf("status:");
+  const plan = planExtractInlineEnumToNamedEnum(input, start);
   assert.ok(plan);
 
   const actual = applyEdits(input, plan.edits);

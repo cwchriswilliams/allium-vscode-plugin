@@ -103,6 +103,7 @@ Formatting settings:
   - insert `-- allium-ignore <code>` suppression directive for diagnostics
 - Refactorings:
   - extract repeated string/integer literal to `config.<key>`
+  - extract inline enum field literals to a named top-level `enum`
   - add temporal guard from selected temporal `when:` line
 
 ### Productivity features

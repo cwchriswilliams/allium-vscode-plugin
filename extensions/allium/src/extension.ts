@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { planExtractInlineEnumToNamedEnum } from "./language-tools/extract-inline-enum-refactor";
 import {
   findDefinitionsAtOffset,
   importedSymbolAtOffset,
@@ -320,6 +321,25 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         new vscode.Range(start, end),
         temporalGuardPlan.edit.text,
       );
+      action.edit = edit;
+      actions.push(action);
+    }
+
+    const inlineEnumPlan = planExtractInlineEnumToNamedEnum(
+      document.getText(),
+      document.offsetAt(range.start),
+    );
+    if (inlineEnumPlan) {
+      const action = new vscode.CodeAction(
+        inlineEnumPlan.title,
+        vscode.CodeActionKind.RefactorRewrite,
+      );
+      const edit = new vscode.WorkspaceEdit();
+      for (const change of inlineEnumPlan.edits) {
+        const start = document.positionAt(change.startOffset);
+        const end = document.positionAt(change.endOffset);
+        edit.replace(document.uri, new vscode.Range(start, end), change.text);
+      }
       action.edit = edit;
       actions.push(action);
     }

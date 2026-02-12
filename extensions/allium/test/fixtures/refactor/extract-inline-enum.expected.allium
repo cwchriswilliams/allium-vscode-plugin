@@ -1,0 +1,12 @@
+enum Status {
+    pending | active | completed
+}
+
+entity Invitation {
+  status: Status
+}
+
+rule Notify {
+  when: Invitation.created()
+  ensures: Invitation.sent()
+}

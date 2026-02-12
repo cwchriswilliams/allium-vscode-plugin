@@ -102,7 +102,7 @@ Initial refactors via Code Actions:
 Current status:
 - Implemented: extract repeated literal to `config`.
 - Implemented: add temporal guard from selected `when` condition.
-- Pending: inline enum conversion to named `enum`.
+- Implemented: inline enum conversion to named `enum`.
 - Implemented: command to apply all safe built-in quick fixes in one action.
 - Implemented: quick fix action to add `-- allium-ignore <code>` suppression directives.
 
