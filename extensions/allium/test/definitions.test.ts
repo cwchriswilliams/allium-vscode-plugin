@@ -17,8 +17,13 @@ enum Recommendation {
   strong_yes | yes | no | strong_no
 }
 
+default Role viewer = {
+  name: "viewer"
+}
+
 rule ExpireInvitation {
   when: invitation: Invitation.expires_at <= now
+  requires: invitation.role = viewer
   requires: invitation.recommendation = Recommendation.yes
   ensures: invitation.status = "expired"
 }
@@ -28,6 +33,7 @@ rule ExpireInvitation {
     "ExpireInvitation",
     "Invitation",
     "Recommendation",
+    "viewer",
   ]);
 });
 
@@ -95,6 +101,23 @@ rule A {
   const matches = findDefinitionsAtOffset(text, usageOffset);
   assert.equal(matches.length, 1);
   assert.equal(matches[0].name, "Recommendation");
+});
+
+test("finds default instance definition at usage offset", () => {
+  const text = `
+default Role viewer = {
+  name: "viewer"
+}
+
+rule A {
+  when: Ping()
+  ensures: role = viewer
+}
+`;
+  const usageOffset = text.indexOf("role = viewer") + "role = view".length;
+  const matches = findDefinitionsAtOffset(text, usageOffset);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].name, "viewer");
 });
 
 test("parses use aliases from document", () => {

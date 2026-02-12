@@ -401,6 +401,8 @@ function toSymbolKind(
     | "value"
     | "variant"
     | "enum"
+    | "default"
+    | "default_instance"
     | "config_key",
 ): vscode.SymbolKind {
   if (type === "entity" || type === "external_entity") {
@@ -423,6 +425,9 @@ function toSymbolKind(
   }
   if (type === "config_key") {
     return vscode.SymbolKind.Property;
+  }
+  if (type === "default" || type === "default_instance") {
+    return vscode.SymbolKind.Constant;
   }
   if (type === "config") {
     return vscode.SymbolKind.Module;

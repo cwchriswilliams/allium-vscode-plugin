@@ -6,6 +6,7 @@ export interface DefinitionSite {
     | "value"
     | "variant"
     | "enum"
+    | "default_instance"
     | "rule"
     | "surface"
     | "actor"
@@ -72,6 +73,22 @@ function collectNamedDefinitions(text: string): DefinitionSite[] {
         endOffset: startOffset + name.length,
       });
     }
+  }
+  const defaultPattern =
+    /^\s*default\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*=/gm;
+  for (
+    let match = defaultPattern.exec(text);
+    match;
+    match = defaultPattern.exec(text)
+  ) {
+    const name = match[2] ?? match[1];
+    const startOffset = match.index + match[0].indexOf(name);
+    out.push({
+      name,
+      kind: "default_instance",
+      startOffset,
+      endOffset: startOffset + name.length,
+    });
   }
   return out;
 }

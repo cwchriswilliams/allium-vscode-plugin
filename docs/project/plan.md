@@ -133,6 +133,7 @@ Current status:
 - Implemented: semantic token provider for Allium declarations/keywords/literals.
 - Implemented: completion provider for core keywords and `config.<key>` suggestions.
 - Implemented: named `enum` declarations in definitions/outline/folding and related editor semantics.
+- Implemented: `default` declarations in definitions/outline and related editor semantics.
 
 ## Engineering Approach
 

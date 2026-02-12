@@ -311,6 +311,7 @@ rule BuildOutlineSymbols {
     ensures: SymbolListed(kind: value, label: "<value_name>")
     ensures: SymbolListed(kind: variant, label: "<variant_name>")
     ensures: SymbolListed(kind: enum, label: "<enum_name>")
+    ensures: SymbolListed(kind: default, label: "<default_instance_name>")
     ensures: SymbolListed(kind: rule, label: "<rule_name>")
     ensures: SymbolListed(kind: surface, label: "<surface_name>")
     ensures: SymbolListed(kind: actor, label: "<actor_name>")

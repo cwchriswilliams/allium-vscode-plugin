@@ -6,7 +6,7 @@ export interface FoldingBlock {
 export function collectTopLevelFoldingBlocks(text: string): FoldingBlock[] {
   const blocks: FoldingBlock[] = [];
   const blockStart =
-    /^\s*(entity|external\s+entity|value|variant|enum|rule|surface|actor|config)\b[^{]*\{/gm;
+    /^\s*(entity|external\s+entity|value|variant|enum|default|rule|surface|actor|config)\b[^{]*\{/gm;
 
   for (
     let match = blockStart.exec(text);

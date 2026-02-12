@@ -4,6 +4,7 @@ export type AlliumSymbolType =
   | "value"
   | "variant"
   | "enum"
+  | "default"
   | "rule"
   | "surface"
   | "actor"
@@ -77,6 +78,7 @@ export function collectAlliumSymbols(text: string): AlliumSymbol[] {
       "actor",
     ),
   );
+  symbols.push(...findDefaultDeclarations(text));
   symbols.push(...findConfigBlocks(text));
 
   return symbols.sort((a, b) => a.startOffset - b.startOffset);
@@ -138,6 +140,27 @@ function findConfigBlocks(text: string): AlliumSymbol[] {
     });
   }
 
+  return symbols;
+}
+
+function findDefaultDeclarations(text: string): AlliumSymbol[] {
+  const symbols: AlliumSymbol[] = [];
+  const pattern =
+    /^\s*default\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*=/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const name = match[2] ?? match[1];
+    const nameStartOffset = match.index + match[0].indexOf(name);
+    const lineEndIndex = text.indexOf("\n", match.index);
+    const endOffset = lineEndIndex >= 0 ? lineEndIndex : text.length;
+    symbols.push({
+      type: "default",
+      name,
+      startOffset: match.index,
+      endOffset,
+      nameStartOffset,
+      nameEndOffset: nameStartOffset + name.length,
+    });
+  }
   return symbols;
 }
 
