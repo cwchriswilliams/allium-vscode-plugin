@@ -383,3 +383,22 @@ test("does not report known status assignment value", () => {
     false,
   );
 });
+
+test("reports provides trigger missing external stimulus definition", () => {
+  const findings = analyzeAllium(
+    `rule TriggerA {\n  when: UserRequested()\n  ensures: Done()\n}\n\nsurface Dashboard {\n  for viewer: User\n  provides:\n    MissingTrigger(viewer: viewer)\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.surface.undefinedProvidesTrigger"),
+  );
+});
+
+test("does not report provides trigger when defined by external stimulus rule", () => {
+  const findings = analyzeAllium(
+    `rule TriggerA {\n  when: TriggerA(viewer)\n  ensures: Done()\n}\n\nsurface Dashboard {\n  for viewer: User\n  provides:\n    TriggerA(viewer: viewer)\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.undefinedProvidesTrigger"),
+    false,
+  );
+});

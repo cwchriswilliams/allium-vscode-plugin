@@ -432,6 +432,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UndefinedProvidesTriggerIsError {
+        when: SurfaceProvidesEntryParsed(entry)
+        requires: entry.trigger_name not defined_as_external_stimulus_trigger
+
+        ensures: Finding.created(
+        code: "allium.surface.undefinedProvidesTrigger",
+        severity: error
+        )
+    }
+
     rule SuppressionCommentDisablesDiagnostic {
         when: SuppressionDirectiveParsed(line, code)
         requires: code = "all" or code = finding.code

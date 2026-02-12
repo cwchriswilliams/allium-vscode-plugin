@@ -113,6 +113,7 @@ export function analyzeAllium(
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
+  findings.push(...findSurfaceProvidesTriggerIssues(lineStarts, blocks, text));
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
@@ -1013,6 +1014,99 @@ function findSurfaceNamedBlockUniquenessIssues(
     );
   }
   return findings;
+}
+
+function findSurfaceProvidesTriggerIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+  text: string,
+): Finding[] {
+  const findings: Finding[] = [];
+  const knownExternalTriggers = collectExternalStimulusTriggers(text);
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  for (const surface of surfaces) {
+    const providesCalls = parseProvidesTriggerCalls(surface.body);
+    for (const call of providesCalls) {
+      if (knownExternalTriggers.has(call.name)) {
+        continue;
+      }
+      const offset = surface.startOffset + 1 + call.offsetInBody;
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + call.name.length,
+          "allium.surface.undefinedProvidesTrigger",
+          `Surface '${surface.name}' provides trigger '${call.name}' which is not defined as an external stimulus rule trigger.`,
+          "error",
+        ),
+      );
+    }
+  }
+  return findings;
+}
+
+function collectExternalStimulusTriggers(text: string): Set<string> {
+  const out = new Set<string>();
+  const rulePattern = /^\s*rule\s+[A-Za-z_][A-Za-z0-9_]*\s*\{([\s\S]*?)^\s*}/gm;
+  for (let rule = rulePattern.exec(text); rule; rule = rulePattern.exec(text)) {
+    const body = rule[1];
+    const whenLine = body.match(/^\s*when\s*:\s*(.+)$/m);
+    if (!whenLine) {
+      continue;
+    }
+    const trigger = whenLine[1].trim();
+    if (
+      trigger.includes(":") ||
+      /\b(becomes|<=|>=|<|>|and|or|if|exists)\b/.test(trigger)
+    ) {
+      continue;
+    }
+    const callMatch = trigger.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+    if (callMatch) {
+      out.add(callMatch[1]);
+    }
+  }
+  return out;
+}
+
+function parseProvidesTriggerCalls(
+  body: string,
+): Array<{ name: string; offsetInBody: number }> {
+  const calls: Array<{ name: string; offsetInBody: number }> = [];
+  const sectionPattern = /^(\s*)provides\s*:\s*$/gm;
+  for (
+    let section = sectionPattern.exec(body);
+    section;
+    section = sectionPattern.exec(body)
+  ) {
+    const baseIndent = (section[1] ?? "").length;
+    let cursor = section.index + section[0].length + 1;
+    while (cursor < body.length) {
+      const lineEnd = body.indexOf("\n", cursor);
+      const end = lineEnd >= 0 ? lineEnd : body.length;
+      const line = body.slice(cursor, end);
+      const trimmed = line.trim();
+      const indent = (line.match(/^\s*/) ?? [""])[0].length;
+
+      if (trimmed.length === 0) {
+        cursor = end + 1;
+        continue;
+      }
+      if (indent <= baseIndent) {
+        break;
+      }
+      const callMatch = line.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+      if (callMatch) {
+        calls.push({
+          name: callMatch[1],
+          offsetInBody: cursor + line.indexOf(callMatch[1]),
+        });
+      }
+      cursor = end + 1;
+    }
+  }
+  return calls;
 }
 
 function findUnusedEntityIssues(text: string, lineStarts: number[]): Finding[] {
