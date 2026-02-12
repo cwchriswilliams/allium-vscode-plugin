@@ -91,7 +91,7 @@ Current status:
 - Implemented sum-type guard checks for variant-specific field access (`allium.sum.unguardedVariantFieldAccess`).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
-- Implemented rule binding resolution checks (`allium.rule.undefinedBinding`) for unresolved unqualified dotted references.
+- Implemented rule binding resolution checks (`allium.rule.undefinedBinding`) for unresolved dotted references, `exists` names, and `for ... in` sources.
 - Implemented status-assignment enum checks (`allium.status.undefinedValue`).
 - Implemented status-machine heuristic checks for unassigned and no-exit status values (`allium.status.unreachableValue`, `allium.status.noExit`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).

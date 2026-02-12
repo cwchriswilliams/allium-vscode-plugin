@@ -994,6 +994,66 @@ function findRuleUndefinedBindingIssues(
         ),
       );
     }
+
+    const existsPattern = /\bexists\s+([a-z_][a-z0-9_]*)\b/g;
+    for (
+      let match = existsPattern.exec(rule.body);
+      match;
+      match = existsPattern.exec(rule.body)
+    ) {
+      const root = match[1];
+      if (isCommentLineAtIndex(rule.body, match.index)) {
+        continue;
+      }
+      if (root === "config" || root === "now" || bound.has(root)) {
+        continue;
+      }
+      if (seenUnknown.has(root)) {
+        continue;
+      }
+      seenUnknown.add(root);
+      const absoluteOffset =
+        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          absoluteOffset,
+          absoluteOffset + root.length,
+          "allium.rule.undefinedBinding",
+          `Rule '${rule.name}' references '${root}' but no matching binding exists in context, trigger params, default instances, or local lets.`,
+          "error",
+        ),
+      );
+    }
+
+    const forInPattern =
+      /^\s*for\s+[A-Za-z_][A-Za-z0-9_]*\s+in\s+([a-z_][a-z0-9_]*)\b/gm;
+    for (
+      let match = forInPattern.exec(rule.body);
+      match;
+      match = forInPattern.exec(rule.body)
+    ) {
+      const root = match[1];
+      if (root === "config" || root === "now" || bound.has(root)) {
+        continue;
+      }
+      if (seenUnknown.has(root)) {
+        continue;
+      }
+      seenUnknown.add(root);
+      const absoluteOffset =
+        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          absoluteOffset,
+          absoluteOffset + root.length,
+          "allium.rule.undefinedBinding",
+          `Rule '${rule.name}' references '${root}' but no matching binding exists in context, trigger params, default instances, or local lets.`,
+          "error",
+        ),
+      );
+    }
   }
 
   return findings;

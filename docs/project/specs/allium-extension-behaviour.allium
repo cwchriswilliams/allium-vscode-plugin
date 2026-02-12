@@ -446,7 +446,7 @@ rule VariantDeclarationRequiresVariantKeyword {
 
     rule UndefinedRuleBindingIsError {
         when: RuleClauseParsed(clause)
-        requires: clause.references_unqualified_binding = true
+        requires: clause.references_unqualified_binding_or_exists_for_source = true
         requires: referenced_binding not resolved_from [context, trigger_parameters, default_instances, let_bindings, for_bindings]
 
         ensures: Finding.created(

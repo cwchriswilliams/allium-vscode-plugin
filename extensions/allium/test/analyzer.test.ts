@@ -527,6 +527,20 @@ test("does not report lambda parameter as undefined binding", () => {
   );
 });
 
+test("reports undefined binding in exists expression", () => {
+  const findings = analyzeAllium(
+    `rule Check {\n  when: Ping()\n  requires: exists candidate\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.undefinedBinding"));
+});
+
+test("reports undefined binding in for-in source", () => {
+  const findings = analyzeAllium(
+    `rule Iterate {\n  when: Ping()\n  for item in items:\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.undefinedBinding"));
+});
+
 test("reports entity declared but never referenced", () => {
   const findings = analyzeAllium(`entity Invitation {\n  status: String\n}\n`);
   assert.ok(findings.some((f) => f.code === "allium.entity.unused"));

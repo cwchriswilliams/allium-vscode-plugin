@@ -93,7 +93,7 @@ Implemented checks:
 - undefined imported alias in field type references (for `<alias>/<Type>`)
 - undefined rule trigger/creation type reference
 - undefined imported alias in rule trigger/creation type reference
-- undefined rule binding reference (not resolved from context/trigger/default/let/for)
+- undefined rule binding reference (including unresolved dotted roots, `exists <name>`, and `for ... in <name>` sources)
 - undefined status value assigned in `ensures` against entity status enum
 - status enum values never assigned by any rule (`unreachable` state hints)
 - non-terminal status enum values with no observed exit transitions
