@@ -2,6 +2,7 @@
   "name": "allium-vscode-plugin-workspace",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "workspaces": ["extensions/allium"],
   "scripts": {
     "build": "npm run --workspaces build",

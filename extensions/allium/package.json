@@ -3,6 +3,7 @@
   "displayName": "Allium",
   "description": "Syntax highlighting, snippets, diagnostics, and quick fixes for Allium.",
   "version": "0.1.0",
+  "license": "MIT",
   "publisher": "local",
   "files": ["dist/**", "language-basics/**", "README.md", "package.json"],
   "engines": {
