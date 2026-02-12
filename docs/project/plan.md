@@ -153,3 +153,12 @@ Current implementation will proceed with defaults unless you override:
 - Initial implementation exists as `extensions/allium/src/check.ts`; next iteration should package and document it as a stable external workflow.
 - Workspace command added: `npm run check -- <file|directory|glob>` delegates to the standalone checker.
 - Standalone formatter added: `npm run format:allium -- <file|directory|glob>` for project-local `.allium` formatting.
+
+## High Priority Next Work
+
+- Consumer distribution before Marketplace:
+  - Add repeatable VSIX packaging/release instructions and artifacts so users can install without running extension dev mode.
+- Publish standalone CLI tooling:
+  - Package `allium-check` and `allium-format` as independently consumable versioned npm deliverables (without requiring full repo checkout).
+- Improve Allium formatter depth:
+  - Move beyond whitespace normalization to structure-aware formatting for common Allium constructs.
