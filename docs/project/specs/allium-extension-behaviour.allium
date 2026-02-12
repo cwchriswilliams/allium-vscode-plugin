@@ -176,6 +176,16 @@ rule DuplicateDefaultInstanceNameIsError {
     )
 }
 
+rule UndefinedDefaultTypeIsError {
+    when: DefaultDeclarationParsed(default_instance)
+    requires: default_instance.type_not_declared_locally_or_imported = true
+
+    ensures: Finding.created(
+    code: "allium.default.undefinedType",
+    severity: error
+    )
+}
+
 rule ConfigParameterNeedsTypeAndDefault {
     when: ConfigBlockParsed(config_block)
     requires: config_block.parameter_missing_type_or_default = true

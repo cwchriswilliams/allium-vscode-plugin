@@ -100,7 +100,7 @@ Current status:
 - Implemented warning checks for unused entities and external entity source hints.
 - Implemented informational unused-field checks (`allium.field.unused`).
 - Implemented warning checks for deferred specifications missing location hints.
-- Implemented config/default parameter and duplicate-name checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`, `allium.default.duplicateName`).
+- Implemented config/default parameter and duplicate/undefined-type checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`, `allium.default.duplicateName`, `allium.default.undefinedType`).
 - Implemented contradictory-requires warning for rules that may never fire (`allium.rule.neverFires`).
 - Implemented expression semantic checks for obvious type mismatches and derived cycles (`allium.expression.typeMismatch`, `allium.derived.circularDependency`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.

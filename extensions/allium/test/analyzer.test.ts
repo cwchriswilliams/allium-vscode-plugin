@@ -80,6 +80,21 @@ test("does not report distinct named default instances", () => {
   );
 });
 
+test("reports undefined type in default declaration", () => {
+  const findings = analyzeAllium(`default MissingType item = {\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.default.undefinedType"));
+});
+
+test("does not report defined type in default declaration", () => {
+  const findings = analyzeAllium(
+    `entity Role {\n  name: String\n}\n\ndefault Role viewer = {\n  name: "viewer"\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.default.undefinedType"),
+    false,
+  );
+});
+
 test("reports duplicate let bindings", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping()\n  let x = 1\n  let x = 2\n  ensures: Done()\n}`,

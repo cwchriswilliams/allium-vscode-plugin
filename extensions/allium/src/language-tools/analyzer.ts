@@ -99,6 +99,7 @@ export function analyzeAllium(
 
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
   findings.push(...findDuplicateDefaultNames(text, lineStarts));
+  findings.push(...findDefaultTypeReferenceIssues(text, lineStarts, blocks));
   findings.push(...findConfigParameterShapeIssues(lineStarts, blocks));
   findings.push(...findUndefinedConfigReferences(text, lineStarts, blocks));
   findings.push(
@@ -555,6 +556,49 @@ function findDuplicateDefaultNames(
       );
     }
     seen.add(instanceName);
+  }
+  return findings;
+}
+
+function findDefaultTypeReferenceIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const declaredTypes = new Set<string>([
+    ...collectDeclaredTypeNames(text),
+    "String",
+    "Integer",
+    "Decimal",
+    "Boolean",
+    "Timestamp",
+    "Duration",
+    "List",
+    "Set",
+    "Map",
+  ]);
+  const aliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+  const pattern =
+    /^\s*default\s+([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)(?:\s+[A-Za-z_][A-Za-z0-9_]*)?\s*=/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const typeName = match[1];
+    const offset = match.index + match[0].indexOf(typeName);
+    findings.push(
+      ...validateTypeNameReference(
+        typeName,
+        offset,
+        lineStarts,
+        declaredTypes,
+        aliases,
+        "allium.default.undefinedType",
+        "allium.default.undefinedImportedAlias",
+      ),
+    );
   }
   return findings;
 }
