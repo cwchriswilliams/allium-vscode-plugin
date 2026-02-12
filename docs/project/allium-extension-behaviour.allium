@@ -196,3 +196,14 @@ rule RefactorTemporalWhenToGuardedRule {
         insertion: "requires: /* add temporal guard */"
     )
 }
+
+rule BuildOutlineSymbols {
+    when: OutlineRequested(document)
+    requires: document.language_id = "allium"
+
+    ensures: SymbolListed(kind: config, label: "config")
+    ensures: SymbolListed(kind: entity, label: "<entity_name>")
+    ensures: SymbolListed(kind: rule, label: "<rule_name>")
+    ensures: SymbolListed(kind: surface, label: "<surface_name>")
+    ensures: SymbolListed(kind: actor, label: "<actor_name>")
+}

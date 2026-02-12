@@ -110,6 +110,9 @@ Then migrate to semantic refactors via parser AST + symbol table.
 - Formatting (if grammar stabilizes).
 - Semantic tokens (post parser maturity).
 
+Current status:
+- Implemented: document symbols and outline for top-level Allium blocks.
+
 ## Engineering Approach
 
 - TypeScript strict mode.

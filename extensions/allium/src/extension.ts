@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
+import { collectAlliumSymbols } from "./language-tools/outline";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 
@@ -77,6 +78,13 @@ export function activate(context: vscode.ExtensionContext): void {
           vscode.CodeActionKind.RefactorRewrite
         ]
       }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSymbolProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumDocumentSymbolProvider()
     )
   );
 }
@@ -186,4 +194,41 @@ function toDiagnosticSeverity(severity: "error" | "warning" | "info"): vscode.Di
     return vscode.DiagnosticSeverity.Warning;
   }
   return vscode.DiagnosticSeverity.Information;
+}
+
+class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+  provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
+    const text = document.getText();
+    const symbols = collectAlliumSymbols(text);
+    return symbols.map((symbol) => {
+      const range = new vscode.Range(
+        document.positionAt(symbol.startOffset),
+        document.positionAt(symbol.endOffset + 1)
+      );
+      const selectionRange = new vscode.Range(
+        document.positionAt(symbol.nameStartOffset),
+        document.positionAt(symbol.nameEndOffset)
+      );
+      return new vscode.DocumentSymbol(
+        symbol.name,
+        symbol.type,
+        toSymbolKind(symbol.type),
+        range,
+        selectionRange
+      );
+    });
+  }
+}
+
+function toSymbolKind(type: ReturnType<typeof collectAlliumSymbols>[number]["type"]): vscode.SymbolKind {
+  if (type === "rule") {
+    return vscode.SymbolKind.Method;
+  }
+  if (type === "surface") {
+    return vscode.SymbolKind.Interface;
+  }
+  if (type === "config") {
+    return vscode.SymbolKind.Module;
+  }
+  return vscode.SymbolKind.Class;
 }
