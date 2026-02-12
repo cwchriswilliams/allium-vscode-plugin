@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
+import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 
@@ -69,7 +70,7 @@ export function activate(context: vscode.ExtensionContext): void {
       ALLIUM_LANGUAGE_ID,
       new AlliumQuickFixProvider(),
       {
-        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.RefactorExtract]
       }
     )
   );
@@ -82,7 +83,7 @@ export function deactivate(): void {
 class AlliumQuickFixProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
-    _range: vscode.Range,
+    range: vscode.Range,
     context: vscode.CodeActionContext
   ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
@@ -120,6 +121,26 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         action.edit = edit;
         actions.push(action);
       }
+    }
+
+    const extractPlan = planExtractLiteralToConfig(
+      document.getText(),
+      document.offsetAt(range.start),
+      document.offsetAt(range.end)
+    );
+    if (extractPlan) {
+      const action = new vscode.CodeAction(
+        extractPlan.title,
+        vscode.CodeActionKind.RefactorExtract
+      );
+      const edit = new vscode.WorkspaceEdit();
+      for (const change of extractPlan.edits) {
+        const start = document.positionAt(change.startOffset);
+        const end = document.positionAt(change.endOffset);
+        edit.replace(document.uri, new vscode.Range(start, end), change.text);
+      }
+      action.edit = edit;
+      actions.push(action);
     }
 
     return actions;

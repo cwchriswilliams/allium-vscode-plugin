@@ -134,3 +134,8 @@ Current implementation will proceed with defaults unless you override:
 - `open_question`: `Information`
 - packaging: one extension (`allium`) with internal split
 - diagnostics mode: strict by default, configurable to relaxed
+
+## Future Considerations
+
+- Add an independent `check` tool (CLI or library-backed command) so users can run Allium validation outside VS Code.
+- Evaluate architecture options for sharing analyzer logic between extension-host diagnostics and the standalone check tool without duplicating rules.
