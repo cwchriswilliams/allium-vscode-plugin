@@ -181,6 +181,7 @@ When modifying code or tests:
 
 ## 8. Sources of truth
 
+* **Allium language semantics and syntax:** https://juxt.github.io/allium/language (authoritative for any language-level behaviour in this repository)
 * **Architecture & key concepts:** `README.md` (read at the start of each session)
 * **Current understanding of an individual task:** `./llm-tasks/<task-id>.md`
 * **Task status and lifecycle:** external issue tracker

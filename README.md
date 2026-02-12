@@ -263,3 +263,4 @@ Pre-commit runs:
 
 - All feature work must include updating Allium specs under `docs/project/specs/` when behavior changes.
 - Specs should describe current, intended behavior and stay aligned with tooling implementation.
+- All language-level behavior must align with the official Allium language reference: `https://juxt.github.io/allium/language`.
