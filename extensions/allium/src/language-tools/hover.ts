@@ -23,6 +23,38 @@ export function hoverTextAtOffset(text: string, offset: number): string | null {
   return HOVER_DOCS[token] ?? null;
 }
 
+export function findLeadingDocComment(
+  text: string,
+  declarationStartOffset: number,
+): string | null {
+  const lineStart = text.lastIndexOf("\n", declarationStartOffset - 1) + 1;
+  let cursor = lineStart - 1;
+  const commentLines: string[] = [];
+
+  while (cursor >= 0) {
+    const previousLineEnd = cursor;
+    const previousLineStart = text.lastIndexOf("\n", previousLineEnd - 1) + 1;
+    const line = text.slice(previousLineStart, previousLineEnd).trimEnd();
+    if (line.trim().length === 0) {
+      if (commentLines.length === 0) {
+        cursor = previousLineStart - 1;
+        continue;
+      }
+      break;
+    }
+    if (!/^\s*--/.test(line)) {
+      break;
+    }
+    commentLines.push(line.replace(/^\s*--\s?/, ""));
+    cursor = previousLineStart - 1;
+  }
+
+  if (commentLines.length === 0) {
+    return null;
+  }
+  return commentLines.reverse().join("\n").trim();
+}
+
 function tokenAtOffset(text: string, offset: number): string | null {
   if (offset < 0 || offset >= text.length) {
     return null;

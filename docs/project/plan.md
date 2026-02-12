@@ -150,7 +150,10 @@ Current status:
 - Implemented: clickable document links for `use "... " as alias` import paths.
 - Implemented: find references for local symbols/config keys and imported symbols.
 - Implemented: local symbol rename provider.
+- Implemented: safer rename guardrails for ambiguous symbols and naming collisions.
 - Implemented: hover documentation for core Allium keywords.
+- Implemented: hover includes leading declaration comment blocks as symbol docs.
+- Implemented: cross-file imported symbol diagnostics (`allium.import.undefinedSymbol`).
 - Implemented: folding ranges for top-level blocks.
 - Implemented: VS Code document formatting via shared Allium formatter.
 - Implemented: spec health command for workspace-level Allium diagnostics summary.

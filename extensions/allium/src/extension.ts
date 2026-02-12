@@ -7,13 +7,15 @@ import {
   findDefinitionsAtOffset,
   importedSymbolAtOffset,
   parseUseAliases,
-  tokenAtOffset,
 } from "./language-tools/definitions";
 import { collectUseImportPaths } from "./language-tools/document-links";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
 import { formatAlliumText } from "./format";
-import { hoverTextAtOffset } from "./language-tools/hover";
+import {
+  findLeadingDocComment,
+  hoverTextAtOffset,
+} from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
 import { collectCompletionCandidates } from "./language-tools/completion";
@@ -35,6 +37,8 @@ import {
   resolveImportedDefinition,
 } from "./language-tools/workspace-index";
 import { collectWorkspaceSymbolRecords } from "./language-tools/workspace-symbols";
+import { collectUndefinedImportedSymbolFindings } from "./language-tools/imported-symbols";
+import { planRename, prepareRenameTarget } from "./language-tools/rename";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -51,7 +55,16 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const mode = readDiagnosticsMode();
-    const findings = analyzeAllium(document.getText(), { mode });
+    const baseFindings = analyzeAllium(document.getText(), { mode });
+    const workspaceRoot = workspaceRootForUri(document.uri);
+    const importedFindings = workspaceRoot
+      ? collectUndefinedImportedSymbolFindings(
+          document.uri.fsPath,
+          document.getText(),
+          buildWorkspaceIndex(workspaceRoot),
+        )
+      : [];
+    const findings = [...baseFindings, ...importedFindings];
     const converted = findings.map((finding) => {
       const severity = toDiagnosticSeverity(finding.severity);
       const diagnostic = new vscode.Diagnostic(
@@ -500,24 +513,18 @@ class AlliumRenameProvider implements vscode.RenameProvider {
     position: vscode.Position,
     newName: string,
   ): vscode.WorkspaceEdit | null {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
-      return null;
-    }
-
     const text = document.getText();
     const offset = document.offsetAt(position);
-    const token = tokenAtOffset(text, offset);
-    if (!token) {
-      return null;
-    }
-    const definitions = findDefinitionsAtOffset(text, offset);
-    if (definitions.length === 0) {
+    const rename = planRename(text, offset, newName);
+    if (!rename.plan) {
+      if (rename.error) {
+        throw new Error(rename.error);
+      }
       return null;
     }
 
     const edit = new vscode.WorkspaceEdit();
-    const references = findReferencesInText(text, definitions[0]);
-    for (const reference of references) {
+    for (const reference of rename.plan.references) {
       const start = document.positionAt(reference.startOffset);
       const end = document.positionAt(reference.endOffset);
       edit.replace(document.uri, new vscode.Range(start, end), newName);
@@ -531,7 +538,7 @@ class AlliumRenameProvider implements vscode.RenameProvider {
   ): vscode.Range | null {
     const text = document.getText();
     const offset = document.offsetAt(position);
-    const tokenRange = tokenRangeAtOffset(text, offset);
+    const tokenRange = prepareRenameTarget(text, offset);
     if (!tokenRange) {
       return null;
     }
@@ -563,6 +570,10 @@ class AlliumHoverProvider implements vscode.HoverProvider {
     }
     if (definitions.length > 0) {
       const symbol = definitions[0];
+      const docComment = findLeadingDocComment(text, symbol.startOffset);
+      if (docComment) {
+        lines.push(`\n${docComment}`);
+      }
       lines.push(`\nDeclared as \`${symbol.kind}\` in this file.`);
     } else {
       const imported = importedSymbolAtOffset(
@@ -986,29 +997,6 @@ function offsetToPosition(text: string, offset: number): vscode.Position {
     }
   }
   return new vscode.Position(line, character);
-}
-
-function tokenRangeAtOffset(
-  text: string,
-  offset: number,
-): { startOffset: number; endOffset: number } | null {
-  if (offset < 0 || offset >= text.length) {
-    return null;
-  }
-  const isIdent = (char: string | undefined): boolean =>
-    !!char && /[A-Za-z0-9_]/.test(char);
-  let start = offset;
-  while (start > 0 && isIdent(text[start - 1])) {
-    start -= 1;
-  }
-  let end = offset;
-  while (end < text.length && isIdent(text[end])) {
-    end += 1;
-  }
-  if (start === end) {
-    return null;
-  }
-  return { startOffset: start, endOffset: end };
 }
 
 function workspaceRootForUri(uri: vscode.Uri): string | null {

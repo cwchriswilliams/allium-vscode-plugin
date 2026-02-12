@@ -96,6 +96,7 @@ Implemented checks:
 - variant-specific field access without an observed kind guard
 - undefined local type references in entity/value/variant field declarations
 - undefined imported alias in field type references (for `<alias>/<Type>`)
+- undefined imported symbol references across `use "... " as alias` boundaries
 - undefined relationship target entity type (for `<Type> for this ...` fields)
 - relationship target entity type names that look plural (advisory)
 - undefined rule trigger/creation type reference
@@ -161,6 +162,8 @@ Formatting settings:
 - rename for locally declared symbols
 - document links for `use "..." as alias` import paths
 - hover docs for core Allium keywords with declaration/import context
+- hover appends leading declaration comments as inline symbol docs
+- safer rename checks for ambiguous targets and name-collision rejection
 - diagram preview panel with copy/export actions from active file or workspace (`allium.generateDiagram`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files

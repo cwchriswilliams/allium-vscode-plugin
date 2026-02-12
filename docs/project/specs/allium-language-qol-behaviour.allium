@@ -1,0 +1,53 @@
+module allium_language_qol_behaviour
+
+entity HoverResponse {
+    includes_keyword_reference: Boolean
+    includes_declaration_comment: Boolean
+}
+
+entity Finding {
+    code: String
+    severity: error | warning | info
+}
+
+rule HoverIncludesLeadingDeclarationComments {
+    when: HoverRequested(symbol)
+    requires: symbol has preceding_comment_lines
+
+    ensures: HoverResponse.created(
+    includes_declaration_comment: true
+    )
+}
+
+rule RenameRequiresUnambiguousSymbol {
+    when: RenameRequested(symbol, new_name)
+    requires: symbol resolves_to_multiple_definitions
+
+    ensures: RenameRejected(reason: ambiguous_symbol)
+}
+
+rule RenameRejectsConflictingName {
+    when: RenameRequested(symbol, new_name)
+    requires: new_name already_declared_in_document
+
+    ensures: RenameRejected(reason: colliding_name)
+}
+
+rule RenameAppliesAcrossResolvedReferences {
+    when: RenameRequested(symbol, new_name)
+    requires: symbol resolves_to_single_definition
+    requires: new_name valid_identifier
+
+    ensures: RenameAppliedToAllReferences()
+}
+
+rule ImportedSymbolMustResolveAcrossFiles {
+    when: ImportedSymbolReferenceParsed(reference)
+    requires: reference.alias is_declared
+    requires: reference.symbol not_declared_in_target_spec
+
+    ensures: Finding.created(
+    code: "allium.import.undefinedSymbol",
+    severity: error
+    )
+}
