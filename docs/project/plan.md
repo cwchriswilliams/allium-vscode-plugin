@@ -80,6 +80,7 @@ Current status:
 - Implemented surface/actor linkage checks (`allium.surface.missingActor`, `allium.actor.unused`).
 - Implemented surface `related:` reference checks (`allium.surface.relatedUndefined`).
 - Implemented surface binding usage checks (`allium.surface.unusedBinding`).
+- Implemented surface path and iteration checks (`allium.surface.undefinedPath`, `allium.surface.nonCollectionIteration`).
 - Implemented named surface block uniqueness checks (`allium.surface.duplicateRequiresBlock`, `allium.surface.duplicateProvidesBlock`).
 - Implemented warning checks for named surface `requires` blocks without deferred hints (`allium.surface.requiresWithoutDeferred`).
 - Implemented surface `provides` trigger reference checks (`allium.surface.undefinedProvidesTrigger`).

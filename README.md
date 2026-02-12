@@ -104,6 +104,8 @@ Implemented checks:
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section
 - surface `for`/`context` binding declared but not used in surface body
+- unresolved field paths in surface clauses (`exposes`/`requires`/`provides`/`related`)
+- surface `for x in ...` iteration over expressions not known to be collections
 - duplicate named `requires` block in a surface
 - named `requires` block in a surface without matching deferred hint
 - duplicate named `provides` block in a surface

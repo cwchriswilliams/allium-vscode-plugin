@@ -260,6 +260,42 @@ test("does not report used surface bindings", () => {
   );
 });
 
+test("reports undefined field path in surface clauses", () => {
+  const findings = analyzeAllium(
+    `entity SlotConfirmation {\n  status: String\n}\n\nsurface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    assignment.missing_field\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.undefinedPath"));
+});
+
+test("does not report valid field path in surface clauses", () => {
+  const findings = analyzeAllium(
+    `entity SlotConfirmation {\n  status: String\n}\n\nsurface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    assignment.status\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.undefinedPath"),
+    false,
+  );
+});
+
+test("reports surface iteration over non-collection expression", () => {
+  const findings = analyzeAllium(
+    `entity SlotConfirmation {\n  status: String\n}\n\nsurface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    for item in assignment.status:\n      item\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.surface.nonCollectionIteration"),
+  );
+});
+
+test("does not report surface iteration over collection expression", () => {
+  const findings = analyzeAllium(
+    `entity SlotConfirmation {\n  statuses: List<String>\n}\n\nsurface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    for item in assignment.statuses:\n      item\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.nonCollectionIteration"),
+    false,
+  );
+});
+
 test("reports config parameter missing explicit type/default", () => {
   const findings = analyzeAllium(`config {\n  timeout: Integer\n}\n`);
   assert.ok(findings.some((f) => f.code === "allium.config.invalidParameter"));

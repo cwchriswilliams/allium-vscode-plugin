@@ -118,6 +118,7 @@ export function analyzeAllium(
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
+  findings.push(...findSurfacePathAndIterationIssues(text, lineStarts, blocks));
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
   findings.push(
     ...findSurfaceRequiresDeferredHintIssues(lineStarts, blocks, text),
@@ -1539,6 +1540,86 @@ function findSurfaceBindingUsageIssues(
   return findings;
 }
 
+function findSurfacePathAndIterationIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const schemas = collectTypeSchemas(text);
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+
+  for (const surface of surfaces) {
+    const bindings = collectSurfaceBindingTypes(surface.body);
+    const pathPattern = /\b([a-z_][a-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b/g;
+    for (
+      let path = pathPattern.exec(surface.body);
+      path;
+      path = pathPattern.exec(surface.body)
+    ) {
+      if (isCommentLineAtIndex(surface.body, path.index)) {
+        continue;
+      }
+      if (isInsideDoubleQuotedStringAtIndex(surface.body, path.index)) {
+        continue;
+      }
+      const value = path[1];
+      const parts = value.split(".");
+      const root = parts[0];
+      const rootType = bindings.get(root);
+      if (!rootType) {
+        continue;
+      }
+      if (!isReachablePath(parts, rootType, schemas)) {
+        const offset = surface.startOffset + 1 + path.index;
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            offset,
+            offset + value.length,
+            "allium.surface.undefinedPath",
+            `Surface '${surface.name}' references unknown path '${value}'.`,
+            "error",
+          ),
+        );
+      }
+    }
+
+    const iterationPattern =
+      /^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([A-Za-z_][A-Za-z0-9_.]*)\s*:/gm;
+    for (
+      let iter = iterationPattern.exec(surface.body);
+      iter;
+      iter = iterationPattern.exec(surface.body)
+    ) {
+      const collectionExpr = iter[2];
+      const resolved = resolvePathType(
+        collectionExpr.split("."),
+        bindings,
+        schemas,
+      );
+      if (resolved && resolved.isCollection) {
+        bindings.set(iter[1], resolved.baseType ?? resolved.typeName);
+        continue;
+      }
+      const offset =
+        surface.startOffset + 1 + iter.index + iter[0].indexOf(collectionExpr);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + collectionExpr.length,
+          "allium.surface.nonCollectionIteration",
+          `Surface '${surface.name}' iterates over '${collectionExpr}', which is not known to be a collection.`,
+          "error",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 function findSurfaceNamedBlockUniquenessIssues(
   lineStarts: number[],
   blocks: ReturnType<typeof parseAlliumBlocks>,
@@ -2148,6 +2229,149 @@ function parseVariantDeclarations(
     });
   }
   return out;
+}
+
+function collectTypeSchemas(
+  text: string,
+): Map<string, Map<string, { typeName: string; isCollection: boolean }>> {
+  const schemas = new Map<
+    string,
+    Map<string, { typeName: string; isCollection: boolean }>
+  >();
+  const blockPattern =
+    /^\s*(?:external\s+entity|entity|value|variant)\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s*:\s*[A-Za-z_][A-Za-z0-9_]*)?\s*\{/gm;
+  for (
+    let block = blockPattern.exec(text);
+    block;
+    block = blockPattern.exec(text)
+  ) {
+    const typeName = block[1];
+    const open = text.indexOf("{", block.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const fields = new Map<
+      string,
+      { typeName: string; isCollection: boolean }
+    >();
+    const fieldPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)\s*$/gm;
+    for (
+      let field = fieldPattern.exec(body);
+      field;
+      field = fieldPattern.exec(body)
+    ) {
+      const name = field[1];
+      const rhs = field[2].trim();
+      if (
+        /^[A-Za-z_][A-Za-z0-9_]*\s+for\s+this\s+[A-Za-z_][A-Za-z0-9_]*$/.test(
+          rhs,
+        )
+      ) {
+        const relType = rhs.split(/\s+/)[0];
+        fields.set(name, { typeName: relType, isCollection: true });
+        continue;
+      }
+      if (rhs.includes(" with ")) {
+        fields.set(name, { typeName, isCollection: true });
+        continue;
+      }
+      const cleaned = rhs.replace(/\?$/, "");
+      const genericMatch = cleaned.match(
+        /^(List|Set|Map)<\s*([A-Za-z_][A-Za-z0-9_]*)/,
+      );
+      if (genericMatch) {
+        fields.set(name, { typeName: genericMatch[2], isCollection: true });
+        continue;
+      }
+      const direct = cleaned.match(/^([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (direct) {
+        fields.set(name, { typeName: direct[1], isCollection: false });
+      }
+    }
+    schemas.set(typeName, fields);
+  }
+  return schemas;
+}
+
+function collectSurfaceBindingTypes(body: string): Map<string, string> {
+  const bindings = new Map<string, string>();
+  const patterns = [
+    /^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m,
+    /^\s*context\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)/m,
+  ];
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (match) {
+      bindings.set(match[1], match[2]);
+    }
+  }
+  return bindings;
+}
+
+function isReachablePath(
+  parts: string[],
+  rootType: string,
+  schemas: Map<
+    string,
+    Map<string, { typeName: string; isCollection: boolean }>
+  >,
+): boolean {
+  let currentType = rootType;
+  for (let i = 1; i < parts.length; i += 1) {
+    const fields = schemas.get(currentType);
+    if (!fields) {
+      return true;
+    }
+    const field = fields.get(parts[i]);
+    if (!field) {
+      return false;
+    }
+    currentType = field.typeName;
+  }
+  return true;
+}
+
+function resolvePathType(
+  parts: string[],
+  bindings: Map<string, string>,
+  schemas: Map<
+    string,
+    Map<string, { typeName: string; isCollection: boolean }>
+  >,
+): { typeName: string; baseType: string; isCollection: boolean } | null {
+  const root = parts[0];
+  const rootType = bindings.get(root);
+  if (!rootType) {
+    return null;
+  }
+  let currentType = rootType;
+  let current: { typeName: string; baseType: string; isCollection: boolean } = {
+    typeName: rootType,
+    baseType: rootType,
+    isCollection: false,
+  };
+  for (let i = 1; i < parts.length; i += 1) {
+    const fields = schemas.get(currentType);
+    if (!fields) {
+      return null;
+    }
+    const field = fields.get(parts[i]);
+    if (!field) {
+      return null;
+    }
+    current = {
+      typeName: field.typeName,
+      baseType: field.typeName,
+      isCollection: field.isCollection,
+    };
+    currentType = field.typeName;
+  }
+  return current;
 }
 
 function parseVariantFieldDefinitions(text: string): Array<{
