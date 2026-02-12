@@ -74,6 +74,7 @@ allium-format --help
 Implemented checks:
 
 - rule missing `when:` trigger
+- unsupported/invalid `when:` trigger shape
 - rule missing `ensures:` clause
 - temporal `when:` without `requires:` guard
 - duplicate `let` binding in a rule

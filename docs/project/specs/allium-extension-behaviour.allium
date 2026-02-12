@@ -114,6 +114,16 @@ rule RuleMustHaveWhenTrigger {
     )
 }
 
+rule InvalidRuleTriggerIsError {
+    when: RuleBlockParsed(rule)
+    requires: rule.when_trigger_shape_not_supported = true
+
+    ensures: Finding.created(
+    code: "allium.rule.invalidTrigger",
+    severity: error
+    )
+}
+
 rule RuleShouldHaveEnsuresClause {
     when: RuleBlockParsed(rule)
     requires: rule.has_ensures = false

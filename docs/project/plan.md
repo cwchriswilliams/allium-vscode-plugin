@@ -61,6 +61,7 @@ Start with fast deterministic checks in extension host; later migrate logic to L
 
 Initial checks:
 - Rule has `when` and at least one `ensures`.
+- Rule `when` clause uses a supported trigger shape.
 - Temporal trigger without guard (`requires`) warning.
 - Duplicate names within `config` block.
 - Undefined local binding reference (heuristic, conservative).

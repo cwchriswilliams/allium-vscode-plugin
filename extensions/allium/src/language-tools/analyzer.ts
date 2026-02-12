@@ -95,6 +95,7 @@ export function analyzeAllium(
       letNames.add(name);
     }
   }
+  findings.push(...findInvalidTriggerIssues(lineStarts, blocks));
 
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
   findings.push(...findDuplicateDefaultNames(text, lineStarts));
@@ -2240,6 +2241,74 @@ function findNeverFireRuleIssues(
     );
   }
   return findings;
+}
+
+function findInvalidTriggerIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const rules = blocks.filter((block) => block.kind === "rule");
+  for (const rule of rules) {
+    const whenMatch = rule.body.match(/^\s*when\s*:\s*(.+)$/m);
+    if (!whenMatch) {
+      continue;
+    }
+    const trigger = whenMatch[1].trim();
+    if (isValidTriggerShape(trigger)) {
+      continue;
+    }
+    const lineOffset = rule.startOffset + 1 + rule.body.indexOf(whenMatch[0]);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        lineOffset,
+        lineOffset + whenMatch[0].length,
+        "allium.rule.invalidTrigger",
+        `Rule '${rule.name}' uses an unsupported trigger form in 'when:'.`,
+        "error",
+      ),
+    );
+  }
+  return findings;
+}
+
+function isValidTriggerShape(trigger: string): boolean {
+  const callPattern =
+    /^[A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?\s*\([^)]*\)\s*$/;
+  if (callPattern.test(trigger)) {
+    return true;
+  }
+  if (/\b(and|or)\b/.test(trigger)) {
+    const parts = trigger
+      .split(/\b(?:and|or)\b/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    if (parts.length > 1 && parts.every((part) => callPattern.test(part))) {
+      return true;
+    }
+  }
+
+  const typedPattern =
+    /^([a-z_][a-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\.(.+)$/;
+  const typedMatch = trigger.match(typedPattern);
+  if (!typedMatch) {
+    return false;
+  }
+  const tail = typedMatch[3].trim();
+  if (/^created\b/.test(tail)) {
+    return true;
+  }
+  if (/\bbecomes\b/.test(tail)) {
+    return true;
+  }
+  if (/(<=|>=|<|>)\s*now\b/.test(tail) || /\bnow\s*[-+]\s*\d/.test(tail)) {
+    return true;
+  }
+  if (/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(tail)) {
+    return true;
+  }
+  return false;
 }
 
 function findExpressionTypeMismatchIssues(

@@ -12,6 +12,33 @@ test("reports missing when trigger", () => {
   assert.ok(findings.some((f) => f.code === "allium.rule.missingWhen"));
 });
 
+test("reports invalid trigger shape in when clause", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: totally invalid trigger\n  ensures: Done()\n}`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.invalidTrigger"));
+});
+
+test("accepts valid state-transition trigger shape", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: invitation: Invitation.status becomes accepted\n  ensures: Done()\n}`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.invalidTrigger"),
+    false,
+  );
+});
+
+test("accepts combined external-stimulus triggers joined by or", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Opened(doc) or Saved(doc)\n  ensures: Done()\n}`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.invalidTrigger"),
+    false,
+  );
+});
+
 test("reports temporal trigger without guard", () => {
   const findings = analyzeAllium(
     `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}`,
