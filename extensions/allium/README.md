@@ -10,3 +10,12 @@ Single extension package with internal split:
 - `allium.diagnostics.mode` (default: `strict`)
   - `strict`: all implemented checks enabled
   - `relaxed`: suppresses temporal guard warning and downgrades undefined config reference severity
+
+## Standalone checker
+
+Run checks without VS Code:
+
+```bash
+npm run check -- path/to/spec.allium
+npm run check -- --mode relaxed "specs/**/*.allium"
+```

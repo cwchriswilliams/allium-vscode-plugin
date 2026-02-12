@@ -1,0 +1,87 @@
+-- allium-check-tool-behaviour.allium
+-- Scope: Standalone CLI behavior for running Allium checks outside VS Code.
+-- Includes:
+--   - CLI argument parsing and mode selection
+--   - Input resolution for files, directories, and wildcard patterns
+--   - Finding output format and exit code behavior
+-- Excludes:
+--   - VS Code editor integration and code actions
+--   - Packaging/distribution details for npm or extension marketplaces
+
+value CheckMode {
+    value: strict | relaxed
+}
+
+value CheckInput {
+    value: file_path | directory_path | wildcard_pattern
+}
+
+entity CheckedFile {
+    path: String
+}
+
+entity CheckRun {
+    mode: CheckMode
+    inputs: Set<CheckInput>
+    files: Set<CheckedFile>
+}
+
+rule InvalidModeIsRejected {
+    when: CheckCommandInvoked(mode)
+    requires: mode not in [strict, relaxed]
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule MissingInputsAreRejected {
+    when: CheckCommandInvokedWithoutInputs()
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule MissingResolvedFilesAreRejected {
+    when: CheckCommandInvokedWithInputs(inputs)
+    requires: ResolveAlliumFiles(inputs).is_empty = true
+
+    ensures: UserInformed(message: "No .allium files found for the provided inputs.")
+    ensures: ProcessExit(code: 2)
+}
+
+rule DirectoryInputExpandsToAlliumFiles {
+    when: CheckCommandInvokedWithInput(input)
+    requires: input.kind = directory_path
+
+    ensures: CheckRun.files includes input.recursive_files where file.extension = ".allium"
+}
+
+rule WildcardInputMatchesAlliumFiles {
+    when: CheckCommandInvokedWithInput(input)
+    requires: input.kind = wildcard_pattern
+
+    ensures: CheckRun.files includes file where MatchesWildcard(file.relative_path, input)
+    ensures: CheckRun.files excludes file where file.extension != ".allium"
+}
+
+rule FindingsArePrintedPerFile {
+    when: FileChecked(file)
+    requires: file.findings.count > 0
+
+    ensures: LinePrinted(format: "<path>:<line>:<character> <severity> <code> <message>")
+}
+
+rule NonInfoFindingsFailTheRun {
+    when: CheckRunCompleted(run)
+    requires: run.findings.any(f => f.severity in [error, warning])
+
+    ensures: ProcessExit(code: 1)
+}
+
+rule InformationalOnlyFindingsSucceed {
+    when: CheckRunCompleted(run)
+    requires: run.findings.all(f => f.severity = info)
+
+    ensures: LinePrinted(message: "No blocking findings.")
+    ensures: ProcessExit(code: 0)
+}

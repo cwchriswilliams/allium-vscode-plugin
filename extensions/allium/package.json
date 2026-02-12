@@ -14,6 +14,9 @@
     "onLanguage:allium"
   ],
   "main": "./dist/src/extension.js",
+  "bin": {
+    "allium-check": "./dist/src/check.js"
+  },
   "contributes": {
     "languages": [
       {
@@ -57,7 +60,8 @@
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
     "test": "npm run build && node --test ./dist/test/**/*.test.js",
-    "lint": "tsc -p ./tsconfig.json --noEmit"
+    "lint": "tsc -p ./tsconfig.json --noEmit",
+    "check": "npm run build && node ./dist/src/check.js"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",
