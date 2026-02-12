@@ -70,3 +70,48 @@ test("checks .allium files found through directory input", () => {
     /nested\/a\.allium:3:1 error allium\.rule\.missingEnsures/,
   );
 });
+
+test("returns exit code 2 for invalid mode", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n  ensures: Done()\n}\n`,
+  );
+
+  const result = runCheck(["--mode", "invalid", "spec.allium"], dir);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Expected --mode strict\|relaxed/);
+});
+
+test("returns exit code 2 when no inputs are provided", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const result = runCheck([], dir);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Provide at least one file, directory, or glob/);
+});
+
+test("returns exit code 2 when inputs resolve to no .allium files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  fs.writeFileSync(path.join(dir, "readme.txt"), "no spec files", "utf8");
+
+  const result = runCheck(["readme.txt"], dir);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /No \.allium files found/);
+});
+
+test("supports wildcard inputs and checks matched files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "specs/a.allium", `rule A {\n  when: Ping()\n}\n`);
+  writeAllium(
+    dir,
+    "specs/b.allium",
+    `rule B {\n  when: Pong()\n  ensures: Done()\n}\n`,
+  );
+  fs.writeFileSync(path.join(dir, "specs/c.txt"), "ignore", "utf8");
+
+  const result = runCheck(["specs/*.allium"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /specs\/a\.allium/);
+  assert.doesNotMatch(result.stdout, /specs\/c\.txt/);
+});

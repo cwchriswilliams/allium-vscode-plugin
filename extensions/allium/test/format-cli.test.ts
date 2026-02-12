@@ -51,3 +51,29 @@ test("format CLI --check fails when formatting is needed", () => {
   assert.equal(result.status, 1);
   assert.match(result.stdout, /spec\.allium: would format/);
 });
+
+test("format CLI --check succeeds when file is already formatted", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  const target = path.join(dir, "spec.allium");
+  fs.writeFileSync(target, "rule A {\n  when: Ping()\n}\n", "utf8");
+
+  const result = runFormat(["--check", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /All files already formatted\./);
+});
+
+test("format CLI fails with exit code 2 when no inputs are provided", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  const result = runFormat([], dir);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /Provide at least one file, directory, or glob/);
+});
+
+test("format CLI fails with exit code 2 when input has no .allium files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  fs.writeFileSync(path.join(dir, "notes.txt"), "no allium", "utf8");
+
+  const result = runFormat(["notes.txt"], dir);
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /No \.allium files found/);
+});

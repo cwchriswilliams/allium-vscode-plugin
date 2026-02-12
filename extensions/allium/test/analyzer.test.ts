@@ -7,6 +7,11 @@ test("reports missing ensures", () => {
   assert.ok(findings.some((f) => f.code === "allium.rule.missingEnsures"));
 });
 
+test("reports missing when trigger", () => {
+  const findings = analyzeAllium(`rule A {\n  ensures: Done()\n}`);
+  assert.ok(findings.some((f) => f.code === "allium.rule.missingWhen"));
+});
+
 test("reports temporal trigger without guard", () => {
   const findings = analyzeAllium(
     `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}`,
@@ -31,6 +36,13 @@ test("reports duplicate config keys", () => {
   assert.ok(findings.some((f) => f.code === "allium.config.duplicateKey"));
 });
 
+test("reports duplicate let bindings", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  let x = 1\n  let x = 2\n  ensures: Done()\n}`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.let.duplicateBinding"));
+});
+
 test("reports undefined config reference", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping()\n  ensures: now + config.missing\n}`,
@@ -38,6 +50,15 @@ test("reports undefined config reference", () => {
   assert.ok(
     findings.some((f) => f.code === "allium.config.undefinedReference"),
   );
+});
+
+test("reports open_question as informational finding", () => {
+  const findings = analyzeAllium(`open_question "Needs decision?"`);
+  const finding = findings.find(
+    (f) => f.code === "allium.openQuestion.present",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "info");
 });
 
 test("relaxed mode suppresses temporal guard warning", () => {
