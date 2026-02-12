@@ -37,7 +37,7 @@ test("fails with exit code 1 on strict warning", () => {
   writeAllium(
     dir,
     "spec.allium",
-    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
   );
 
   const result = runCheck(["spec.allium"], dir);
@@ -50,7 +50,7 @@ test("relaxed mode suppresses temporal warning and returns success", () => {
   writeAllium(
     dir,
     "spec.allium",
-    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
   );
 
   const result = runCheck(["--mode", "relaxed", "spec.allium"], dir);

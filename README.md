@@ -89,6 +89,8 @@ Implemented checks:
 - top-level variant-like declarations missing the `variant` keyword
 - undefined local type references in entity/value/variant field declarations
 - undefined imported alias in field type references (for `<alias>/<Type>`)
+- undefined rule trigger/creation type reference
+- undefined imported alias in rule trigger/creation type reference
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section

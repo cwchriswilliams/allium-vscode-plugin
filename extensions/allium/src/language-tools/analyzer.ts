@@ -105,6 +105,7 @@ export function analyzeAllium(
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
   findings.push(...findSumTypeIssues(text, lineStarts));
   findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
+  findings.push(...findRuleTypeReferenceIssues(lineStarts, blocks, text));
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
@@ -566,6 +567,52 @@ function findTypeReferenceIssues(
     }
   }
 
+  return findings;
+}
+
+function findRuleTypeReferenceIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+  text: string,
+): Finding[] {
+  const findings: Finding[] = [];
+  const declaredTypes = new Set<string>(collectDeclaredTypeNames(text));
+  const aliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+  const ruleBlocks = blocks.filter((block) => block.kind === "rule");
+  const patterns = [
+    /^\s*when\s*:\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\./gm,
+    /^\s*when\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\.created\s*\(/gm,
+    /^\s*ensures\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\.created\s*\(/gm,
+  ];
+
+  for (const rule of ruleBlocks) {
+    for (const pattern of patterns) {
+      for (
+        let match = pattern.exec(rule.body);
+        match;
+        match = pattern.exec(rule.body)
+      ) {
+        const typeName = match[1];
+        const offset =
+          rule.startOffset + 1 + match.index + match[0].indexOf(typeName);
+        findings.push(
+          ...validateTypeNameReference(
+            typeName,
+            offset,
+            lineStarts,
+            declaredTypes,
+            aliases,
+            "allium.rule.undefinedTypeReference",
+            "allium.rule.undefinedImportedAlias",
+          ),
+        );
+      }
+    }
+  }
   return findings;
 }
 
@@ -1060,6 +1107,46 @@ function collectFieldTypeSites(
     }
   }
   return out;
+}
+
+function validateTypeNameReference(
+  typeName: string,
+  offset: number,
+  lineStarts: number[],
+  declaredTypes: Set<string>,
+  aliases: Set<string>,
+  undefinedTypeCode: string,
+  undefinedAliasCode: string,
+): Finding[] {
+  if (typeName.includes("/")) {
+    const alias = typeName.split("/")[0];
+    if (aliases.has(alias)) {
+      return [];
+    }
+    return [
+      rangeFinding(
+        lineStarts,
+        offset,
+        offset + typeName.length,
+        undefinedAliasCode,
+        `Type reference '${typeName}' uses unknown import alias '${alias}'.`,
+        "error",
+      ),
+    ];
+  }
+  if (/^[a-z]/.test(typeName) || declaredTypes.has(typeName)) {
+    return [];
+  }
+  return [
+    rangeFinding(
+      lineStarts,
+      offset,
+      offset + typeName.length,
+      undefinedTypeCode,
+      `Type reference '${typeName}' is not declared locally or imported.`,
+      "error",
+    ),
+  ];
 }
 
 function parseEntityBlocks(text: string): Array<{

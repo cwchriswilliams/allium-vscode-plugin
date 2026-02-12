@@ -289,6 +289,27 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UndefinedRuleTypeReferenceIsError {
+        when: RuleTypeReferenceParsed(type_ref)
+        requires: type_ref not declared_locally_or_imported
+
+        ensures: Finding.created(
+        code: "allium.rule.undefinedTypeReference",
+        severity: error
+        )
+    }
+
+    rule UndefinedRuleImportedAliasIsError {
+        when: RuleTypeReferenceParsed(type_ref)
+        requires: type_ref matches "<alias>/<TypeName>"
+        requires: alias not declared in use_imports
+
+        ensures: Finding.created(
+        code: "allium.rule.undefinedImportedAlias",
+        severity: error
+        )
+    }
+
     rule DuplicateContextBindingIsError {
         when: ContextBlockParsed(context_block)
         requires: context_block.contains_duplicate_binding_name = true

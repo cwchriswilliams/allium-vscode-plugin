@@ -297,3 +297,31 @@ test("reports duplicate named provides blocks in surface", () => {
     findings.some((f) => f.code === "allium.surface.duplicateProvidesBlock"),
   );
 });
+
+test("reports undefined trigger type reference in rule", () => {
+  const findings = analyzeAllium(
+    `rule Expire {\n  when: invite: MissingType.expires_at <= now\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.rule.undefinedTypeReference"),
+  );
+});
+
+test("reports undefined imported alias in rule type reference", () => {
+  const findings = analyzeAllium(
+    `rule Expire {\n  when: invite: shared/Invite.expires_at <= now\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.rule.undefinedImportedAlias"),
+  );
+});
+
+test("does not report known rule type references", () => {
+  const findings = analyzeAllium(
+    `entity Invite {\n  expires_at: Timestamp\n}\n\nrule Expire {\n  when: invite: Invite.expires_at <= now\n  ensures: Invite.created(expires_at: now)\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.undefinedTypeReference"),
+    false,
+  );
+});
