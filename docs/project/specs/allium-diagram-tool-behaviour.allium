@@ -1,0 +1,87 @@
+module allium_diagram_tool_behaviour
+
+entity DiagramRun {
+    format: d2 | mermaid
+    inputs: List<String>
+    output_path: String?
+}
+
+entity DiagramNode {
+    id: String
+    label: String
+    kind: entity | value | variant | rule | surface | actor | enum | trigger
+}
+
+entity DiagramEdge {
+    from: DiagramNode
+    to: DiagramNode
+    label: String
+}
+
+entity DiagramDocument {
+    nodes: List<DiagramNode>
+    edges: List<DiagramEdge>
+}
+
+rule DiagramCommandRequiresInputs {
+    when: DiagramCommandInvoked(args)
+    requires: args.inputs.count = 0
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule DiagramCommandRejectsMissingAlliumFiles {
+    when: DiagramCommandInvoked(args)
+    requires: ResolveAlliumFiles(args.inputs).is_empty = true
+
+    ensures: UserInformed(message: "No .allium files found for the provided inputs.")
+    ensures: ProcessExit(code: 2)
+}
+
+rule DiagramCommandBuildsModelFromSpecs {
+    when: DiagramCommandInvoked(args)
+    requires: ResolveAlliumFiles(args.inputs).count > 0
+
+    ensures: DiagramRun.created(format: args.format, inputs: args.inputs, output_path: args.output_path)
+    ensures: DiagramDocument.created()
+    ensures: DiagramNode.created(kind: entity)
+    ensures: DiagramNode.created(kind: rule)
+    ensures: DiagramEdge.created(label: when)
+    ensures: DiagramEdge.created(label: ensures)
+}
+
+rule DiagramCommandWritesOutputFile {
+    when: DiagramCommandInvoked(args)
+    requires: args.output_path != null
+
+    ensures: FileWritten(path: args.output_path)
+}
+
+rule DiagramCommandPrintsToStdout {
+    when: DiagramCommandInvoked(args)
+    requires: args.output_path = null
+
+    ensures: StdoutPrinted()
+}
+
+rule DiagramFormatDefaultsToD2 {
+    when: DiagramCommandInvoked(args)
+    requires: args.format = null
+
+    ensures: DiagramRun.created(format: d2)
+}
+
+rule DiagramMermaidFormatIsSupported {
+    when: DiagramCommandInvoked(args)
+    requires: args.format = mermaid
+
+    ensures: DiagramRun.created(format: mermaid)
+    ensures: StdoutPrinted(prefix: "flowchart LR")
+}
+
+rule ReleasedCliPackageExposesDiagramCommand {
+    when: CliPackageInstalled(name: "allium-cli")
+
+    ensures: CommandAvailable(name: "allium-diagram")
+}

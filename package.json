@@ -12,6 +12,7 @@
     "format": "biome format --write .",
     "format:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js",
     "format:allium:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js --check",
+    "diagram:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/diagram.js",
     "format:check": "biome format --check .",
     "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js",
     "release:artifacts": "./scripts/build-release-artifacts.sh"

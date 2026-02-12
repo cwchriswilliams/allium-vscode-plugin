@@ -5,6 +5,7 @@ This project provides:
 1. A VS Code extension for `.allium` files.
 2. A standalone `allium-check` CLI for validation.
 3. A standalone `allium-format` CLI for formatting.
+4. A standalone `allium-diagram` CLI for text-first diagram generation from specs.
 
 The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
 
@@ -21,7 +22,7 @@ The extension is not yet published on the VS Code Marketplace. Consumers should 
 Each tagged release publishes:
 
 - `allium-vscode-<version>.vsix` (VS Code extension package)
-- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check` and `allium-format`)
+- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, and `allium-diagram`)
 
 Install extension from VSIX:
 
@@ -36,6 +37,7 @@ Install standalone CLI tools from release npm artifact:
 npm install -g ./allium-cli-<version>.tgz
 allium-check --help
 allium-format --help
+allium-diagram --help
 ```
 
 ### Option B: Install from source checkout
@@ -58,6 +60,7 @@ Then install the locally built extension and CLI package:
 npm install -g ./artifacts/allium-cli-<version>.tgz
 allium-check --help
 allium-format --help
+allium-diagram --help
 ```
 
 ## VS Code Features
@@ -218,6 +221,38 @@ Current formatter behavior:
 - normalize spacing between top-level blocks
 - normalize spacing around pipe-delimited literals (for example enum literal sets)
 
+### `allium-diagram` (experimental)
+
+Generate text-based diagrams directly from `.allium` specs.
+
+Format options:
+
+- `d2` (default) for diagram-as-code source with good text diff ergonomics
+- `mermaid` for markdown-native rendering pipelines
+
+Repo-level commands:
+
+```bash
+npm run diagram:allium -- docs/project/specs
+npm run diagram:allium -- --format mermaid --output docs/project/diagrams/spec-overview.mmd docs/project/specs
+```
+
+Direct built script:
+
+```bash
+node extensions/allium/dist/src/diagram.js docs/project/specs
+node extensions/allium/dist/src/diagram.js --format d2 --output docs/project/diagrams/spec-overview.d2 docs/project/specs
+node extensions/allium/dist/src/diagram.js --format mermaid docs/project/specs/allium-extension-behaviour.allium
+```
+
+Current diagram model captures:
+
+- key declarations (`entity`, `value`, `variant`, `rule`, `surface`, `actor`, `enum`, trigger nodes)
+- variant inheritance edges
+- relationship edges from `Type for this ...` fields
+- rule trigger and creation edges
+- surface `for`, `context`, and `provides` links
+
 ## Using CLI Tools Outside This Repo
 
 Supported paths:
@@ -249,6 +284,7 @@ npm run lint
 npm run test
 npm run check -- docs/project/specs
 npm run format:allium -- docs/project/specs
+npm run diagram:allium -- docs/project/specs
 npm run release:artifacts
 ```
 
@@ -294,6 +330,7 @@ Pre-commit runs:
    - ESLint autofix
 2. `allium-check` on `docs/project/specs`
 3. `allium-format` on `docs/project/specs`
+4. unit tests
 4. full unit test suite (`npm run test`)
 
 ### Testing expectations

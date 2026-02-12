@@ -5,7 +5,8 @@
   "license": "MIT",
   "bin": {
     "allium-check": "./dist/src/check.js",
-    "allium-format": "./dist/src/format.js"
+    "allium-format": "./dist/src/format.js",
+    "allium-diagram": "./dist/src/diagram.js"
   },
   "files": ["dist/**", "README.md", "package.json", "LICENSE"],
   "scripts": {
