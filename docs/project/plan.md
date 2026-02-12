@@ -115,6 +115,7 @@ Current status:
 - Implemented: go to definition for local top-level symbols and `config.<key>` references.
 - Implemented: hover documentation for core Allium keywords.
 - Implemented: folding ranges for top-level blocks.
+- Implemented: VS Code document formatting via shared Allium formatter.
 
 ## Engineering Approach
 

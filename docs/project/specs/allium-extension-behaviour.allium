@@ -249,3 +249,10 @@ rule ProvideTopLevelFoldingRanges {
 
     ensures: FoldingRangeReturned(for: top_level_blocks)
 }
+
+rule FormatDocumentWithAlliumFormatter {
+    when: DocumentFormattingRequested(document)
+    requires: document.language_id = "allium"
+
+    ensures: DocumentRewrittenWithAlliumFormatter()
+}

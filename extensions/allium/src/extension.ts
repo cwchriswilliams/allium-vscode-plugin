@@ -3,6 +3,7 @@ import { analyzeAllium } from "./language-tools/analyzer";
 import { findDefinitionsAtOffset } from "./language-tools/definitions";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
+import { formatAlliumText } from "./format";
 import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
@@ -115,6 +116,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerFoldingRangeProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumFoldingRangeProvider(),
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerDocumentFormattingEditProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumFormattingProvider(),
     ),
   );
 }
@@ -315,5 +323,25 @@ class AlliumFoldingRangeProvider implements vscode.FoldingRangeProvider {
     return blocks.map(
       (block) => new vscode.FoldingRange(block.startLine, block.endLine),
     );
+  }
+}
+
+class AlliumFormattingProvider
+  implements vscode.DocumentFormattingEditProvider
+{
+  provideDocumentFormattingEdits(
+    document: vscode.TextDocument,
+  ): vscode.TextEdit[] {
+    const original = document.getText();
+    const formatted = formatAlliumText(original);
+    if (formatted === original) {
+      return [];
+    }
+
+    const wholeDocument = new vscode.Range(
+      document.positionAt(0),
+      document.positionAt(original.length),
+    );
+    return [vscode.TextEdit.replace(wholeDocument, formatted)];
   }
 }
