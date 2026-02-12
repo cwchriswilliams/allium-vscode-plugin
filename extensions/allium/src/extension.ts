@@ -14,6 +14,11 @@ import { formatAlliumText } from "./format";
 import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
+import { findReferencesInText } from "./language-tools/references";
+import {
+  buildWorkspaceIndex,
+  resolveImportedDefinition,
+} from "./language-tools/workspace-index";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 
@@ -133,6 +138,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerRenameProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumRenameProvider(),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerReferenceProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumReferenceProvider(),
     ),
   );
 
@@ -334,35 +345,31 @@ class AlliumDefinitionProvider implements vscode.DefinitionProvider {
       });
     }
 
-    const imported = importedSymbolAtOffset(text, offset);
-    if (!imported) {
+    const workspaceRoot = workspaceRootForUri(document.uri);
+    if (!workspaceRoot) {
       return [];
     }
 
-    const alias = parseUseAliases(text).find(
-      (value) => value.alias === imported.alias,
+    const index = buildWorkspaceIndex(workspaceRoot);
+    const matches = resolveImportedDefinition(
+      document.uri.fsPath,
+      text,
+      offset,
+      index,
     );
-    if (!alias) {
-      return [];
-    }
-
-    const targetPath = path.resolve(
-      path.dirname(document.uri.fsPath),
-      alias.sourcePath,
-    );
-    if (!fs.existsSync(targetPath)) {
-      return [];
-    }
-    const targetText = fs.readFileSync(targetPath, "utf8");
-    const targetMatches = findDefinitionsAtOffset(
-      targetText,
-      findTokenOffset(targetText, imported.symbol),
-    ).filter((entry) => entry.name === imported.symbol);
-    return targetMatches.map((match) => {
-      const start = offsetToPosition(targetText, match.startOffset);
-      const end = offsetToPosition(targetText, match.endOffset);
+    return matches.map((match) => {
+      const start = offsetToPositionForFile(
+        match.filePath,
+        match.definition.startOffset,
+        index,
+      );
+      const end = offsetToPositionForFile(
+        match.filePath,
+        match.definition.endOffset,
+        index,
+      );
       return new vscode.Location(
-        vscode.Uri.file(targetPath),
+        vscode.Uri.file(match.filePath),
         new vscode.Range(start, end),
       );
     });
@@ -391,10 +398,10 @@ class AlliumRenameProvider implements vscode.RenameProvider {
     }
 
     const edit = new vscode.WorkspaceEdit();
-    const pattern = new RegExp(`\\b${escapeRegex(token.name)}\\b`, "g");
-    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
-      const start = document.positionAt(match.index);
-      const end = document.positionAt(match.index + token.name.length);
+    const references = findReferencesInText(text, definitions[0]);
+    for (const reference of references) {
+      const start = document.positionAt(reference.startOffset);
+      const end = document.positionAt(reference.endOffset);
       edit.replace(document.uri, new vscode.Range(start, end), newName);
     }
     return edit;
@@ -493,6 +500,81 @@ class AlliumFormattingProvider
   }
 }
 
+class AlliumReferenceProvider implements vscode.ReferenceProvider {
+  provideReferences(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    context: vscode.ReferenceContext,
+  ): vscode.Location[] {
+    const text = document.getText();
+    const offset = document.offsetAt(position);
+    const localDefinitions = findDefinitionsAtOffset(text, offset);
+    if (localDefinitions.length > 0) {
+      const definition = localDefinitions[0];
+      const references = findReferencesInText(text, definition);
+      return references
+        .filter(
+          (reference) =>
+            context.includeDeclaration ||
+            !isDefinitionReference(definition, reference),
+        )
+        .map((reference) => {
+          const start = document.positionAt(reference.startOffset);
+          const end = document.positionAt(reference.endOffset);
+          return new vscode.Location(
+            document.uri,
+            new vscode.Range(start, end),
+          );
+        });
+    }
+
+    const workspaceRoot = workspaceRootForUri(document.uri);
+    if (!workspaceRoot) {
+      return [];
+    }
+    const index = buildWorkspaceIndex(workspaceRoot);
+    const importedMatches = resolveImportedDefinition(
+      document.uri.fsPath,
+      text,
+      offset,
+      index,
+    );
+    const locations: vscode.Location[] = [];
+    for (const match of importedMatches) {
+      const references = findReferencesInText(
+        textForFile(match.filePath, index),
+        match.definition,
+      );
+      for (const reference of references) {
+        if (
+          !context.includeDeclaration &&
+          isDefinitionReference(match.definition, reference)
+        ) {
+          continue;
+        }
+        locations.push(
+          new vscode.Location(
+            vscode.Uri.file(match.filePath),
+            new vscode.Range(
+              offsetToPositionForFile(
+                match.filePath,
+                reference.startOffset,
+                index,
+              ),
+              offsetToPositionForFile(
+                match.filePath,
+                reference.endOffset,
+                index,
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return locations;
+  }
+}
+
 async function applySafeFixes(document: vscode.TextDocument): Promise<void> {
   const findings = analyzeAllium(document.getText(), {
     mode: readDiagnosticsMode(),
@@ -556,10 +638,6 @@ async function showSpecHealthSummary(): Promise<void> {
   void vscode.window.showInformationMessage(pick);
 }
 
-function findTokenOffset(text: string, token: string): number {
-  return Math.max(0, text.indexOf(token));
-}
-
 function offsetToPosition(text: string, offset: number): vscode.Position {
   let line = 0;
   let character = 0;
@@ -572,10 +650,6 @@ function offsetToPosition(text: string, offset: number): vscode.Position {
     }
   }
   return new vscode.Position(line, character);
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function tokenRangeAtOffset(
@@ -599,4 +673,38 @@ function tokenRangeAtOffset(
     return null;
   }
   return { startOffset: start, endOffset: end };
+}
+
+function workspaceRootForUri(uri: vscode.Uri): string | null {
+  const folder = vscode.workspace.getWorkspaceFolder(uri);
+  return folder?.uri.fsPath ?? null;
+}
+
+function textForFile(
+  filePath: string,
+  index: ReturnType<typeof buildWorkspaceIndex>,
+): string {
+  return (
+    index.documents.find(
+      (doc) => path.resolve(doc.filePath) === path.resolve(filePath),
+    )?.text ?? fs.readFileSync(filePath, "utf8")
+  );
+}
+
+function offsetToPositionForFile(
+  filePath: string,
+  offset: number,
+  index: ReturnType<typeof buildWorkspaceIndex>,
+): vscode.Position {
+  return offsetToPosition(textForFile(filePath, index), offset);
+}
+
+function isDefinitionReference(
+  definition: { startOffset: number; endOffset: number },
+  reference: { startOffset: number; endOffset: number },
+): boolean {
+  return (
+    definition.startOffset === reference.startOffset &&
+    definition.endOffset === reference.endOffset
+  );
 }

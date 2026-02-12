@@ -120,6 +120,7 @@ Current status:
 - Implemented: document symbols and outline for top-level Allium blocks.
 - Implemented: go to definition for local top-level symbols and `config.<key>` references.
 - Implemented: go to definition across local `use "... " as alias` imports.
+- Implemented: find references for local symbols/config keys and imported symbols.
 - Implemented: local symbol rename provider.
 - Implemented: hover documentation for core Allium keywords.
 - Implemented: folding ranges for top-level blocks.

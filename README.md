@@ -108,6 +108,7 @@ Formatting settings:
 
 - document symbols / outline for top-level blocks
 - go to definition for local top-level symbols, `config.<key>`, and imported symbols via `use "... " as alias`
+- find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols
 - hover docs for core Allium keywords with declaration/import context
 - folding ranges for top-level blocks

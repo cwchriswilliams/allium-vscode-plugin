@@ -286,12 +286,29 @@ rule ResolveDefinitionsAcrossUseImports {
     ensures: DefinitionLocationReturned()
 }
 
+rule FindReferencesForDeclaredSymbol {
+    when: ReferencesRequested(document, symbol_at_cursor)
+    requires: symbol_at_cursor references locally_declared_symbol or local_config_key
+
+    ensures: ReferenceLocationsReturned()
+    ensures: ReferenceLocationsExcludeCommentOnlyMatches()
+}
+
+rule FindReferencesForImportedSymbol {
+    when: ReferencesRequested(document, symbol_at_cursor)
+    requires: symbol_at_cursor references imported_alias_symbol
+    requires: use_import_target_file_exists = true
+
+    ensures: ReferenceLocationsReturned(from: import_target_document)
+}
+
 rule RenameDeclaredSymbol {
     when: RenameRequested(document, symbol_at_cursor, new_name)
     requires: new_name is valid_identifier
     requires: symbol_at_cursor references locally_declared_symbol
 
     ensures: SymbolOccurrencesRewritten(document)
+    ensures: CommentOnlyMatchesNotRewritten()
 }
 
 rule ProvideKeywordHoverDocumentation {
