@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
+import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 
@@ -70,7 +71,11 @@ export function activate(context: vscode.ExtensionContext): void {
       ALLIUM_LANGUAGE_ID,
       new AlliumQuickFixProvider(),
       {
-        providedCodeActionKinds: [vscode.CodeActionKind.QuickFix, vscode.CodeActionKind.RefactorExtract]
+        providedCodeActionKinds: [
+          vscode.CodeActionKind.QuickFix,
+          vscode.CodeActionKind.RefactorExtract,
+          vscode.CodeActionKind.RefactorRewrite
+        ]
       }
     )
   );
@@ -139,6 +144,24 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         const end = document.positionAt(change.endOffset);
         edit.replace(document.uri, new vscode.Range(start, end), change.text);
       }
+      action.edit = edit;
+      actions.push(action);
+    }
+
+    const temporalGuardPlan = planInsertTemporalGuard(
+      document.getText(),
+      document.offsetAt(range.start),
+      document.offsetAt(range.end)
+    );
+    if (temporalGuardPlan) {
+      const action = new vscode.CodeAction(
+        temporalGuardPlan.title,
+        vscode.CodeActionKind.RefactorRewrite
+      );
+      const edit = new vscode.WorkspaceEdit();
+      const start = document.positionAt(temporalGuardPlan.edit.startOffset);
+      const end = document.positionAt(temporalGuardPlan.edit.endOffset);
+      edit.replace(document.uri, new vscode.Range(start, end), temporalGuardPlan.edit.text);
       action.edit = edit;
       actions.push(action);
     }

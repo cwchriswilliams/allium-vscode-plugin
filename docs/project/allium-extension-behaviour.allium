@@ -184,3 +184,15 @@ rule QuickFixForTemporalMissingGuard {
         insertion: "requires: /* add temporal guard */"
     )
 }
+
+rule RefactorTemporalWhenToGuardedRule {
+    when: RefactorRequestedFromSelection(selection)
+    requires: selection.line starts_with "when:"
+    requires: selection.when_clause is temporal
+    requires: selection.containing_rule.has_requires = false
+
+    ensures: EditProposed(
+        title: "Add temporal requires guard",
+        insertion: "requires: /* add temporal guard */"
+    )
+}

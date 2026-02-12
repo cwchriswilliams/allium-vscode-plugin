@@ -94,6 +94,11 @@ Initial refactors via Code Actions:
 - Convert inline enum to named `enum` (if/when enum syntax support is finalized).
 - Add temporal guard from selected `when` condition.
 
+Current status:
+- Implemented: extract repeated literal to `config`.
+- Implemented: add temporal guard from selected `when` condition.
+- Pending: inline enum conversion once enum syntax is finalized.
+
 Then migrate to semantic refactors via parser AST + symbol table.
 
 ### Phase 5: Additional Features (Priority 5)
