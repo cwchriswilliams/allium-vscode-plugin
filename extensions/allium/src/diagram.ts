@@ -2,15 +2,24 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import {
-  buildDiagramModel,
+  applyDiagramFilters,
+  buildDiagramResult,
   renderDiagram,
+  type DiagramBuildResult,
+  type DiagramFilterOptions,
   type DiagramFormat,
   type DiagramModel,
+  type DiagramNodeKind,
 } from "./language-tools/diagram";
+
+type SplitMode = "module";
 
 interface ParsedArgs {
   format: DiagramFormat;
   outputPath?: string;
+  strict: boolean;
+  split?: SplitMode;
+  filters: DiagramFilterOptions;
   inputs: string[];
 }
 
@@ -26,14 +35,35 @@ function main(argv: string[]): number {
     return 2;
   }
 
-  const combined = mergeModels(
-    files.map((filePath) => {
-      const text = fs.readFileSync(filePath, "utf8");
-      return buildDiagramModel(text);
-    }),
-  );
+  const diagramResults = files.map((filePath) => {
+    const text = fs.readFileSync(filePath, "utf8");
+    return { filePath, result: buildDiagramResult(text) };
+  });
 
-  const output = renderDiagram(combined, parsed.format);
+  const issueCount = writeIssues(diagramResults);
+  if (parsed.strict && issueCount > 0) {
+    process.stderr.write(
+      "Diagram extraction produced skipped declaration findings in strict mode.\n",
+    );
+    return 1;
+  }
+
+  if (parsed.split === "module") {
+    if (!parsed.outputPath) {
+      process.stderr.write(
+        "Expected --output <directory> when using --split module.\n",
+      );
+      return 2;
+    }
+    writeSplitByModule(diagramResults, parsed);
+    return 0;
+  }
+
+  const combined = mergeModels(
+    diagramResults.map((entry) => entry.result.model),
+  );
+  const filtered = applyDiagramFilters(combined, parsed.filters);
+  const output = renderDiagram(filtered, parsed.format);
   if (parsed.outputPath) {
     const fullPath = path.resolve(process.cwd(), parsed.outputPath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -51,6 +81,10 @@ function main(argv: string[]): number {
 function parseArgs(argv: string[]): ParsedArgs | null {
   let format: DiagramFormat = "d2";
   let outputPath: string | undefined;
+  let strict = false;
+  let split: SplitMode | undefined;
+  const focusNames: string[] = [];
+  const kinds: DiagramNodeKind[] = [];
   const inputs: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -75,6 +109,46 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       i += 1;
       continue;
     }
+    if (arg === "--focus") {
+      const focusArg = argv[i + 1];
+      if (!focusArg) {
+        printUsage("Expected comma-delimited names after --focus");
+        return null;
+      }
+      focusNames.push(...focusArg.split(","));
+      i += 1;
+      continue;
+    }
+    if (arg === "--kind") {
+      const kindArg = argv[i + 1];
+      if (!kindArg) {
+        printUsage("Expected comma-delimited kinds after --kind");
+        return null;
+      }
+      for (const kind of kindArg.split(",").map((value) => value.trim())) {
+        if (!isDiagramKind(kind)) {
+          printUsage(`Unsupported diagram kind '${kind}'`);
+          return null;
+        }
+        kinds.push(kind);
+      }
+      i += 1;
+      continue;
+    }
+    if (arg === "--strict") {
+      strict = true;
+      continue;
+    }
+    if (arg === "--split") {
+      const splitArg = argv[i + 1];
+      if (splitArg !== "module") {
+        printUsage("Expected --split module");
+        return null;
+      }
+      split = splitArg;
+      i += 1;
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       printUsage();
       return null;
@@ -87,7 +161,17 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { format, outputPath, inputs };
+  return {
+    format,
+    outputPath,
+    strict,
+    split,
+    filters: {
+      focusNames,
+      kinds,
+    },
+    inputs,
+  };
 }
 
 function printUsage(error?: string): void {
@@ -95,8 +179,75 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/diagram.js [--format d2|mermaid] [--output path] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/diagram.js [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--strict] <file|directory|glob> [...]\n",
   );
+}
+
+function writeIssues(
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+): number {
+  let issueCount = 0;
+  for (const entry of diagramResults) {
+    for (const issue of entry.result.issues) {
+      issueCount += 1;
+      const relPath =
+        path.relative(process.cwd(), entry.filePath) || entry.filePath;
+      process.stderr.write(
+        `${relPath}:${issue.line + 1}:1 warning ${issue.code} ${issue.message}\n`,
+      );
+    }
+  }
+  return issueCount;
+}
+
+function writeSplitByModule(
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+  parsed: ParsedArgs,
+): void {
+  const perModule = new Map<string, DiagramModel[]>();
+
+  for (const entry of diagramResults) {
+    const moduleNames =
+      entry.result.modules.length > 0 ? entry.result.modules : ["root"];
+    for (const moduleName of moduleNames) {
+      const existing = perModule.get(moduleName) ?? [];
+      existing.push(entry.result.model);
+      perModule.set(moduleName, existing);
+    }
+  }
+
+  const outputDir = path.resolve(process.cwd(), parsed.outputPath ?? "");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const extension = parsed.format === "mermaid" ? "mmd" : "d2";
+  for (const [moduleName, models] of [...perModule.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )) {
+    const merged = mergeModels(models);
+    const filtered = applyDiagramFilters(merged, parsed.filters);
+    const output = renderDiagram(filtered, parsed.format);
+    const fileName = `${sanitizePathToken(moduleName)}.${extension}`;
+    const filePath = path.join(outputDir, fileName);
+    fs.writeFileSync(filePath, output, "utf8");
+    process.stdout.write(`Wrote ${parsed.format} diagram to ${filePath}\n`);
+  }
+}
+
+function isDiagramKind(value: string): value is DiagramNodeKind {
+  return (
+    value === "entity" ||
+    value === "value" ||
+    value === "variant" ||
+    value === "rule" ||
+    value === "surface" ||
+    value === "actor" ||
+    value === "enum" ||
+    value === "trigger"
+  );
+}
+
+function sanitizePathToken(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, "-");
 }
 
 function mergeModels(models: DiagramModel[]): DiagramModel {

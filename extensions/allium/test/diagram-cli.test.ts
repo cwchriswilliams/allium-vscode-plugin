@@ -39,8 +39,8 @@ test("generates d2 diagram to stdout", () => {
 
   const result = runDiagram(["spec.allium"], dir);
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /direction: right/);
-  assert.match(result.stdout, /rule_Close/);
+  assert.match(result.stdout, /entity_group/);
+  assert.match(result.stdout, /rule_group/);
 });
 
 test("writes mermaid diagram to output path", () => {
@@ -61,5 +61,60 @@ test("writes mermaid diagram to output path", () => {
 
   const generated = fs.readFileSync(outputPath, "utf8");
   assert.match(generated, /flowchart LR/);
-  assert.match(generated, /rule_Close/);
+  assert.match(generated, /subgraph rule_group/);
+});
+
+test("supports focus and kind filters", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `entity Ticket {\n  status: open | closed\n}\nentity Team {\n  name: String\n}\nrule Close {\n  when: CloseTicket(ticket)\n  ensures: Ticket.created(status: closed)\n}\n`,
+  );
+
+  const result = runDiagram(
+    ["--kind", "entity,rule", "--focus", "Ticket", "spec.allium"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /entity_Ticket/);
+  assert.equal(/entity_Team/.test(result.stdout), false);
+  assert.equal(/trigger_CloseTicket/.test(result.stdout), false);
+});
+
+test("fails strict mode when skipped declarations are found", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `config {\n  timeout: Integer = 1\n}\nentity Ticket {\n  status: open | closed\n}\n`,
+  );
+
+  const result = runDiagram(["--strict", "spec.allium"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /allium.diagram.skippedDeclaration/);
+});
+
+test("writes split-by-module diagrams", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  writeAllium(
+    dir,
+    "a.allium",
+    `module onboarding\nentity Invitation {\n  status: pending | accepted\n}\n`,
+  );
+  writeAllium(
+    dir,
+    "b.allium",
+    `module operations\nentity Ticket {\n  status: open | closed\n}\n`,
+  );
+
+  const outDir = path.join(dir, "diagrams");
+  const result = runDiagram(
+    ["--split", "module", "--output", "diagrams", "*.allium"],
+    dir,
+  );
+
+  assert.equal(result.status, 0);
+  assert.ok(fs.existsSync(path.join(outDir, "onboarding.d2")));
+  assert.ok(fs.existsSync(path.join(outDir, "operations.d2")));
 });

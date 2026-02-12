@@ -243,7 +243,17 @@ Direct built script:
 node extensions/allium/dist/src/diagram.js docs/project/specs
 node extensions/allium/dist/src/diagram.js --format d2 --output docs/project/diagrams/spec-overview.d2 docs/project/specs
 node extensions/allium/dist/src/diagram.js --format mermaid docs/project/specs/allium-extension-behaviour.allium
+node extensions/allium/dist/src/diagram.js --focus Invitation,AcceptInvitation --kind entity,rule docs/project/specs
+node extensions/allium/dist/src/diagram.js --split module --output docs/project/diagrams/by-module docs/project/specs
 ```
+
+Key diagram options:
+
+- `--strict` to fail when extraction skips non-diagram declarations (`allium.diagram.skippedDeclaration`)
+- `--focus NameA,NameB` to include matching nodes and one-hop neighbours
+- `--kind entity,rule,...` to filter node kinds
+- `--split module --output <dir>` to emit one file per detected `module` declaration
+- grouped rendering by declaration kind in both D2 and Mermaid outputs
 
 Current diagram model captures:
 

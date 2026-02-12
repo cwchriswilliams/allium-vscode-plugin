@@ -3,11 +3,22 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 type DiagramFormat = "d2" | "mermaid";
+type DiagramNodeKind =
+  | "entity"
+  | "value"
+  | "variant"
+  | "rule"
+  | "surface"
+  | "actor"
+  | "enum"
+  | "trigger";
+type SplitMode = "module";
 
 interface DiagramNode {
   id: string;
   key: string;
   label: string;
+  kind: DiagramNodeKind;
 }
 
 interface DiagramEdge {
@@ -21,9 +32,29 @@ interface DiagramModel {
   edges: DiagramEdge[];
 }
 
+interface DiagramIssue {
+  code: "allium.diagram.skippedDeclaration";
+  message: string;
+  line: number;
+}
+
+interface DiagramBuildResult {
+  model: DiagramModel;
+  issues: DiagramIssue[];
+  modules: string[];
+}
+
+interface DiagramFilterOptions {
+  focusNames?: string[];
+  kinds?: DiagramNodeKind[];
+}
+
 interface ParsedArgs {
   format: DiagramFormat;
   outputPath?: string;
+  strict: boolean;
+  split?: SplitMode;
+  filters: DiagramFilterOptions;
   inputs: string[];
 }
 
@@ -39,13 +70,35 @@ function main(argv: string[]): number {
     return 2;
   }
 
-  const combined = mergeModels(
-    files.map((filePath) =>
-      buildDiagramModel(fs.readFileSync(filePath, "utf8")),
-    ),
-  );
+  const diagramResults = files.map((filePath) => {
+    const text = fs.readFileSync(filePath, "utf8");
+    return { filePath, result: buildDiagramResult(text) };
+  });
 
-  const output = renderDiagram(combined, parsed.format);
+  const issueCount = writeIssues(diagramResults);
+  if (parsed.strict && issueCount > 0) {
+    process.stderr.write(
+      "Diagram extraction produced skipped declaration findings in strict mode.\n",
+    );
+    return 1;
+  }
+
+  if (parsed.split === "module") {
+    if (!parsed.outputPath) {
+      process.stderr.write(
+        "Expected --output <directory> when using --split module.\n",
+      );
+      return 2;
+    }
+    writeSplitByModule(diagramResults, parsed);
+    return 0;
+  }
+
+  const combined = mergeModels(
+    diagramResults.map((entry) => entry.result.model),
+  );
+  const filtered = applyDiagramFilters(combined, parsed.filters);
+  const output = renderDiagram(filtered, parsed.format);
   if (parsed.outputPath) {
     const fullPath = path.resolve(process.cwd(), parsed.outputPath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -63,6 +116,10 @@ function main(argv: string[]): number {
 function parseArgs(argv: string[]): ParsedArgs | null {
   let format: DiagramFormat = "d2";
   let outputPath: string | undefined;
+  let strict = false;
+  let split: SplitMode | undefined;
+  const focusNames: string[] = [];
+  const kinds: DiagramNodeKind[] = [];
   const inputs: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -87,6 +144,46 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       i += 1;
       continue;
     }
+    if (arg === "--focus") {
+      const focusArg = argv[i + 1];
+      if (!focusArg) {
+        printUsage("Expected comma-delimited names after --focus");
+        return null;
+      }
+      focusNames.push(...focusArg.split(","));
+      i += 1;
+      continue;
+    }
+    if (arg === "--kind") {
+      const kindArg = argv[i + 1];
+      if (!kindArg) {
+        printUsage("Expected comma-delimited kinds after --kind");
+        return null;
+      }
+      for (const kind of kindArg.split(",").map((value) => value.trim())) {
+        if (!isDiagramKind(kind)) {
+          printUsage(`Unsupported diagram kind '${kind}'`);
+          return null;
+        }
+        kinds.push(kind);
+      }
+      i += 1;
+      continue;
+    }
+    if (arg === "--strict") {
+      strict = true;
+      continue;
+    }
+    if (arg === "--split") {
+      const splitArg = argv[i + 1];
+      if (splitArg !== "module") {
+        printUsage("Expected --split module");
+        return null;
+      }
+      split = splitArg;
+      i += 1;
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       printUsage();
       return null;
@@ -99,7 +196,17 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { format, outputPath, inputs };
+  return {
+    format,
+    outputPath,
+    strict,
+    split,
+    filters: {
+      focusNames,
+      kinds,
+    },
+    inputs,
+  };
 }
 
 function printUsage(error?: string): void {
@@ -107,24 +214,80 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-diagram [--format d2|mermaid] [--output path] <file|directory|glob> [...]\n",
+    "Usage: allium-diagram [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--strict] <file|directory|glob> [...]\n",
   );
 }
 
-function buildDiagramModel(text: string): DiagramModel {
+function writeIssues(
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+): number {
+  let issueCount = 0;
+  for (const entry of diagramResults) {
+    for (const issue of entry.result.issues) {
+      issueCount += 1;
+      const relPath =
+        path.relative(process.cwd(), entry.filePath) || entry.filePath;
+      process.stderr.write(
+        `${relPath}:${issue.line + 1}:1 warning ${issue.code} ${issue.message}\n`,
+      );
+    }
+  }
+  return issueCount;
+}
+
+function writeSplitByModule(
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+  parsed: ParsedArgs,
+): void {
+  const perModule = new Map<string, DiagramModel[]>();
+
+  for (const entry of diagramResults) {
+    const moduleNames =
+      entry.result.modules.length > 0 ? entry.result.modules : ["root"];
+    for (const moduleName of moduleNames) {
+      const existing = perModule.get(moduleName) ?? [];
+      existing.push(entry.result.model);
+      perModule.set(moduleName, existing);
+    }
+  }
+
+  const outputDir = path.resolve(process.cwd(), parsed.outputPath ?? "");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const extension = parsed.format === "mermaid" ? "mmd" : "d2";
+  for (const [moduleName, models] of [...perModule.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  )) {
+    const merged = mergeModels(models);
+    const filtered = applyDiagramFilters(merged, parsed.filters);
+    const output = renderDiagram(filtered, parsed.format);
+    const fileName = `${sanitizePathToken(moduleName)}.${extension}`;
+    const filePath = path.join(outputDir, fileName);
+    fs.writeFileSync(filePath, output, "utf8");
+    process.stdout.write(`Wrote ${parsed.format} diagram to ${filePath}\n`);
+  }
+}
+
+function buildDiagramResult(text: string): DiagramBuildResult {
   const nodes: DiagramNode[] = [];
   const edges: DiagramEdge[] = [];
+  const issues: DiagramIssue[] = [];
   const nodeByKey = new Map<string, DiagramNode>();
+  const lineStarts = buildLineStarts(text);
 
-  const ensureNode = (kind: string, name: string): DiagramNode => {
+  const ensureNode = (
+    kind: DiagramNodeKind,
+    name: string,
+    labelPrefix?: string,
+  ): DiagramNode => {
     const key = `${kind}:${name}`;
     const existing = nodeByKey.get(key);
     if (existing) {
       return existing;
     }
     const id = `${kind}_${name}`.replace(/[^A-Za-z0-9_]/g, "_");
-    const label = `[${kind}] ${name}`;
-    const node: DiagramNode = { id, key, label };
+    const label = labelPrefix ? `[${labelPrefix}] ${name}` : name;
+    const node: DiagramNode = { id, key, label, kind };
     nodeByKey.set(key, node);
     nodes.push(node);
     return node;
@@ -141,13 +304,43 @@ function buildDiagramModel(text: string): DiagramModel {
     match;
     match = topLevelPattern.exec(text)
   ) {
-    const kind = match[1].replace(/\s+/g, "_");
+    const declKind = match[1];
     const name = match[2];
     const base = match[3];
-    const node = ensureNode(kind, name);
-    if (kind === "variant" && base) {
-      addEdge(node, ensureNode("entity", base), "extends");
+
+    if (declKind === "rule") {
+      ensureNode("rule", name, "rule");
+      continue;
     }
+    if (declKind === "surface") {
+      ensureNode("surface", name, "surface");
+      continue;
+    }
+    if (declKind === "actor") {
+      ensureNode("actor", name, "actor");
+      continue;
+    }
+    if (declKind === "enum") {
+      ensureNode("enum", name, "enum");
+      continue;
+    }
+    if (declKind === "value") {
+      ensureNode("value", name, "value");
+      continue;
+    }
+    if (declKind === "variant") {
+      const variant = ensureNode("variant", name, "variant");
+      if (base) {
+        const baseEntity = ensureNode("entity", base, "entity");
+        addEdge(variant, baseEntity, "extends");
+      }
+      continue;
+    }
+    ensureNode(
+      "entity",
+      name,
+      declKind.startsWith("external") ? "external" : "entity",
+    );
   }
 
   const entityBlockPattern =
@@ -157,20 +350,21 @@ function buildDiagramModel(text: string): DiagramModel {
     entity;
     entity = entityBlockPattern.exec(text)
   ) {
-    const source = ensureNode("entity", entity[1]);
+    const source = ensureNode("entity", entity[1], "entity");
     const body = entity[2];
     const relPattern =
       /^\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\s+for\s+this\s+[A-Za-z_][A-Za-z0-9_]*\s*$/gm;
     for (let rel = relPattern.exec(body); rel; rel = relPattern.exec(body)) {
       const targetType = rel[1].includes("/") ? rel[1].split("/")[1] : rel[1];
-      addEdge(source, ensureNode("entity", targetType), "rel");
+      const target = ensureNode("entity", targetType, "entity");
+      addEdge(source, target, "rel");
     }
   }
 
   const rulePattern =
     /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^\s*\}/gm;
   for (let rule = rulePattern.exec(text); rule; rule = rulePattern.exec(text)) {
-    const ruleNode = ensureNode("rule", rule[1]);
+    const ruleNode = ensureNode("rule", rule[1], "rule");
     const body = rule[2];
 
     const when = body.match(/^\s*when\s*:\s*(.+)$/m);
@@ -183,7 +377,8 @@ function buildDiagramModel(text: string): DiagramModel {
         const typeName = typed[1].includes("/")
           ? typed[1].split("/")[1]
           : typed[1];
-        addEdge(ensureNode("entity", typeName), ruleNode, "when");
+        const entity = ensureNode("entity", typeName, "entity");
+        addEdge(entity, ruleNode, "when");
       }
 
       const callPattern = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
@@ -192,7 +387,8 @@ function buildDiagramModel(text: string): DiagramModel {
         call;
         call = callPattern.exec(trigger)
       ) {
-        addEdge(ensureNode("trigger", call[1]), ruleNode, "when");
+        const triggerNode = ensureNode("trigger", call[1], "trigger");
+        addEdge(triggerNode, ruleNode, "when");
       }
     }
 
@@ -205,7 +401,8 @@ function buildDiagramModel(text: string): DiagramModel {
     ) {
       const raw = create[1];
       const typeName = raw.includes("/") ? raw.split("/")[1] : raw;
-      addEdge(ruleNode, ensureNode("entity", typeName), "ensures");
+      const target = ensureNode("entity", typeName, "entity");
+      addEdge(ruleNode, target, "ensures");
     }
   }
 
@@ -216,41 +413,93 @@ function buildDiagramModel(text: string): DiagramModel {
     surface;
     surface = surfacePattern.exec(text)
   ) {
-    const surfaceNode = ensureNode("surface", surface[1]);
+    const surfaceNode = ensureNode("surface", surface[1], "surface");
     const body = surface[2];
 
     const forMatch = body.match(
       /^\s*for\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$/m,
     );
     if (forMatch) {
-      addEdge(ensureNode("actor", forMatch[1]), surfaceNode, "for");
+      const actor = ensureNode("actor", forMatch[1], "actor");
+      addEdge(actor, surfaceNode, "for");
     }
 
     const contextMatch = body.match(
       /^\s*context\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*$/m,
     );
     if (contextMatch) {
-      addEdge(ensureNode("entity", contextMatch[1]), surfaceNode, "context");
+      const contextEntity = ensureNode("entity", contextMatch[1], "entity");
+      addEdge(contextEntity, surfaceNode, "context");
     }
 
     for (const callName of parseSurfaceProvidesCalls(body)) {
-      addEdge(surfaceNode, ensureNode("trigger", callName), "provides");
+      const triggerNode = ensureNode("trigger", callName, "trigger");
+      addEdge(surfaceNode, triggerNode, "provides");
     }
   }
 
-  const uniqueEdges = new Map<string, DiagramEdge>();
-  for (const edge of edges) {
-    uniqueEdges.set(`${edge.from}|${edge.to}|${edge.label}`, edge);
+  for (const issue of collectSkippedDeclarationIssues(text, lineStarts)) {
+    issues.push(issue);
   }
 
   return {
-    nodes: [...nodes].sort((a, b) => a.id.localeCompare(b.id)),
-    edges: [...uniqueEdges.values()].sort((a, b) =>
-      `${a.from}|${a.to}|${a.label}`.localeCompare(
-        `${b.from}|${b.to}|${b.label}`,
-      ),
-    ),
+    model: normalizeModel({ nodes, edges }),
+    issues,
+    modules: collectModuleNames(text),
   };
+}
+
+function applyDiagramFilters(
+  model: DiagramModel,
+  options: DiagramFilterOptions,
+): DiagramModel {
+  const requestedKinds = new Set(options.kinds ?? []);
+  const kindFilteredNodes =
+    requestedKinds.size > 0
+      ? model.nodes.filter((node) => requestedKinds.has(node.kind))
+      : [...model.nodes];
+
+  const nodeById = new Map(kindFilteredNodes.map((node) => [node.id, node]));
+  const kindFilteredEdges = model.edges.filter(
+    (edge) => nodeById.has(edge.from) && nodeById.has(edge.to),
+  );
+
+  const focusNames = (options.focusNames ?? [])
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0);
+  if (focusNames.length === 0) {
+    return normalizeModel({
+      nodes: kindFilteredNodes,
+      edges: kindFilteredEdges,
+    });
+  }
+
+  const focusMatches = new Set<string>();
+  for (const node of kindFilteredNodes) {
+    const target = `${node.key} ${node.label}`.toLowerCase();
+    if (focusNames.some((focus) => target.includes(focus))) {
+      focusMatches.add(node.id);
+    }
+  }
+
+  if (focusMatches.size === 0) {
+    return { nodes: [], edges: [] };
+  }
+
+  const visible = new Set<string>(focusMatches);
+  for (const edge of kindFilteredEdges) {
+    if (focusMatches.has(edge.from) || focusMatches.has(edge.to)) {
+      visible.add(edge.from);
+      visible.add(edge.to);
+    }
+  }
+
+  return normalizeModel({
+    nodes: kindFilteredNodes.filter((node) => visible.has(node.id)),
+    edges: kindFilteredEdges.filter(
+      (edge) => visible.has(edge.from) && visible.has(edge.to),
+    ),
+  });
 }
 
 function renderDiagram(model: DiagramModel, format: DiagramFormat): string {
@@ -262,12 +511,21 @@ function renderDiagram(model: DiagramModel, format: DiagramFormat): string {
 
 function renderD2(model: DiagramModel): string {
   const lines: string[] = ["direction: right", ""];
-  for (const node of model.nodes) {
-    lines.push(`${node.id}: "${escapeD2(node.label)}"`);
-  }
-  if (model.nodes.length > 0) {
+  const nodesByKind = groupNodesByKind(model.nodes);
+  for (const [kind, nodes] of nodesByKind) {
+    lines.push(`${kind}_group: {`);
+    lines.push(`  label: "${escapeD2(kindLabel(kind))}"`);
+    lines.push("  style: {");
+    lines.push('    stroke: "#7b8794"');
+    lines.push('    fill: "#f8fafc"');
+    lines.push("  }");
+    for (const node of nodes) {
+      lines.push(`  ${node.id}: "${escapeD2(node.label)}"`);
+    }
+    lines.push("}");
     lines.push("");
   }
+
   for (const edge of model.edges) {
     lines.push(`${edge.from} -> ${edge.to}: "${escapeD2(edge.label)}"`);
   }
@@ -276,8 +534,13 @@ function renderD2(model: DiagramModel): string {
 
 function renderMermaid(model: DiagramModel): string {
   const lines: string[] = ["flowchart LR"];
-  for (const node of model.nodes) {
-    lines.push(`  ${node.id}["${escapeMermaid(node.label)}"]`);
+  const nodesByKind = groupNodesByKind(model.nodes);
+  for (const [kind, nodes] of nodesByKind) {
+    lines.push(`  subgraph ${kind}_group["${escapeMermaid(kindLabel(kind))}"]`);
+    for (const node of nodes) {
+      lines.push(`    ${node.id}["${escapeMermaid(node.label)}"]`);
+    }
+    lines.push("  end");
   }
   for (const edge of model.edges) {
     lines.push(`  ${edge.from} -->|${escapeMermaid(edge.label)}| ${edge.to}`);
@@ -285,50 +548,103 @@ function renderMermaid(model: DiagramModel): string {
   return `${lines.join("\n")}\n`;
 }
 
-function escapeD2(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
+function groupNodesByKind(
+  nodes: DiagramNode[],
+): Map<DiagramNodeKind, DiagramNode[]> {
+  const grouped = new Map<DiagramNodeKind, DiagramNode[]>();
+  const order: DiagramNodeKind[] = [
+    "entity",
+    "variant",
+    "value",
+    "enum",
+    "rule",
+    "surface",
+    "actor",
+    "trigger",
+  ];
+  for (const kind of order) {
+    grouped.set(kind, []);
+  }
+  for (const node of nodes) {
+    grouped.get(node.kind)?.push(node);
+  }
 
-function escapeMermaid(value: string): string {
-  return value.replace(/"/g, "'");
-}
-
-function parseSurfaceProvidesCalls(body: string): string[] {
-  const calls: string[] = [];
-  const sectionPattern = /^(\s*)provides\s*:\s*$/gm;
-  for (
-    let section = sectionPattern.exec(body);
-    section;
-    section = sectionPattern.exec(body)
-  ) {
-    const baseIndent = (section[1] ?? "").length;
-    let cursor = section.index + section[0].length + 1;
-    while (cursor < body.length) {
-      const lineEnd = body.indexOf("\n", cursor);
-      const end = lineEnd >= 0 ? lineEnd : body.length;
-      const line = body.slice(cursor, end);
-      const trimmed = line.trim();
-      const indent = (line.match(/^\s*/) ?? [""])[0].length;
-      if (trimmed.length === 0) {
-        cursor = end + 1;
-        continue;
-      }
-      if (indent <= baseIndent) {
-        break;
-      }
-      const match = line.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
-      if (match) {
-        calls.push(match[1]);
-      }
-      cursor = end + 1;
+  const sortedEntries: Array<[DiagramNodeKind, DiagramNode[]]> = [];
+  for (const [kind, items] of grouped.entries()) {
+    const sorted = [...items].sort((a, b) => a.id.localeCompare(b.id));
+    if (sorted.length > 0) {
+      sortedEntries.push([kind, sorted]);
     }
   }
-  return calls;
+  return new Map(sortedEntries);
+}
+
+function kindLabel(kind: DiagramNodeKind): string {
+  if (kind === "entity") {
+    return "Entities";
+  }
+  if (kind === "variant") {
+    return "Variants";
+  }
+  if (kind === "value") {
+    return "Values";
+  }
+  if (kind === "enum") {
+    return "Enums";
+  }
+  if (kind === "rule") {
+    return "Rules";
+  }
+  if (kind === "surface") {
+    return "Surfaces";
+  }
+  if (kind === "actor") {
+    return "Actors";
+  }
+  return "Triggers";
+}
+
+function normalizeModel(model: DiagramModel): DiagramModel {
+  const uniqueNodes = new Map<string, DiagramNode>();
+  for (const node of model.nodes) {
+    uniqueNodes.set(node.id, node);
+  }
+
+  const uniqueEdges = new Map<string, DiagramEdge>();
+  for (const edge of model.edges) {
+    uniqueEdges.set(`${edge.from}|${edge.to}|${edge.label}`, edge);
+  }
+
+  return {
+    nodes: [...uniqueNodes.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    edges: [...uniqueEdges.values()].sort((a, b) =>
+      `${a.from}|${a.to}|${a.label}`.localeCompare(
+        `${b.from}|${b.to}|${b.label}`,
+      ),
+    ),
+  };
+}
+
+function isDiagramKind(value: string): value is DiagramNodeKind {
+  return (
+    value === "entity" ||
+    value === "value" ||
+    value === "variant" ||
+    value === "rule" ||
+    value === "surface" ||
+    value === "actor" ||
+    value === "enum" ||
+    value === "trigger"
+  );
+}
+
+function sanitizePathToken(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, "-");
 }
 
 function mergeModels(models: DiagramModel[]): DiagramModel {
-  const nodes = new Map<string, DiagramNode>();
-  const edges = new Map<string, DiagramEdge>();
+  const nodes = new Map<string, DiagramModel["nodes"][number]>();
+  const edges = new Map<string, DiagramModel["edges"][number]>();
 
   for (const model of models) {
     for (const node of model.nodes) {
@@ -421,6 +737,104 @@ function wildcardToRegex(pattern: string): RegExp {
     .replace(/\?/g, ".");
 
   return new RegExp(`^${escaped}$`);
+}
+
+function collectModuleNames(text: string): string[] {
+  const modules = new Set<string>();
+  const pattern = /^\s*module\s+([a-z_][a-z0-9_]*)\b/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    modules.add(match[1]);
+  }
+  return [...modules].sort();
+}
+
+function collectSkippedDeclarationIssues(
+  text: string,
+  lineStarts: number[],
+): DiagramIssue[] {
+  const issues: DiagramIssue[] = [];
+  const pattern =
+    /^\s*(default|deferred|open_question|context|config|use)\b[^\n]*$/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    if (isCommentLineAtIndex(text, match.index)) {
+      continue;
+    }
+    issues.push({
+      code: "allium.diagram.skippedDeclaration",
+      line: offsetToLine(lineStarts, match.index),
+      message: `Diagram extraction skipped '${match[1]}' declaration at line ${offsetToLine(lineStarts, match.index) + 1}.`,
+    });
+  }
+  return issues;
+}
+
+function buildLineStarts(text: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === "\n") {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
+}
+
+function offsetToLine(lineStarts: number[], offset: number): number {
+  let line = 0;
+  for (let i = 0; i < lineStarts.length; i += 1) {
+    if (lineStarts[i] > offset) {
+      break;
+    }
+    line = i;
+  }
+  return line;
+}
+
+function isCommentLineAtIndex(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf("\n", index) + 1;
+  const lineEnd = text.indexOf("\n", index);
+  const line = text.slice(lineStart, lineEnd >= 0 ? lineEnd : text.length);
+  return /^\s*--/.test(line);
+}
+
+function escapeD2(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function escapeMermaid(value: string): string {
+  return value.replace(/"/g, "'");
+}
+
+function parseSurfaceProvidesCalls(body: string): string[] {
+  const calls: string[] = [];
+  const sectionPattern = /^(\s*)provides\s*:\s*$/gm;
+  for (
+    let section = sectionPattern.exec(body);
+    section;
+    section = sectionPattern.exec(body)
+  ) {
+    const baseIndent = (section[1] ?? "").length;
+    let cursor = section.index + section[0].length + 1;
+    while (cursor < body.length) {
+      const lineEnd = body.indexOf("\n", cursor);
+      const end = lineEnd >= 0 ? lineEnd : body.length;
+      const line = body.slice(cursor, end);
+      const trimmed = line.trim();
+      const indent = (line.match(/^\s*/) ?? [""])[0].length;
+      if (trimmed.length === 0) {
+        cursor = end + 1;
+        continue;
+      }
+      if (indent <= baseIndent) {
+        break;
+      }
+      const match = line.match(/([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+      if (match) {
+        calls.push(match[1]);
+      }
+      cursor = end + 1;
+    }
+  }
+  return calls;
 }
 
 const exitCode = main(process.argv.slice(2));

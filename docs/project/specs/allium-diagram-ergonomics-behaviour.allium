@@ -1,0 +1,74 @@
+module allium_diagram_ergonomics_behaviour
+
+entity DiagramInvocation {
+    format: d2 | mermaid
+    strict_mode: Boolean
+    split_mode: module | none
+    output_path: String?
+    focus_names: List<String>
+    kinds: List<String>
+}
+
+entity DiagramIssue {
+    code: String
+    severity: warning
+}
+
+rule StrictModeFailsOnSkippedDeclarations {
+    when: DiagramCommandInvoked(args)
+    requires: args.strict_mode = true
+    requires: DiagramIssue.created(code: "allium.diagram.skippedDeclaration")
+
+    ensures: DiagramInvocation.created(strict_mode: true)
+    ensures: ProcessExit(code: 1)
+}
+
+rule NonStrictModeEmitsWarningsAndContinues {
+    when: DiagramCommandInvoked(args)
+    requires: args.strict_mode = false
+    requires: DiagramIssue.created(code: "allium.diagram.skippedDeclaration")
+
+    ensures: DiagramInvocation.created(strict_mode: false)
+    ensures: StderrPrinted()
+    ensures: DiagramGenerated()
+}
+
+rule KindFilterRestrictsVisibleNodes {
+    when: DiagramCommandInvoked(args)
+    requires: args.kinds.count > 0
+
+    ensures: DiagramContainsOnlyRequestedKinds()
+}
+
+rule FocusFilterKeepsNeighbourhood {
+    when: DiagramCommandInvoked(args)
+    requires: args.focus_names.count > 0
+
+    ensures: DiagramContainsFocusMatches()
+    ensures: DiagramContainsOneHopNeighbours()
+}
+
+rule SplitByModuleRequiresOutputDirectory {
+    when: DiagramCommandInvoked(args)
+    requires: args.split_mode = module
+    requires: args.output_path = null
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule SplitByModuleWritesPerModuleFiles {
+    when: DiagramCommandInvoked(args)
+    requires: args.split_mode = module
+    requires: args.output_path != null
+
+    ensures: FileWritten(path: "<output>/<module>.d2")
+}
+
+rule RendererGroupsNodesByKind {
+    when: DiagramRendered(format)
+
+    ensures: GroupContainerRendered(kind: entity)
+    ensures: GroupContainerRendered(kind: rule)
+    ensures: GroupContainerRendered(kind: trigger)
+}
