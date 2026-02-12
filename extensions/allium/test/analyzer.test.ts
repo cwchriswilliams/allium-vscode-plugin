@@ -423,6 +423,38 @@ test("does not report known imported alias in type reference", () => {
   );
 });
 
+test("reports undefined relationship target type", () => {
+  const findings = analyzeAllium(
+    `entity Order {\n  items: LineItem for this order\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.relationship.undefinedTarget"),
+  );
+});
+
+test("reports non-singular relationship target type name", () => {
+  const findings = analyzeAllium(
+    `entity User {\n}\nentity Team {\n  members: Users for this team\n}\nentity Users {\n  id: String\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.relationship.nonSingularTarget"),
+  );
+});
+
+test("does not report valid singular relationship target", () => {
+  const findings = analyzeAllium(
+    `entity User {\n  id: String\n}\nentity Team {\n  members: User for this team\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.relationship.undefinedTarget"),
+    false,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.relationship.nonSingularTarget"),
+    false,
+  );
+});
+
 test("reports duplicate named requires blocks in surface", () => {
   const findings = analyzeAllium(
     `surface Dashboard {\n  for viewer: User\n  requires Visibility:\n    viewer.id != null\n  requires Visibility:\n    viewer.active = true\n}\n`,

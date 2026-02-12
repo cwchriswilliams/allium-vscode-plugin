@@ -91,6 +91,8 @@ Implemented checks:
 - variant-specific field access without an observed kind guard
 - undefined local type references in entity/value/variant field declarations
 - undefined imported alias in field type references (for `<alias>/<Type>`)
+- undefined relationship target entity type (for `<Type> for this ...` fields)
+- relationship target entity type names that look plural (advisory)
 - undefined rule trigger/creation type reference
 - undefined imported alias in rule trigger/creation type reference
 - undefined rule binding reference (including unresolved dotted roots, `exists <name>`, and `for ... in <name>` sources)

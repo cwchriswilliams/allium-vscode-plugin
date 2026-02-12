@@ -90,6 +90,7 @@ Current status:
 - Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
 - Implemented sum-type guard checks for variant-specific field access (`allium.sum.unguardedVariantFieldAccess`).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).
+- Implemented relationship target checks (`allium.relationship.undefinedTarget`, `allium.relationship.nonSingularTarget`).
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
 - Implemented rule binding resolution checks (`allium.rule.undefinedBinding`) for unresolved dotted references, `exists` names, and `for ... in` sources.
 - Implemented status-assignment enum checks (`allium.status.undefinedValue`).

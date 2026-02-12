@@ -300,6 +300,26 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UndefinedRelationshipTargetIsError {
+        when: RelationshipFieldParsed(relationship)
+        requires: relationship.target_type_not_declared_locally_or_imported = true
+
+        ensures: Finding.created(
+        code: "allium.relationship.undefinedTarget",
+        severity: error
+        )
+    }
+
+    rule NonSingularRelationshipTargetIsWarning {
+        when: RelationshipFieldParsed(relationship)
+        requires: relationship.target_type_name_looks_plural = true
+
+        ensures: Finding.created(
+        code: "allium.relationship.nonSingularTarget",
+        severity: warning
+        )
+    }
+
     rule UndefinedRuleTypeReferenceIsError {
         when: RuleTypeReferenceParsed(type_ref)
         requires: type_ref not declared_locally_or_imported

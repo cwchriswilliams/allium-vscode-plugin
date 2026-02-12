@@ -111,6 +111,7 @@ export function analyzeAllium(
     ...findUnguardedVariantFieldAccessIssues(text, lineStarts, blocks),
   );
   findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
+  findings.push(...findRelationshipReferenceIssues(text, lineStarts, blocks));
   findings.push(...findRuleTypeReferenceIssues(lineStarts, blocks, text));
   findings.push(...findRuleUndefinedBindingIssues(lineStarts, blocks, text));
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
@@ -890,6 +891,53 @@ function findTypeReferenceIssues(
           ),
         );
       }
+    }
+  }
+
+  return findings;
+}
+
+function findRelationshipReferenceIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const declaredTypes = new Set<string>(collectDeclaredTypeNames(text));
+  const aliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+  const relationships = collectRelationshipTypeSites(text);
+
+  for (const rel of relationships) {
+    findings.push(
+      ...validateTypeNameReference(
+        rel.targetType,
+        rel.startOffset,
+        lineStarts,
+        declaredTypes,
+        aliases,
+        "allium.relationship.undefinedTarget",
+        "allium.relationship.undefinedImportedAlias",
+      ),
+    );
+
+    if (rel.targetType.includes("/")) {
+      continue;
+    }
+    if (looksLikePluralTypeName(rel.targetType)) {
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          rel.startOffset,
+          rel.startOffset + rel.targetType.length,
+          "allium.relationship.nonSingularTarget",
+          `Relationship target '${rel.targetType}' looks plural; use singular entity type names in relationships.`,
+          "warning",
+        ),
+      );
     }
   }
 
@@ -2779,6 +2827,53 @@ function collectFieldTypeSites(
     }
   }
   return out;
+}
+
+function collectRelationshipTypeSites(
+  text: string,
+): Array<{ targetType: string; startOffset: number }> {
+  const out: Array<{ targetType: string; startOffset: number }> = [];
+  const blockPattern =
+    /^\s*(?:external\s+entity|entity|value|variant)\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*:\s*[A-Za-z_][A-Za-z0-9_]*)?\s*\{/gm;
+  for (
+    let block = blockPattern.exec(text);
+    block;
+    block = blockPattern.exec(text)
+  ) {
+    const open = text.indexOf("{", block.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const relationshipPattern =
+      /^\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\s+for\s+this\s+[A-Za-z_][A-Za-z0-9_]*\s*$/gm;
+    for (
+      let rel = relationshipPattern.exec(body);
+      rel;
+      rel = relationshipPattern.exec(body)
+    ) {
+      const targetType = rel[1];
+      out.push({
+        targetType,
+        startOffset: open + 1 + rel.index + rel[0].indexOf(targetType),
+      });
+    }
+  }
+  return out;
+}
+
+function looksLikePluralTypeName(typeName: string): boolean {
+  if (!/^[A-Z][A-Za-z0-9_]*$/.test(typeName)) {
+    return false;
+  }
+  if (/(ss|us|is)$/.test(typeName)) {
+    return false;
+  }
+  return typeName.endsWith("s");
 }
 
 function collectEntityStatusEnums(text: string): Map<string, Set<string>> {
