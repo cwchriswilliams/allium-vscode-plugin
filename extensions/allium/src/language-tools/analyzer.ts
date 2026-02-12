@@ -97,6 +97,7 @@ export function analyzeAllium(
   }
 
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
+  findings.push(...findDuplicateDefaultNames(text, lineStarts));
   findings.push(...findConfigParameterShapeIssues(lineStarts, blocks));
   findings.push(...findUndefinedConfigReferences(text, lineStarts, blocks));
   findings.push(
@@ -379,6 +380,37 @@ function findConfigParameterShapeIssues(
       }
       cursor = end + 1;
     }
+  }
+  return findings;
+}
+
+function findDuplicateDefaultNames(
+  text: string,
+  lineStarts: number[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const pattern =
+    /^\s*default\s+[A-Za-z_][A-Za-z0-9_]*(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*=/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const instanceName = match[1];
+    if (!instanceName) {
+      continue;
+    }
+    if (seen.has(instanceName)) {
+      const offset = match.index + match[0].indexOf(instanceName);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + instanceName.length,
+          "allium.default.duplicateName",
+          `Default instance '${instanceName}' is declared more than once.`,
+          "error",
+        ),
+      );
+    }
+    seen.add(instanceName);
   }
   return findings;
 }

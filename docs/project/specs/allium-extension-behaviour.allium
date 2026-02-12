@@ -156,6 +156,16 @@ rule DuplicateConfigKeyIsError {
     )
 }
 
+rule DuplicateDefaultInstanceNameIsError {
+    when: DefaultDeclarationParsed(default_instance)
+    requires: default_instance.name_declared_multiple_times = true
+
+    ensures: Finding.created(
+    code: "allium.default.duplicateName",
+    severity: error
+    )
+}
+
 rule ConfigParameterNeedsTypeAndDefault {
     when: ConfigBlockParsed(config_block)
     requires: config_block.parameter_missing_type_or_default = true

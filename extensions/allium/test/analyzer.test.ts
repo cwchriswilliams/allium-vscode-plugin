@@ -36,6 +36,23 @@ test("reports duplicate config keys", () => {
   assert.ok(findings.some((f) => f.code === "allium.config.duplicateKey"));
 });
 
+test("reports duplicate named default instances", () => {
+  const findings = analyzeAllium(
+    `default Role viewer = {\n  name: "viewer"\n}\n\ndefault Role viewer = {\n  name: "viewer_v2"\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.default.duplicateName"));
+});
+
+test("does not report distinct named default instances", () => {
+  const findings = analyzeAllium(
+    `default Role viewer = {\n  name: "viewer"\n}\n\ndefault Role editor = {\n  name: "editor"\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.default.duplicateName"),
+    false,
+  );
+});
+
 test("reports duplicate let bindings", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping()\n  let x = 1\n  let x = 2\n  ensures: Done()\n}`,

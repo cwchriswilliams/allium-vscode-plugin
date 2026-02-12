@@ -92,7 +92,7 @@ Current status:
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Implemented warning checks for unused entities and external entity source hints.
 - Implemented warning checks for deferred specifications missing location hints.
-- Implemented config parameter shape and external alias checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`).
+- Implemented config/default parameter and duplicate-name checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`, `allium.default.duplicateName`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
 ### Phase 3: Snippets (Priority 3)

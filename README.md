@@ -78,6 +78,7 @@ Implemented checks:
 - temporal `when:` without `requires:` guard
 - duplicate `let` binding in a rule
 - duplicate key in a `config` block
+- duplicate named default instance declarations
 - config parameter missing explicit type or default value
 - undefined `config.<key>` reference
 - undefined external config alias in `<alias>/config.<key>` reference
