@@ -243,3 +243,39 @@ test("reports variant-like declaration missing keyword", () => {
     findings.some((f) => f.code === "allium.sum.missingVariantKeyword"),
   );
 });
+
+test("reports undefined local type reference in entity field", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  policy: MissingPolicy\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.type.undefinedReference"));
+});
+
+test("does not report declared local type references", () => {
+  const findings = analyzeAllium(
+    `value Policy {\n  retries: Integer\n}\n\nentity Invitation {\n  policy: Policy\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.type.undefinedReference"),
+    false,
+  );
+});
+
+test("reports unknown imported alias in type reference", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  policy: shared/Policy\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.type.undefinedImportedAlias"),
+  );
+});
+
+test("does not report known imported alias in type reference", () => {
+  const findings = analyzeAllium(
+    `use "./shared.allium" as shared\n\nentity Invitation {\n  policy: shared/Policy\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.type.undefinedImportedAlias"),
+    false,
+  );
+});

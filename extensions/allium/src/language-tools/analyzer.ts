@@ -104,6 +104,7 @@ export function analyzeAllium(
   );
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
   findings.push(...findSumTypeIssues(text, lineStarts));
+  findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
@@ -496,6 +497,77 @@ function findSumTypeIssues(text: string, lineStarts: number[]): Finding[] {
   return findings;
 }
 
+function findTypeReferenceIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const declaredTypes = new Set<string>([
+    ...collectDeclaredTypeNames(text),
+    "String",
+    "Integer",
+    "Decimal",
+    "Boolean",
+    "Timestamp",
+    "Duration",
+    "List",
+    "Set",
+    "Map",
+  ]);
+  const aliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+
+  const typeSites = collectFieldTypeSites(text);
+  for (const site of typeSites) {
+    const pattern = /([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)/g;
+    for (
+      let token = pattern.exec(site.typeExpression);
+      token;
+      token = pattern.exec(site.typeExpression)
+    ) {
+      const value = token[1];
+      const absoluteOffset = site.startOffset + token.index;
+      if (value.includes("/")) {
+        const alias = value.split("/")[0];
+        if (!aliases.has(alias)) {
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              absoluteOffset,
+              absoluteOffset + value.length,
+              "allium.type.undefinedImportedAlias",
+              `Type reference '${value}' uses unknown import alias '${alias}'.`,
+              "error",
+            ),
+          );
+        }
+        continue;
+      }
+      if (/^[a-z]/.test(value)) {
+        continue;
+      }
+      if (!declaredTypes.has(value)) {
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            absoluteOffset,
+            absoluteOffset + value.length,
+            "allium.type.undefinedReference",
+            `Type reference '${value}' is not declared locally or imported.`,
+            "error",
+          ),
+        );
+      }
+    }
+  }
+
+  return findings;
+}
+
 function findContextBindingIssues(
   text: string,
   lineStarts: number[],
@@ -867,6 +939,59 @@ function parseVariantDeclarations(
       base: match[2],
       startOffset: match.index + match[0].indexOf(match[1]),
     });
+  }
+  return out;
+}
+
+function collectDeclaredTypeNames(text: string): string[] {
+  const out = new Set<string>();
+  const patterns = [
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+  ];
+  for (const pattern of patterns) {
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      out.add(match[1]);
+    }
+  }
+  return [...out];
+}
+
+function collectFieldTypeSites(
+  text: string,
+): Array<{ typeExpression: string; startOffset: number }> {
+  const out: Array<{ typeExpression: string; startOffset: number }> = [];
+  const blockPattern =
+    /^\s*(?:external\s+entity|entity|value|variant)\s+[A-Za-z_][A-Za-z0-9_]*(?:\s*:\s*[A-Za-z_][A-Za-z0-9_]*)?\s*\{/gm;
+  for (
+    let block = blockPattern.exec(text);
+    block;
+    block = blockPattern.exec(text)
+  ) {
+    const open = text.indexOf("{", block.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const fieldPattern = /^\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*([^=\n]+)$/gm;
+    for (
+      let field = fieldPattern.exec(body);
+      field;
+      field = fieldPattern.exec(body)
+    ) {
+      const typeExpression = field[1].trim();
+      out.push({
+        typeExpression,
+        startOffset: open + 1 + field.index + field[0].indexOf(typeExpression),
+      });
+    }
   }
   return out;
 }

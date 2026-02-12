@@ -87,6 +87,8 @@ Implemented checks:
 - variants extending a base but missing from its discriminator field
 - direct `.created(...)` calls on sum-type base entities
 - top-level variant-like declarations missing the `variant` keyword
+- undefined local type references in entity/value/variant field declarations
+- undefined imported alias in field type references (for `<alias>/<Type>`)
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section
