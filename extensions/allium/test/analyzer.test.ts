@@ -478,6 +478,20 @@ test("does not report known status assignment value", () => {
   );
 });
 
+test("warns when status enum value is never assigned by any rule", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: pending | active | completed\n}\n\nrule CloseInvitation {\n  when: invitation: Invitation.created_at <= now\n  ensures: invitation.status = completed\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.status.unreachableValue"));
+});
+
+test("warns when non-terminal status has no observed exit transition", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: pending | active | completed\n}\n\nrule ActivateInvitation {\n  when: invitation: Invitation.created_at <= now\n  requires: invitation.status = pending\n  ensures: invitation.status = active\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.status.noExit"));
+});
+
 test("reports provides trigger missing external stimulus definition", () => {
   const findings = analyzeAllium(
     `rule TriggerA {\n  when: UserRequested()\n  ensures: Done()\n}\n\nsurface Dashboard {\n  for viewer: User\n  provides:\n    MissingTrigger(viewer: viewer)\n}\n`,

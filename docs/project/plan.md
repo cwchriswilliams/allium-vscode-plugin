@@ -90,6 +90,7 @@ Current status:
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
 - Implemented rule binding resolution checks (`allium.rule.undefinedBinding`) for unresolved unqualified dotted references.
 - Implemented status-assignment enum checks (`allium.status.undefinedValue`).
+- Implemented status-machine heuristic checks for unassigned and no-exit status values (`allium.status.unreachableValue`, `allium.status.noExit`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Implemented warning checks for unused entities and external entity source hints.
 - Implemented warning checks for deferred specifications missing location hints.

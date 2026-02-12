@@ -332,6 +332,27 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UnreachableStatusValueIsWarning {
+        when: EntityStatusEnumParsed(entity_status)
+        requires: entity_status.value_not_assigned_by_any_rule_ensures = true
+
+        ensures: Finding.created(
+        code: "allium.status.unreachableValue",
+        severity: warning
+        )
+    }
+
+    rule NonTerminalStatusWithoutExitIsWarning {
+        when: EntityStatusEnumParsed(entity_status)
+        requires: entity_status.is_non_terminal = true
+        requires: entity_status.has_no_observed_transition_exit = true
+
+        ensures: Finding.created(
+        code: "allium.status.noExit",
+        severity: warning
+        )
+    }
+
     rule UnusedEntityIsWarning {
         when: EntityParsed(entity)
         requires: entity.referenced_elsewhere_in_module = false

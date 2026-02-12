@@ -94,6 +94,8 @@ Implemented checks:
 - undefined imported alias in rule trigger/creation type reference
 - undefined rule binding reference (not resolved from context/trigger/default/let/for)
 - undefined status value assigned in `ensures` against entity status enum
+- status enum values never assigned by any rule (`unreachable` state hints)
+- non-terminal status enum values with no observed exit transitions
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section
