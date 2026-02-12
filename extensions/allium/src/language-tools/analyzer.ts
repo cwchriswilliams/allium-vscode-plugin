@@ -112,6 +112,8 @@ export function analyzeAllium(
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
+  findings.push(...findUnusedEntityIssues(text, lineStarts));
+  findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -948,6 +950,74 @@ function findSurfaceNamedBlockUniquenessIssues(
         lineStarts,
         "provides",
         "allium.surface.duplicateProvidesBlock",
+      ),
+    );
+  }
+  return findings;
+}
+
+function findUnusedEntityIssues(text: string, lineStarts: number[]): Finding[] {
+  const findings: Finding[] = [];
+  const entityPattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let match = entityPattern.exec(text);
+    match;
+    match = entityPattern.exec(text)
+  ) {
+    const name = match[1];
+    const usagePattern = new RegExp(`\\b${escapeRegex(name)}\\b`, "g");
+    let count = 0;
+    for (
+      let usage = usagePattern.exec(text);
+      usage;
+      usage = usagePattern.exec(text)
+    ) {
+      if (isCommentLineAtIndex(text, usage.index)) {
+        continue;
+      }
+      count += 1;
+    }
+    if (count > 1) {
+      continue;
+    }
+    const offset = match.index + match[0].indexOf(name);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        offset,
+        offset + name.length,
+        "allium.entity.unused",
+        `Entity '${name}' is declared but not referenced elsewhere in this specification.`,
+        "warning",
+      ),
+    );
+  }
+  return findings;
+}
+
+function findExternalEntitySourceHints(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const hasImports = blocks.some((block) => block.kind === "use");
+  if (hasImports) {
+    return findings;
+  }
+  const pattern = /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const name = match[1];
+    const offset = match.index + match[0].indexOf(name);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        offset,
+        offset + name.length,
+        "allium.externalEntity.missingSourceHint",
+        `External entity '${name}' has no obvious governing specification import in this module.`,
+        "warning",
       ),
     );
   }

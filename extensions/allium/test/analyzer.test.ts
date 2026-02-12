@@ -325,3 +325,27 @@ test("does not report known rule type references", () => {
     false,
   );
 });
+
+test("reports entity declared but never referenced", () => {
+  const findings = analyzeAllium(`entity Invitation {\n  status: String\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.entity.unused"));
+});
+
+test("reports external entity without import source hints", () => {
+  const findings = analyzeAllium(
+    `external entity DirectoryUser {\n  id: String\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.externalEntity.missingSourceHint"),
+  );
+});
+
+test("does not report external entity source warning when imports exist", () => {
+  const findings = analyzeAllium(
+    `use "./directory.allium" as directory\n\nexternal entity DirectoryUser {\n  id: String\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.externalEntity.missingSourceHint"),
+    false,
+  );
+});

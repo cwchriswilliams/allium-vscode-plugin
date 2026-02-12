@@ -97,6 +97,8 @@ Implemented checks:
 - surface `for`/`context` binding declared but not used in surface body
 - duplicate named `requires` block in a surface
 - duplicate named `provides` block in a surface
+- entity declared but never referenced elsewhere
+- external entity declared without obvious governing specification import hint
 - `open_question` warning finding
 
 Diagnostics setting:

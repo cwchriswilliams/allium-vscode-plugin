@@ -51,6 +51,7 @@ rule RefreshAlliumDiagnostics {
 
     ensures: FindingsComputed(document)
     ensures: DiagnosticsStored(document)
+    ensures: CollectionTypeObserved(kind: DiagnosticCollection)
 }
 
 rule IgnoreNonAlliumDocuments {
@@ -307,6 +308,26 @@ rule VariantDeclarationRequiresVariantKeyword {
         ensures: Finding.created(
         code: "allium.rule.undefinedImportedAlias",
         severity: error
+        )
+    }
+
+    rule UnusedEntityIsWarning {
+        when: EntityParsed(entity)
+        requires: entity.referenced_elsewhere_in_module = false
+
+        ensures: Finding.created(
+        code: "allium.entity.unused",
+        severity: warning
+        )
+    }
+
+    rule ExternalEntityWithoutSourceHintIsWarning {
+        when: ExternalEntityParsed(entity)
+        requires: module.has_no_use_imports = true
+
+        ensures: Finding.created(
+        code: "allium.externalEntity.missingSourceHint",
+        severity: warning
         )
     }
 

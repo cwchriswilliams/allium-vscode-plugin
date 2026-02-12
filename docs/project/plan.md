@@ -86,6 +86,7 @@ Current status:
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
+- Implemented warning checks for unused entities and external entity source hints.
 - Implemented config parameter shape and external alias checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
