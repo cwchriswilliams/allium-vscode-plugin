@@ -3,6 +3,7 @@ export type AlliumSymbolType =
   | "external entity"
   | "value"
   | "variant"
+  | "enum"
   | "rule"
   | "surface"
   | "actor"
@@ -46,6 +47,13 @@ export function collectAlliumSymbols(text: string): AlliumSymbol[] {
       text,
       /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/gm,
       "variant",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "enum",
     ),
   );
   symbols.push(

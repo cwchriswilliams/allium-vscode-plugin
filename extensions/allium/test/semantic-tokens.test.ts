@@ -4,6 +4,10 @@ import { collectSemanticTokenEntries } from "../src/language-tools/semantic-toke
 
 test("collects semantic tokens for keywords and declaration names", () => {
   const text = `
+enum Recommendation {
+  strong_yes | yes | no | strong_no
+}
+
 entity Invitation {
   status: String
 }
@@ -17,6 +21,7 @@ rule ExpireInvitation {
   assert.ok(tokens.some((entry) => entry.tokenType === "keyword"));
   assert.ok(tokens.some((entry) => entry.tokenType === "class"));
   assert.ok(tokens.some((entry) => entry.tokenType === "function"));
+  assert.ok(tokens.some((entry) => entry.tokenType === "namespace"));
 });
 
 test("collects semantic tokens for strings, numbers, comments and properties", () => {

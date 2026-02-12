@@ -109,7 +109,7 @@ Formatting settings:
 
 - document symbols / outline for top-level blocks
 - workspace symbol search across `.allium` files
-- go to definition for local top-level symbols, `config.<key>`, and imported symbols via `use "... " as alias`
+- go to definition for local top-level symbols (including named `enum` declarations), `config.<key>`, and imported symbols via `use "... " as alias`
 - find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols
 - document links for `use "..." as alias` import paths

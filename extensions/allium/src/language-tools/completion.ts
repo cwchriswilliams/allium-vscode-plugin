@@ -10,6 +10,8 @@ const KEYWORDS = [
   "external",
   "value",
   "variant",
+  "enum",
+  "context",
   "rule",
   "surface",
   "actor",
@@ -24,6 +26,7 @@ const KEYWORDS = [
   "default",
   "deferred",
   "open_question",
+  "module",
   "use",
   "as",
 ];

@@ -275,6 +275,7 @@ rule BuildOutlineSymbols {
     ensures: SymbolListed(kind: external_entity, label: "<external_entity_name>")
     ensures: SymbolListed(kind: value, label: "<value_name>")
     ensures: SymbolListed(kind: variant, label: "<variant_name>")
+    ensures: SymbolListed(kind: enum, label: "<enum_name>")
     ensures: SymbolListed(kind: rule, label: "<rule_name>")
     ensures: SymbolListed(kind: surface, label: "<surface_name>")
     ensures: SymbolListed(kind: actor, label: "<actor_name>")
@@ -291,7 +292,7 @@ rule BuildWorkspaceSymbols {
 rule ResolveLocalDefinitions {
     when: DefinitionRequested(document, symbol_at_cursor)
     requires: document.language_id = "allium"
-    requires: symbol_at_cursor references local declaration or config key
+    requires: symbol_at_cursor references local declaration (including enum) or config key
 
     ensures: DefinitionLocationReturned()
 }
@@ -376,5 +377,8 @@ rule ProvideKeywordAndConfigCompletions {
     requires: document.language_id = "allium"
 
     ensures: CompletionItemAvailable(kind: keyword)
+    ensures: CompletionItemAvailable(label: enum)
+    ensures: CompletionItemAvailable(label: context)
+    ensures: CompletionItemAvailable(label: module)
     ensures: CompletionAfter("config.") includes_declared_config_keys = true
 }

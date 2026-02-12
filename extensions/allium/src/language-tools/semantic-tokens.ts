@@ -46,6 +46,12 @@ export function collectSemanticTokenEntries(
   addDeclarationNameMatches(
     entries,
     text,
+    /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+    "namespace",
+  );
+  addDeclarationNameMatches(
+    entries,
+    text,
     /^\s*(surface|actor|config)\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
     "namespace",
     2,
@@ -60,7 +66,7 @@ export function collectSemanticTokenEntries(
   addMatches(
     entries,
     text,
-    /\b(entity|external|value|variant|rule|surface|actor|config|when|requires|ensures|let|for|if|else|default|deferred|open_question|use|as)\b/g,
+    /\b(entity|external|value|variant|enum|context|rule|surface|actor|config|when|requires|ensures|let|for|if|else|default|deferred|open_question|module|use|as)\b/g,
     "keyword",
   );
 

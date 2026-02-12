@@ -5,6 +5,7 @@ export interface DefinitionSite {
     | "external_entity"
     | "value"
     | "variant"
+    | "enum"
     | "rule"
     | "surface"
     | "actor"
@@ -53,6 +54,7 @@ function collectNamedDefinitions(text: string): DefinitionSite[] {
     },
     { pattern: /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "value" },
     { pattern: /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "variant" },
+    { pattern: /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "enum" },
     { pattern: /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "rule" },
     { pattern: /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "surface" },
     { pattern: /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "actor" },

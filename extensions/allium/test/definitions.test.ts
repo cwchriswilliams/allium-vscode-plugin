@@ -13,8 +13,13 @@ entity Invitation {
   status: String
 }
 
+enum Recommendation {
+  strong_yes | yes | no | strong_no
+}
+
 rule ExpireInvitation {
   when: invitation: Invitation.expires_at <= now
+  requires: invitation.recommendation = Recommendation.yes
   ensures: invitation.status = "expired"
 }
 `;
@@ -22,6 +27,7 @@ rule ExpireInvitation {
   assert.deepEqual(lookup.symbols.map((s) => s.name).sort(), [
     "ExpireInvitation",
     "Invitation",
+    "Recommendation",
   ]);
 });
 
@@ -71,6 +77,24 @@ rule A {
   const usageOffset = text.indexOf("UnknownThing") + 2;
   const matches = findDefinitionsAtOffset(text, usageOffset);
   assert.equal(matches.length, 0);
+});
+
+test("finds enum definition at usage offset", () => {
+  const text = `
+enum Recommendation {
+  strong_yes | yes | no | strong_no
+}
+
+rule A {
+  when: Ping()
+  ensures: recommendation = Recommendation.yes
+}
+`;
+  const usageOffset =
+    text.indexOf("Recommendation.yes") + "Recommendation".length - 1;
+  const matches = findDefinitionsAtOffset(text, usageOffset);
+  assert.equal(matches.length, 1);
+  assert.equal(matches[0].name, "Recommendation");
 });
 
 test("parses use aliases from document", () => {

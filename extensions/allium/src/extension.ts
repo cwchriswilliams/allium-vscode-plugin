@@ -380,6 +380,7 @@ function toSymbolKind(
     | "external_entity"
     | "value"
     | "variant"
+    | "enum"
     | "config_key",
 ): vscode.SymbolKind {
   if (type === "entity" || type === "external_entity") {
@@ -387,6 +388,9 @@ function toSymbolKind(
   }
   if (type === "value" || type === "variant") {
     return vscode.SymbolKind.EnumMember;
+  }
+  if (type === "enum") {
+    return vscode.SymbolKind.Enum;
   }
   if (type === "rule") {
     return vscode.SymbolKind.Method;

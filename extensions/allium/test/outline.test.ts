@@ -26,7 +26,7 @@ rule Notify {
   );
 });
 
-test("collects external entity, value, variant, surface, and actor", () => {
+test("collects external entity, value, variant, enum, surface, and actor", () => {
   const text = `
 external entity RegistryRecord {
   id: String
@@ -38,6 +38,10 @@ value DurationWindow {
 
 variant PremiumRecord : RegistryRecord {
   priority: Integer
+}
+
+enum Recommendation {
+  strong_yes | yes | no | strong_no
 }
 
 surface ChildView {
@@ -56,6 +60,7 @@ actor Parent {
       "external entity:RegistryRecord",
       "value:DurationWindow",
       "variant:PremiumRecord",
+      "enum:Recommendation",
       "surface:ChildView",
       "actor:Parent",
     ],
