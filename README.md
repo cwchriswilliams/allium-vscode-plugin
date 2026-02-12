@@ -88,6 +88,7 @@ Implemented checks:
 - variants extending a base but missing from its discriminator field
 - direct `.created(...)` calls on sum-type base entities
 - top-level variant-like declarations missing the `variant` keyword
+- variant-specific field access without an observed kind guard
 - undefined local type references in entity/value/variant field declarations
 - undefined imported alias in field type references (for `<alias>/<Type>`)
 - undefined rule trigger/creation type reference

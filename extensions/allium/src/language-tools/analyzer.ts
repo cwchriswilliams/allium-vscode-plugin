@@ -107,6 +107,9 @@ export function analyzeAllium(
   findings.push(...findStatusStateMachineIssues(text, lineStarts, blocks));
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
   findings.push(...findSumTypeIssues(text, lineStarts));
+  findings.push(
+    ...findUnguardedVariantFieldAccessIssues(text, lineStarts, blocks),
+  );
   findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
   findings.push(...findRuleTypeReferenceIssues(lineStarts, blocks, text));
   findings.push(...findRuleUndefinedBindingIssues(lineStarts, blocks, text));
@@ -725,6 +728,94 @@ function findSumTypeIssues(text: string, lineStarts: number[]): Finding[] {
         "error",
       ),
     );
+  }
+
+  return findings;
+}
+
+function findUnguardedVariantFieldAccessIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const variants = parseVariantFieldDefinitions(text);
+  if (variants.length === 0) {
+    return findings;
+  }
+  const discriminatorByBase = collectDiscriminatorFieldsByEntity(text);
+  const variantFieldsByBase = new Map<
+    string,
+    Map<string, { variant: string; field: string }>
+  >();
+  for (const variant of variants) {
+    const byField = variantFieldsByBase.get(variant.base) ?? new Map();
+    for (const field of variant.fields) {
+      byField.set(field, { variant: variant.name, field });
+    }
+    variantFieldsByBase.set(variant.base, byField);
+  }
+
+  const contextTypes = collectContextBindingTypes(blocks);
+  const rules = blocks.filter((block) => block.kind === "rule");
+  for (const rule of rules) {
+    const bindingTypes = collectRuleBindingTypes(rule.body, contextTypes);
+    const guardByBinding = new Map<string, Set<string>>();
+    const lines = collectRuleClauseLines(rule.body);
+    for (const line of lines) {
+      const guard = line.text.match(
+        /([a-z_][a-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([A-Z][A-Za-z0-9_]*)/,
+      );
+      if (!guard) {
+        continue;
+      }
+      const binding = guard[1];
+      const discriminator = guard[2];
+      const variant = guard[3];
+      const base = bindingTypes.get(binding);
+      if (!base || discriminatorByBase.get(base) !== discriminator) {
+        continue;
+      }
+      const set = guardByBinding.get(binding) ?? new Set<string>();
+      set.add(variant);
+      guardByBinding.set(binding, set);
+    }
+
+    const accessPattern = /([a-z_][a-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+    for (
+      let access = accessPattern.exec(rule.body);
+      access;
+      access = accessPattern.exec(rule.body)
+    ) {
+      if (isCommentLineAtIndex(rule.body, access.index)) {
+        continue;
+      }
+      const binding = access[1];
+      const field = access[2];
+      const base = bindingTypes.get(binding);
+      if (!base) {
+        continue;
+      }
+      const variantField = variantFieldsByBase.get(base)?.get(field);
+      if (!variantField) {
+        continue;
+      }
+      const guards = guardByBinding.get(binding);
+      if (guards && guards.has(variantField.variant)) {
+        continue;
+      }
+      const absoluteOffset = rule.startOffset + 1 + access.index;
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          absoluteOffset,
+          absoluteOffset + access[0].length,
+          "allium.sum.unguardedVariantFieldAccess",
+          `Variant-specific field access '${access[0]}' requires a guard on ${binding}.${discriminatorByBase.get(base)} = ${variantField.variant}.`,
+          "error",
+        ),
+      );
+    }
   }
 
   return findings;
@@ -2055,6 +2146,52 @@ function parseVariantDeclarations(
       base: match[2],
       startOffset: match.index + match[0].indexOf(match[1]),
     });
+  }
+  return out;
+}
+
+function parseVariantFieldDefinitions(text: string): Array<{
+  name: string;
+  base: string;
+  fields: string[];
+}> {
+  const out: Array<{ name: string; base: string; fields: string[] }> = [];
+  const pattern =
+    /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const open = text.indexOf("{", match.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const fields: string[] = [];
+    const fieldPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
+    for (
+      let field = fieldPattern.exec(body);
+      field;
+      field = fieldPattern.exec(body)
+    ) {
+      fields.push(field[1]);
+    }
+    out.push({ name: match[1], base: match[2], fields });
+  }
+  return out;
+}
+
+function collectDiscriminatorFieldsByEntity(text: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const entities = parseEntityBlocks(text);
+  for (const entity of entities) {
+    for (const field of entity.pipeFields) {
+      if (!field.hasCapitalizedName || !field.allNamesCapitalized) {
+        continue;
+      }
+      out.set(entity.name, field.fieldName);
+    }
   }
   return out;
 }

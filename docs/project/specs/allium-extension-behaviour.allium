@@ -383,6 +383,17 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UnguardedVariantFieldAccessIsError {
+        when: RuleExpressionParsed(expression)
+        requires: expression.accesses_variant_specific_field = true
+        requires: expression.variant_guard_not_present = true
+
+        ensures: Finding.created(
+        code: "allium.sum.unguardedVariantFieldAccess",
+        severity: error
+        )
+    }
+
     rule UnusedEntityIsWarning {
         when: EntityParsed(entity)
         requires: entity.referenced_elsewhere_in_module = false

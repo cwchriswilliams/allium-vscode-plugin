@@ -318,6 +318,25 @@ test("reports variant-like declaration missing keyword", () => {
   );
 });
 
+test("reports unguarded variant-specific field access", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nvariant Branch : Node {\n  children: List<Node>\n}\n\nvariant Leaf : Node {\n  value: String\n}\n\nrule Invalid {\n  when: node: Node.created\n  ensures: Results.created(size: node.children.count)\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.sum.unguardedVariantFieldAccess"),
+  );
+});
+
+test("does not report guarded variant-specific field access", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nvariant Branch : Node {\n  children: List<Node>\n}\n\nvariant Leaf : Node {\n  value: String\n}\n\nrule Valid {\n  when: node: Node.created\n  requires: node.kind = Branch\n  ensures: Results.created(size: node.children.count)\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.sum.unguardedVariantFieldAccess"),
+    false,
+  );
+});
+
 test("reports undefined local type reference in entity field", () => {
   const findings = analyzeAllium(
     `entity Invitation {\n  policy: MissingPolicy\n}\n`,

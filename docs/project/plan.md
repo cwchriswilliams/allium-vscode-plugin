@@ -86,6 +86,7 @@ Current status:
 - Implemented explicit-lambda checks for collection operators (`allium.expression.implicitLambda`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
 - Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
+- Implemented sum-type guard checks for variant-specific field access (`allium.sum.unguardedVariantFieldAccess`).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
 - Implemented rule binding resolution checks (`allium.rule.undefinedBinding`) for unresolved unqualified dotted references.
