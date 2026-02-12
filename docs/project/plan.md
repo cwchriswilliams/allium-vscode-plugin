@@ -196,13 +196,14 @@ Current implementation will proceed with defaults unless you override:
 - Initial implementation exists as `extensions/allium/src/check.ts`; next iteration should package and document it as a stable external workflow.
 - Workspace command added: `npm run check -- <file|directory|glob>` delegates to the standalone checker.
 - Standalone formatter added: `npm run format:allium -- <file|directory|glob>` for project-local `.allium` formatting.
+- Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 
 ## High Priority Next Work
 
 - Consumer distribution before Marketplace:
   - Completed: repeatable VSIX + standalone CLI archive artifacts via local script and GitHub Actions release workflow.
 - Publish standalone CLI tooling:
-  - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check` and `allium-format`.
+  - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check`, `allium-format`, and experimental `allium-diagram`.
 - Improve Allium formatter depth:
   - In progress: structure-aware indentation and top-level block spacing implemented.
   - Implemented: spacing normalization for pipe-delimited literal sets.
