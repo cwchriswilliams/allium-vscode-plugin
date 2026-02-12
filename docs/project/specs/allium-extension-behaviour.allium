@@ -334,3 +334,20 @@ rule FormatDocumentWithAlliumFormatter {
     ensures: DocumentRewrittenWithAlliumFormatter()
     ensures: FormatterSettingsApplied(indent_width_setting: "allium.format.indentWidth", top_level_spacing_setting: "allium.format.topLevelSpacing")
 }
+
+rule ProvideSemanticTokens {
+    when: SemanticTokensRequested(document)
+    requires: document.language_id = "allium"
+
+    ensures: SemanticTokensReturned(for: keywords)
+    ensures: SemanticTokensReturned(for: declarations)
+    ensures: SemanticTokensReturned(for: literals_and_comments)
+}
+
+rule ProvideKeywordAndConfigCompletions {
+    when: CompletionRequested(document, cursor)
+    requires: document.language_id = "allium"
+
+    ensures: CompletionItemAvailable(kind: keyword)
+    ensures: CompletionAfter("config.") includes_declared_config_keys = true
+}

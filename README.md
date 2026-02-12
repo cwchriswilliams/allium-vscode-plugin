@@ -113,6 +113,8 @@ Formatting settings:
 - hover docs for core Allium keywords with declaration/import context
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
+- semantic tokens for richer syntax-aware highlighting layers
+- keyword and `config.<key>` completions
 
 ## Standalone CLI Usage
 

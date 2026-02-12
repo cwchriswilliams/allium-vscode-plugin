@@ -126,6 +126,8 @@ Current status:
 - Implemented: folding ranges for top-level blocks.
 - Implemented: VS Code document formatting via shared Allium formatter.
 - Implemented: spec health command for workspace-level Allium diagnostics summary.
+- Implemented: semantic token provider for Allium declarations/keywords/literals.
+- Implemented: completion provider for core keywords and `config.<key>` suggestions.
 
 ## Engineering Approach
 

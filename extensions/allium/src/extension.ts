@@ -14,13 +14,21 @@ import { formatAlliumText } from "./format";
 import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
+import { collectCompletionCandidates } from "./language-tools/completion";
 import { findReferencesInText } from "./language-tools/references";
+import {
+  ALLIUM_SEMANTIC_TOKEN_TYPES,
+  collectSemanticTokenEntries,
+} from "./language-tools/semantic-tokens";
 import {
   buildWorkspaceIndex,
   resolveImportedDefinition,
 } from "./language-tools/workspace-index";
 
 const ALLIUM_LANGUAGE_ID = "allium";
+const semanticTokensLegend = new vscode.SemanticTokensLegend([
+  ...ALLIUM_SEMANTIC_TOKEN_TYPES,
+]);
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("allium");
@@ -165,6 +173,20 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentFormattingEditProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumFormattingProvider(),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerDocumentSemanticTokensProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumSemanticTokensProvider(),
+      semanticTokensLegend,
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumCompletionProvider(),
+      ".",
     ),
   );
 }
@@ -497,6 +519,52 @@ class AlliumFormattingProvider
       document.positionAt(original.length),
     );
     return [vscode.TextEdit.replace(wholeDocument, formatted)];
+  }
+}
+
+class AlliumSemanticTokensProvider
+  implements vscode.DocumentSemanticTokensProvider
+{
+  provideDocumentSemanticTokens(
+    document: vscode.TextDocument,
+  ): vscode.SemanticTokens {
+    const builder = new vscode.SemanticTokensBuilder(semanticTokensLegend);
+    const entries = collectSemanticTokenEntries(document.getText());
+    for (const entry of entries) {
+      const tokenTypeIndex = ALLIUM_SEMANTIC_TOKEN_TYPES.indexOf(
+        entry.tokenType,
+      );
+      if (tokenTypeIndex < 0) {
+        continue;
+      }
+      builder.push(
+        entry.line,
+        entry.character,
+        entry.length,
+        tokenTypeIndex,
+        0,
+      );
+    }
+    return builder.build();
+  }
+}
+
+class AlliumCompletionProvider implements vscode.CompletionItemProvider {
+  provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.CompletionItem[] {
+    const candidates = collectCompletionCandidates(
+      document.getText(),
+      document.offsetAt(position),
+    );
+    return candidates.map((candidate) => {
+      const kind =
+        candidate.kind === "property"
+          ? vscode.CompletionItemKind.Property
+          : vscode.CompletionItemKind.Keyword;
+      return new vscode.CompletionItem(candidate.label, kind);
+    });
   }
 }
 
