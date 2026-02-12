@@ -118,6 +118,25 @@ test("does not treat config references inside comments as findings", () => {
   );
 });
 
+test("reports implicit lambda shorthand in collection operators", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  requires: users.any(can_solo)\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.expression.implicitLambda"),
+  );
+});
+
+test("does not report explicit lambda in collection operators", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  requires: users.any(u => u.can_solo)\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.expression.implicitLambda"),
+    false,
+  );
+});
+
 test("reports duplicate enum literals", () => {
   const findings = analyzeAllium(
     `enum Recommendation {\n  yes | no | yes\n}\n`,

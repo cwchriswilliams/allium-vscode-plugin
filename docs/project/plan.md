@@ -82,6 +82,7 @@ Current status:
 - Implemented surface binding usage checks (`allium.surface.unusedBinding`).
 - Implemented named surface block uniqueness checks (`allium.surface.duplicateRequiresBlock`, `allium.surface.duplicateProvidesBlock`).
 - Implemented surface `provides` trigger reference checks (`allium.surface.undefinedProvidesTrigger`).
+- Implemented explicit-lambda checks for collection operators (`allium.expression.implicitLambda`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
 - Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).

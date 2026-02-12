@@ -442,6 +442,17 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule ImplicitLambdaShorthandIsError {
+        when: CollectionOperatorCallParsed(call)
+        requires: call.operator in [any, all, each]
+        requires: call.argument is identifier_shorthand
+
+        ensures: Finding.created(
+        code: "allium.expression.implicitLambda",
+        severity: error
+        )
+    }
+
     rule SuppressionCommentDisablesDiagnostic {
         when: SuppressionDirectiveParsed(line, code)
         requires: code = "all" or code = finding.code

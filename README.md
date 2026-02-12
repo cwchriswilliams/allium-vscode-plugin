@@ -99,6 +99,7 @@ Implemented checks:
 - duplicate named `requires` block in a surface
 - duplicate named `provides` block in a surface
 - trigger used in surface `provides` but not defined as external-stimulus rule trigger
+- implicit lambda shorthand in collection operators (`any/all/each`) instead of explicit `x => ...`
 - entity declared but never referenced elsewhere
 - external entity declared without obvious governing specification import hint
 - deferred specification declaration without location hint

@@ -117,6 +117,7 @@ export function analyzeAllium(
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
+  findings.push(...findImplicitLambdaIssues(text, lineStarts));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -1205,6 +1206,35 @@ function findDeferredLocationHints(
       ),
     );
   }
+  return findings;
+}
+
+function findImplicitLambdaIssues(
+  text: string,
+  lineStarts: number[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const pattern = /\.((?:any|all|each))\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/g;
+
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    if (isCommentLineAtIndex(text, match.index)) {
+      continue;
+    }
+    const operator = match[1];
+    const shorthand = match[2];
+    const shorthandOffset = match.index + match[0].lastIndexOf(shorthand);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        shorthandOffset,
+        shorthandOffset + shorthand.length,
+        "allium.expression.implicitLambda",
+        `Collection operator '${operator}' must use an explicit lambda (for example 'x => ...') instead of shorthand '${shorthand}'.`,
+        "error",
+      ),
+    );
+  }
+
   return findings;
 }
 
