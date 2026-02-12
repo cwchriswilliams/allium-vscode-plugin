@@ -157,8 +157,9 @@ Current implementation will proceed with defaults unless you override:
 ## High Priority Next Work
 
 - Consumer distribution before Marketplace:
-  - Add repeatable VSIX packaging/release instructions and artifacts so users can install without running extension dev mode.
+  - Completed: repeatable VSIX + standalone CLI archive artifacts via local script and GitHub Actions release workflow.
 - Publish standalone CLI tooling:
-  - Package `allium-check` and `allium-format` as independently consumable versioned npm deliverables (without requiring full repo checkout).
+  - Partially completed: release tarball exposes `allium-check` and `allium-format`.
+  - Remaining: dedicated standalone CLI package(s) with stable install name independent from extension package naming.
 - Improve Allium formatter depth:
   - Move beyond whitespace normalization to structure-aware formatting for common Allium constructs.

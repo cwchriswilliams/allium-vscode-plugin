@@ -6,7 +6,7 @@ This project provides:
 2. A standalone `allium-check` CLI for validation.
 3. A standalone `allium-format` CLI for formatting.
 
-The extension is not yet published on the VS Code Marketplace, so consumers currently install from source.
+The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI archive) or from source.
 
 ## Consumer Installation (No Marketplace Yet)
 
@@ -16,33 +16,43 @@ The extension is not yet published on the VS Code Marketplace, so consumers curr
 - npm 10+ (recommended)
 - VS Code
 
-### 1. Download the project
+### Option A: Install from GitHub Release assets (recommended)
+
+Each tagged release publishes:
+
+- `allium-vscode-<version>.vsix` (VS Code extension package)
+- `allium-cli-<version>.tar.gz` (standalone CLI bundle exposing `allium-check` and `allium-format`)
+
+Install extension from VSIX:
+
+1. Download `allium-vscode-<version>.vsix` from GitHub Releases.
+2. In VS Code, open command palette.
+3. Run: `Extensions: Install from VSIX...`
+4. Select the downloaded `.vsix`.
+
+Install standalone CLI tools from release archive:
+
+```bash
+tar -xzf allium-cli-<version>.tar.gz
+cd allium-cli-<version>
+./bin/allium-check --help
+./bin/allium-format --help
+```
+
+### Option B: Install from source checkout
 
 ```bash
 git clone <repo-url> allium-vscode
 cd allium-vscode
 npm install
-```
-
-### 2. Build the extension/tooling package
-
-```bash
 npm run --workspace extensions/allium build
 ```
 
-This produces `extensions/allium/dist/...` including:
-
-- extension entrypoint: `extensions/allium/dist/src/extension.js`
-- checker CLI: `extensions/allium/dist/src/check.js`
-- formatter CLI: `extensions/allium/dist/src/format.js`
-
-### 3. Use in VS Code (local development install path)
-
-Until Marketplace/VSIX distribution is added, run the extension in an Extension Development Host:
+Local VS Code extension usage from source:
 
 1. Open this repo in VS Code.
 2. Press `F5` (Run Extension).
-3. In the new Extension Development Host window, open `.allium` files.
+3. In the Extension Development Host window, open `.allium` files.
 
 ## VS Code Features
 
@@ -142,14 +152,14 @@ Current formatter behavior:
 
 ## Using CLI Tools Outside This Repo
 
-Current status:
+Supported paths:
 
-- fully supported from source checkout (commands above)
-- not yet published as an independent npm package with stable versioned distribution
+- source checkout usage (repo-level npm commands)
+- release archive usage (`allium-cli-<version>.tar.gz`)
 
-Planned:
+Planned improvements:
 
-- publish standalone CLI package(s) so consumers can install without cloning the full repository
+- publish dedicated standalone CLI package(s) with stable install names (without extension packaging concerns)
 
 ## Development
 
@@ -171,7 +181,33 @@ npm run lint
 npm run test
 npm run check -- docs/project/specs
 npm run format:allium -- docs/project/specs
+npm run release:artifacts
 ```
+
+### Building release artifacts locally
+
+```bash
+npm run release:artifacts
+```
+
+Produces `artifacts/` containing:
+
+- VS Code extension package: `allium-vscode-<version>.vsix`
+- standalone CLI archive: `allium-cli-<version>.tar.gz`
+
+### Automated release path
+
+- GitHub Actions workflow: `.github/workflows/release-artifacts.yml`
+- Triggered on:
+  - tag push matching `v*`
+  - manual dispatch
+- Actions:
+  - install dependencies
+  - lint
+  - test
+  - build release artifacts
+  - upload artifacts
+  - attach artifacts to GitHub release for tagged builds
 
 ### Pre-commit checks enforced
 

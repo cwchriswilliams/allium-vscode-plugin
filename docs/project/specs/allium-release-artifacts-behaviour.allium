@@ -1,0 +1,36 @@
+-- allium-release-artifacts-behaviour.allium
+-- Scope: Build and release path for non-Marketplace distribution.
+-- Includes:
+--   - Local release artifact build workflow
+--   - CI release artifact workflow on tags/manual runs
+--   - Artifact types required for consumers
+-- Excludes:
+--   - Marketplace publishing flow
+--   - npm registry publishing flow
+
+entity ReleaseArtifact {
+    name: String
+    kind: vsix | cli_archive
+}
+
+rule LocalReleaseBuildCreatesArtifacts {
+    when: CommandInvoked(name: "npm run release:artifacts")
+
+    ensures: ReleaseArtifact.created(kind: vsix, name: "allium-vscode-<version>.vsix")
+    ensures: ReleaseArtifact.created(kind: cli_archive, name: "allium-cli-<version>.tar.gz")
+}
+
+rule TaggedBuildPublishesReleaseAssets {
+    when: GitTagPushed(pattern: "v*")
+
+    ensures: CIWorkflowExecuted(name: release_artifacts)
+    ensures: ReleaseArtifactUploaded(kind: vsix)
+    ensures: ReleaseArtifactUploaded(kind: cli_archive)
+}
+
+rule ManualBuildUploadsArtifacts {
+    when: WorkflowDispatched(name: release_artifacts)
+
+    ensures: ReleaseArtifactUploaded(kind: vsix)
+    ensures: ReleaseArtifactUploaded(kind: cli_archive)
+}

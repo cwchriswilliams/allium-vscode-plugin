@@ -91,3 +91,9 @@ rule WorkspaceCheckCommandDelegatesToChecker {
 
     ensures: CheckCommandInvokedWithInputs(inputs)
 }
+
+rule ReleasedCliPackageExposesCheckCommand {
+    when: CliPackageInstalledFromReleaseArchive()
+
+    ensures: CommandAvailable(name: "allium-check")
+}

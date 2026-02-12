@@ -12,7 +12,8 @@
     "format:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js",
     "format:allium:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js --check",
     "format:check": "biome format --check .",
-    "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js"
+    "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js",
+    "release:artifacts": "./scripts/build-release-artifacts.sh"
   },
   "lint-staged": {
     "*.{ts,tsx,js,cjs,mjs}": ["biome format --write", "eslint --fix"],
@@ -24,6 +25,7 @@
     "eslint": "^9.20.1",
     "globals": "^15.15.0",
     "lint-staged": "^15.4.3",
+    "@vscode/vsce": "^3.6.0",
     "typescript-eslint": "^8.24.0"
   }
 }

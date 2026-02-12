@@ -4,6 +4,7 @@
   "description": "Syntax highlighting, snippets, diagnostics, and quick fixes for Allium.",
   "version": "0.1.0",
   "publisher": "local",
+  "files": ["dist/**", "language-basics/**", "README.md", "package.json"],
   "engines": {
     "vscode": "^1.91.0"
   },

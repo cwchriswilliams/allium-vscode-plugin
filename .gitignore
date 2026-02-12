@@ -11,6 +11,7 @@ coverage/
 
 # Packaging artifacts
 *.vsix
+artifacts/
 
 # Caches
 .npm-cache/

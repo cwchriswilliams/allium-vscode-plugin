@@ -55,3 +55,9 @@ rule WriteModeAppliesFormatting {
     ensures: FilesPersistedWithFormatting()
     ensures: ProcessExit(code: 0)
 }
+
+rule ReleasedCliPackageExposesFormatCommand {
+    when: CliPackageInstalledFromReleaseArchive()
+
+    ensures: CommandAvailable(name: "allium-format")
+}
