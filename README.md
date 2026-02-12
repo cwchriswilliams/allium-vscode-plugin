@@ -91,6 +91,7 @@ Implemented checks:
 - undefined imported alias in field type references (for `<alias>/<Type>`)
 - undefined rule trigger/creation type reference
 - undefined imported alias in rule trigger/creation type reference
+- undefined rule binding reference (not resolved from context/trigger/default/let/for)
 - undefined status value assigned in `ensures` against entity status enum
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block

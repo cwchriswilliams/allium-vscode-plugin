@@ -345,6 +345,43 @@ test("does not report known rule type references", () => {
   );
 });
 
+test("reports undefined rule binding used in dotted reference", () => {
+  const findings = analyzeAllium(
+    `rule Notify {\n  when: Ping()\n  requires: user.status = active\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.undefinedBinding"));
+});
+
+test("does not report binding defined by trigger parameter", () => {
+  const findings = analyzeAllium(
+    `rule Notify {\n  when: UserUpdated(user)\n  requires: user.status = active\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.undefinedBinding"),
+    false,
+  );
+});
+
+test("does not report binding defined in context block", () => {
+  const findings = analyzeAllium(
+    `entity User {\n  status: String\n}\n\ncontext {\n  user: User\n}\n\nrule Notify {\n  when: Ping()\n  requires: user.status = active\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.undefinedBinding"),
+    false,
+  );
+});
+
+test("does not report lambda parameter as undefined binding", () => {
+  const findings = analyzeAllium(
+    `rule Check {\n  when: Ping(users)\n  requires: users.any(u => u.active)\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.undefinedBinding"),
+    false,
+  );
+});
+
 test("reports entity declared but never referenced", () => {
   const findings = analyzeAllium(`entity Invitation {\n  status: String\n}\n`);
   assert.ok(findings.some((f) => f.code === "allium.entity.unused"));

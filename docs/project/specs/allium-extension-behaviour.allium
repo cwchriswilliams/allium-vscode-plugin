@@ -314,7 +314,7 @@ rule VariantDeclarationRequiresVariantKeyword {
     rule UndefinedStatusAssignmentValueIsError {
         when: RuleEnsuresAssignmentParsed(assignment)
         requires: assignment.target = "<bound_var>.status"
-        requires: assignment.value not in bound_var.entity.status_enum
+        requires: assignment.value not in assignment.entity.status_enum
 
         ensures: Finding.created(
         code: "allium.status.undefinedValue",
@@ -333,8 +333,8 @@ rule VariantDeclarationRequiresVariantKeyword {
     }
 
     rule ExternalEntityWithoutSourceHintIsWarning {
-        when: ExternalEntityParsed(entity)
-        requires: module.has_no_use_imports = true
+        when: ExternalEntityParsed(entity, current_module)
+        requires: current_module.has_no_use_imports = true
 
         ensures: Finding.created(
         code: "allium.externalEntity.missingSourceHint",
@@ -368,6 +368,17 @@ rule VariantDeclarationRequiresVariantKeyword {
 
         ensures: Finding.created(
         code: "allium.context.undefinedType",
+        severity: error
+        )
+    }
+
+    rule UndefinedRuleBindingIsError {
+        when: RuleClauseParsed(clause)
+        requires: clause.references_unqualified_binding = true
+        requires: referenced_binding not resolved_from [context, trigger_parameters, default_instances, let_bindings, for_bindings]
+
+        ensures: Finding.created(
+        code: "allium.rule.undefinedBinding",
         severity: error
         )
     }
@@ -454,7 +465,7 @@ rule VariantDeclarationRequiresVariantKeyword {
     }
 
     rule SuppressionCommentDisablesDiagnostic {
-        when: SuppressionDirectiveParsed(line, code)
+        when: SuppressionDirectiveParsed(line, code, finding)
         requires: code = "all" or code = finding.code
         requires: finding.line = line or finding.line = line + 1
 
@@ -517,8 +528,8 @@ rule VariantDeclarationRequiresVariantKeyword {
 
     rule RefactorInlineEnumToNamedEnum {
         when: RefactorRequestedFromSelection(selection)
-        requires: selection.line contains inline_enum_field
-        requires: inline_enum_field.values_are_lowercase_literals = true
+        requires: selection.line contains selection.inline_enum_field
+        requires: selection.inline_enum_field.values_are_lowercase_literals = true
 
         ensures: EditProposed(
         title: "Extract inline enum to named enum",

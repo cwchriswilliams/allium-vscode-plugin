@@ -107,6 +107,7 @@ export function analyzeAllium(
   findings.push(...findSumTypeIssues(text, lineStarts));
   findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
   findings.push(...findRuleTypeReferenceIssues(lineStarts, blocks, text));
+  findings.push(...findRuleUndefinedBindingIssues(lineStarts, blocks, text));
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
@@ -679,6 +680,64 @@ function findRuleTypeReferenceIssues(
   return findings;
 }
 
+function findRuleUndefinedBindingIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+  text: string,
+): Finding[] {
+  const findings: Finding[] = [];
+  const contextBindings = collectContextBindingNames(blocks);
+  const defaultInstances = collectDefaultInstanceNames(text);
+  const ruleBlocks = blocks.filter((block) => block.kind === "rule");
+
+  for (const rule of ruleBlocks) {
+    const bound = collectRuleBoundNames(
+      rule.body,
+      contextBindings,
+      defaultInstances,
+    );
+    const seenUnknown = new Set<string>();
+    const referencePattern = /\b([a-z_][a-z0-9_]*)\s*\./g;
+    for (
+      let match = referencePattern.exec(rule.body);
+      match;
+      match = referencePattern.exec(rule.body)
+    ) {
+      if (match.index > 0 && rule.body[match.index - 1] === ".") {
+        continue;
+      }
+      if (isCommentLineAtIndex(rule.body, match.index)) {
+        continue;
+      }
+      if (isInsideDoubleQuotedStringAtIndex(rule.body, match.index)) {
+        continue;
+      }
+      const root = match[1];
+      if (root === "config" || root === "now" || bound.has(root)) {
+        continue;
+      }
+      if (seenUnknown.has(root)) {
+        continue;
+      }
+      seenUnknown.add(root);
+      const absoluteOffset =
+        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          absoluteOffset,
+          absoluteOffset + root.length,
+          "allium.rule.undefinedBinding",
+          `Rule '${rule.name}' references '${root}' but no matching binding exists in context, trigger params, default instances, or local lets.`,
+          "error",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 function findContextBindingIssues(
   text: string,
   lineStarts: number[],
@@ -776,6 +835,116 @@ function findContextBindingIssues(
   }
 
   return findings;
+}
+
+function collectContextBindingNames(
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Set<string> {
+  const names = new Set<string>();
+  const contextBlocks = blocks.filter((block) => block.kind === "context");
+  const bindingPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
+  for (const block of contextBlocks) {
+    for (
+      let match = bindingPattern.exec(block.body);
+      match;
+      match = bindingPattern.exec(block.body)
+    ) {
+      names.add(match[1]);
+    }
+  }
+  return names;
+}
+
+function collectDefaultInstanceNames(text: string): Set<string> {
+  const names = new Set<string>();
+  const pattern =
+    /^\s*default\s+([A-Za-z_][A-Za-z0-9_]*)(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*=/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    names.add(match[2] ?? match[1]);
+  }
+  return names;
+}
+
+function collectRuleBoundNames(
+  ruleBody: string,
+  contextBindings: Set<string>,
+  defaultInstances: Set<string>,
+): Set<string> {
+  const bound = new Set<string>([...contextBindings, ...defaultInstances]);
+  const whenBindingPattern =
+    /^\s*when\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*[A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?\./m;
+  const whenBindingMatch = ruleBody.match(whenBindingPattern);
+  if (whenBindingMatch) {
+    bound.add(whenBindingMatch[1]);
+  }
+
+  const whenCallPattern =
+    /^\s*when\s*:\s*[A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?\s*\(([^)]*)\)/m;
+  const whenCallMatch = ruleBody.match(whenCallPattern);
+  if (whenCallMatch) {
+    for (const raw of whenCallMatch[1].split(",")) {
+      const name = raw.trim();
+      if (name.length === 0 || name === "_") {
+        continue;
+      }
+      if (/^[A-Za-z_][A-Za-z0-9_]*\??$/.test(name)) {
+        bound.add(name.replace(/\?$/, ""));
+      }
+    }
+  }
+
+  const forPattern = /^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+/gm;
+  for (
+    let match = forPattern.exec(ruleBody);
+    match;
+    match = forPattern.exec(ruleBody)
+  ) {
+    bound.add(match[1]);
+  }
+
+  const letPattern = /^\s*let\s+([A-Za-z_][A-Za-z0-9_]*)\s*=/gm;
+  for (
+    let match = letPattern.exec(ruleBody);
+    match;
+    match = letPattern.exec(ruleBody)
+  ) {
+    bound.add(match[1]);
+  }
+
+  const lambdaPattern = /\b([A-Za-z_][A-Za-z0-9_]*)\s*=>/g;
+  for (
+    let match = lambdaPattern.exec(ruleBody);
+    match;
+    match = lambdaPattern.exec(ruleBody)
+  ) {
+    bound.add(match[1]);
+  }
+
+  const wherePattern = /\bwhere\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  for (
+    let match = wherePattern.exec(ruleBody);
+    match;
+    match = wherePattern.exec(ruleBody)
+  ) {
+    bound.add(match[1]);
+  }
+
+  return bound;
+}
+
+function isInsideDoubleQuotedStringAtIndex(
+  text: string,
+  index: number,
+): boolean {
+  const lineStart = text.lastIndexOf("\n", index) + 1;
+  let inString = false;
+  for (let i = lineStart; i < index; i += 1) {
+    if (text[i] !== '"' || text[i - 1] === "\\") {
+      continue;
+    }
+    inString = !inString;
+  }
+  return inString;
 }
 
 function isTemporalWhenClause(clause: string): boolean {
