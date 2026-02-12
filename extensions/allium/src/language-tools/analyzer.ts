@@ -124,6 +124,7 @@ export function analyzeAllium(
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
+  findings.push(...findNeverFireRuleIssues(lineStarts, blocks));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -1057,9 +1058,7 @@ function collectRuleBindingTypes(
   return bindingTypes;
 }
 
-function collectRuleClauseLines(
-  ruleBody: string,
-): Array<{
+function collectRuleClauseLines(ruleBody: string): Array<{
   clause: "requires" | "ensures" | "other";
   text: string;
   startOffset: number;
@@ -1741,6 +1740,68 @@ function findImplicitLambdaIssues(
     );
   }
 
+  return findings;
+}
+
+function findNeverFireRuleIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const rules = blocks.filter((block) => block.kind === "rule");
+  for (const rule of rules) {
+    const requires = collectRuleClauseLines(rule.body).filter(
+      (line) => line.clause === "requires",
+    );
+    const equalsByExpr = new Map<string, Set<string>>();
+    const notEqualsByExpr = new Map<string, Set<string>>();
+
+    for (const line of requires) {
+      const match = line.text.match(
+        /([A-Za-z_][A-Za-z0-9_.]*)\s*(=|!=)\s*("[^"]*"|[a-z_][a-z0-9_]*|-?\d+(?:\.\d+)?)/,
+      );
+      if (!match) {
+        continue;
+      }
+      const expr = match[1];
+      const operator = match[2];
+      const value = match[3];
+      if (operator === "=") {
+        const set = equalsByExpr.get(expr) ?? new Set<string>();
+        set.add(value);
+        equalsByExpr.set(expr, set);
+      } else {
+        const set = notEqualsByExpr.get(expr) ?? new Set<string>();
+        set.add(value);
+        notEqualsByExpr.set(expr, set);
+      }
+    }
+
+    let contradictory = false;
+    for (const [expr, equals] of equalsByExpr.entries()) {
+      if (equals.size > 1) {
+        contradictory = true;
+      }
+      const notEquals = notEqualsByExpr.get(expr);
+      if (notEquals && [...equals].some((value) => notEquals.has(value))) {
+        contradictory = true;
+      }
+    }
+
+    if (!contradictory) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        rule.startOffset,
+        rule.startOffset + rule.name.length,
+        "allium.rule.neverFires",
+        `Rule '${rule.name}' has contradictory requires constraints and may never fire.`,
+        "warning",
+      ),
+    );
+  }
   return findings;
 }
 

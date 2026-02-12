@@ -353,6 +353,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule ContradictoryRequiresWarnsNeverFires {
+        when: RuleBlockParsed(rule)
+        requires: rule.requires_constraints_are_contradictory = true
+
+        ensures: Finding.created(
+        code: "allium.rule.neverFires",
+        severity: warning
+        )
+    }
+
     rule UnusedEntityIsWarning {
         when: EntityParsed(entity)
         requires: entity.referenced_elsewhere_in_module = false

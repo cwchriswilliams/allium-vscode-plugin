@@ -60,6 +60,23 @@ test("reports duplicate let bindings", () => {
   assert.ok(findings.some((f) => f.code === "allium.let.duplicateBinding"));
 });
 
+test("warns when requires clauses are contradictory", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  requires: user.status = active\n  requires: user.status = suspended\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.neverFires"));
+});
+
+test("does not warn when requires clauses are compatible", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  requires: user.status = active\n  requires: user.region != blocked\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.neverFires"),
+    false,
+  );
+});
+
 test("reports undefined config reference", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping()\n  ensures: now + config.missing\n}`,
