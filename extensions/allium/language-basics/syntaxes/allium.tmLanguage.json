@@ -1,0 +1,100 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Allium",
+  "scopeName": "source.allium",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#events" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-dash.allium",
+          "match": "--.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.allium",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.allium",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.allium",
+          "match": "\\b(use|context|external|entity|value|variant|enum|config|default|rule|surface|actor|deferred|open_question|module)\\b"
+        },
+        {
+          "name": "keyword.control.allium",
+          "match": "\\b(when|requires|ensures|let|for|with|if|else|in|as|identified_by|exposes|provides|related|guidance|invariant|becomes|not|exists|and|or)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "support.type.builtin.allium",
+          "match": "\\b(String|Integer|Decimal|Boolean|Timestamp|Duration|Email|URL|Set|List)\\b"
+        },
+        {
+          "name": "support.type.reference.allium",
+          "match": "\\b[A-Z][A-Za-z0-9_]*\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.allium",
+          "match": "\\b(now|null|true|false)\\b"
+        },
+        {
+          "name": "constant.other.duration.allium",
+          "match": "\\b\\d+(?:\\.\\d+)?\\.(seconds|minutes|hours|days)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.allium",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "events": {
+      "patterns": [
+        {
+          "name": "entity.name.function.event.allium",
+          "match": "\\b[A-Z][A-Za-z0-9_]*(?:\\/[A-Z][A-Za-z0-9_]*)*\\s*(?=\\()"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.allium",
+          "match": "(<=|>=|!=|=|<|>|=>|\\+|-|\\*|\\/)"
+        }
+      ]
+    }
+  }
+}

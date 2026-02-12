@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Allium Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/extensions/allium"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/extensions/allium/dist/**/*.js"
+      ]
+    }
+  ]
+}

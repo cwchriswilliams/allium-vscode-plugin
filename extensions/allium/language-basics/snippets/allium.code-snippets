@@ -1,0 +1,117 @@
+{
+  "Rule": {
+    "prefix": "rule",
+    "body": [
+      "rule ${1:RuleName} {",
+      "    when: ${2:Trigger(${3:arg})}",
+      "    requires: ${4:condition}",
+      "    ensures: ${5:Outcome(${6:data})}",
+      "}"
+    ],
+    "description": "Allium rule scaffold"
+  },
+  "Temporal Rule": {
+    "prefix": "rule-temporal",
+    "body": [
+      "rule ${1:RuleName} {",
+      "    when: ${2:item}: ${3:Entity}.${4:timestamp_field} <= now",
+      "    requires: ${2:item}.status = ${5:pending}",
+      "    ensures: ${2:item}.status = ${6:done}",
+      "}"
+    ],
+    "description": "Temporal rule with guard"
+  },
+  "Entity": {
+    "prefix": "entity",
+    "body": [
+      "entity ${1:EntityName} {",
+      "    ${2:field}: ${3:String}",
+      "}"
+    ],
+    "description": "Allium entity scaffold"
+  },
+  "External Entity": {
+    "prefix": "external-entity",
+    "body": [
+      "external entity ${1:EntityName} {",
+      "    ${2:field}: ${3:String}",
+      "}"
+    ],
+    "description": "Allium external entity scaffold"
+  },
+  "Value": {
+    "prefix": "value",
+    "body": [
+      "value ${1:ValueName} {",
+      "    ${2:field}: ${3:String}",
+      "    ${4:derived}: ${5:expression}",
+      "}"
+    ],
+    "description": "Allium value type scaffold"
+  },
+  "Variant": {
+    "prefix": "variant",
+    "body": [
+      "variant ${1:VariantName} : ${2:BaseEntity} {",
+      "    ${3:field}: ${4:String}",
+      "}"
+    ],
+    "description": "Allium variant scaffold"
+  },
+  "Config": {
+    "prefix": "config",
+    "body": [
+      "config {",
+      "    ${1:key}: ${2:Integer} = ${3:5}",
+      "}"
+    ],
+    "description": "Allium config block"
+  },
+  "Surface": {
+    "prefix": "surface",
+    "body": [
+      "surface ${1:SurfaceName} {",
+      "    for ${2:viewer}: ${3:Actor}",
+      "",
+      "    context ${4:item}: ${5:Entity}",
+      "",
+      "    exposes:",
+      "        ${4:item}.${6:field}",
+      "",
+      "    provides:",
+      "        ${7:Capability(${2:viewer}, ${4:item})}",
+      "}"
+    ],
+    "description": "Allium surface scaffold"
+  },
+  "Actor": {
+    "prefix": "actor",
+    "body": [
+      "actor ${1:ActorName} {",
+      "    identified_by: ${2:Entity}.${3:field}",
+      "}"
+    ],
+    "description": "Allium actor declaration"
+  },
+  "Open Question": {
+    "prefix": "open-question",
+    "body": [
+      "open_question \"${1:question}\""
+    ],
+    "description": "Allium open question"
+  },
+  "Deferred": {
+    "prefix": "deferred",
+    "body": [
+      "deferred ${1:Spec}.${2:function}"
+    ],
+    "description": "Allium deferred declaration"
+  },
+  "Use": {
+    "prefix": "use",
+    "body": [
+      "use \"${1:./other.allium}\" as ${2:alias}"
+    ],
+    "description": "Import another Allium specification"
+  }
+}
