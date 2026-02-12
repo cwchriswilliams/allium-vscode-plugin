@@ -202,12 +202,26 @@ rule RefactorTemporalWhenToGuardedRule {
     )
 }
 
+rule RefactorExtractRepeatedLiteralToConfig {
+    when: RefactorRequestedFromSelection(selection)
+    requires: selection.value is string_literal or integer_literal
+    requires: selection.value appears_multiple_times_in_document
+
+    ensures: EditProposed(
+        title: "Extract repeated literal to config",
+        insertion: "config.<generated_key>"
+    )
+}
+
 rule BuildOutlineSymbols {
     when: OutlineRequested(document)
     requires: document.language_id = "allium"
 
     ensures: SymbolListed(kind: config, label: "config")
     ensures: SymbolListed(kind: entity, label: "<entity_name>")
+    ensures: SymbolListed(kind: external_entity, label: "<external_entity_name>")
+    ensures: SymbolListed(kind: value, label: "<value_name>")
+    ensures: SymbolListed(kind: variant, label: "<variant_name>")
     ensures: SymbolListed(kind: rule, label: "<rule_name>")
     ensures: SymbolListed(kind: surface, label: "<surface_name>")
     ensures: SymbolListed(kind: actor, label: "<actor_name>")

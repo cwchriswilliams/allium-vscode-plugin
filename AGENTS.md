@@ -160,6 +160,7 @@ When modifying code or tests:
 * Avoid refactoring unless explicitly asked.
 * Do not modify large unrelated regions of code.
 * Ensure updates align with the task document’s current understanding.
+* After completing any new feature, update the Allium specs in `docs/project/specs/` so they reflect the current system behaviour before finishing the task.
 
 ### Tests
 

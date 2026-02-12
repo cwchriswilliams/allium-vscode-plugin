@@ -14,7 +14,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx,js,cjs,mjs}": ["biome format --write", "eslint --fix"],
-    "*.{json,md,yml,yaml}": ["biome format --write"]
+    "*.{json,jsonc}": ["biome format --write"]
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",

@@ -8,7 +8,7 @@ repos:
         pass_filenames: false
       - id: allium-check
         name: allium-check
-        entry: env PRE_COMMIT_HOME=.pre-commit-cache npm run check -- docs/project
+        entry: env PRE_COMMIT_HOME=.pre-commit-cache npm run check -- docs/project/specs
         language: system
         pass_filenames: false
         always_run: true
