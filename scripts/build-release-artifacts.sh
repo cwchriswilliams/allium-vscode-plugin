@@ -7,7 +7,7 @@ CACHE_DIR="$ROOT_DIR/.npm-cache"
 mkdir -p "$CACHE_DIR"
 
 mkdir -p "$ARTIFACT_DIR"
-rm -f "$ARTIFACT_DIR"/*.vsix "$ARTIFACT_DIR"/*.tgz "$ARTIFACT_DIR"/*.tar.gz
+rm -f "$ARTIFACT_DIR"/*.vsix "$ARTIFACT_DIR"/*.tgz "$ARTIFACT_DIR"/*.tar.gz "$ARTIFACT_DIR"/SHA256SUMS.txt
 
 echo "Building extension and standalone CLI workspaces..."
 npm run --workspace extensions/allium build
@@ -26,6 +26,16 @@ echo "Packaging standalone CLI npm artifact..."
 (
   cd "$ROOT_DIR/packages/allium-cli"
   HOME="$ROOT_DIR" npm_config_cache="$CACHE_DIR" NPM_CONFIG_CACHE="$CACHE_DIR" npm pack --pack-destination "$ARTIFACT_DIR"
+)
+
+echo "Generating checksums..."
+(
+  cd "$ARTIFACT_DIR"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum ./*.vsix ./*.tgz > SHA256SUMS.txt
+  else
+    shasum -a 256 ./*.vsix ./*.tgz > SHA256SUMS.txt
+  fi
 )
 
 echo "Release artifacts created in $ARTIFACT_DIR:"

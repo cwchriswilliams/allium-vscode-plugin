@@ -620,6 +620,35 @@ test("reports entity declared but never referenced", () => {
   assert.ok(findings.some((f) => f.code === "allium.entity.unused"));
 });
 
+test("reports unused named value declarations", () => {
+  const findings = analyzeAllium(`value Amount {\n  cents: Integer\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.definition.unused"));
+});
+
+test("warns when rule trigger is not provided or emitted", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: InvitationExpired(invitation)\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.unreachableTrigger"));
+});
+
+test("does not warn when rule trigger is provided by a surface", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for user: User\n  provides:\n    InvitationExpired(invitation)\n}\n\nrule A {\n  when: InvitationExpired(invitation)\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.rule.unreachableTrigger"),
+    false,
+  );
+});
+
+test("reports equality type mismatches between string and numeric literals", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  requires: "old" = 1\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.expression.typeMismatch"));
+});
+
 test("reports field declared but never referenced", () => {
   const findings = analyzeAllium(
     `entity Invitation {\n  status: String\n  ignored: String\n}\n\nrule TouchStatus {\n  when: invitation: Invitation.created\n  ensures: invitation.status = active\n}\n`,

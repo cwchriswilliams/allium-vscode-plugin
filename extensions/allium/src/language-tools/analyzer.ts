@@ -130,7 +130,9 @@ export function analyzeAllium(
   );
   findings.push(...findSurfaceProvidesTriggerIssues(lineStarts, blocks, text));
   findings.push(...findUnusedEntityIssues(text, lineStarts));
+  findings.push(...findUnusedNamedDefinitionIssues(text, lineStarts));
   findings.push(...findUnusedFieldIssues(text, lineStarts));
+  findings.push(...findUnreachableRuleTriggerIssues(lineStarts, blocks));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
@@ -2101,6 +2103,93 @@ function findUnusedEntityIssues(text: string, lineStarts: number[]): Finding[] {
   return findings;
 }
 
+function findUnusedNamedDefinitionIssues(
+  text: string,
+  lineStarts: number[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const definitions: Array<{ kind: string; name: string; offset: number }> = [];
+
+  const valuePattern = /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let match = valuePattern.exec(text);
+    match;
+    match = valuePattern.exec(text)
+  ) {
+    const name = match[1];
+    definitions.push({
+      kind: "value",
+      name,
+      offset: match.index + match[0].indexOf(name),
+    });
+  }
+
+  const enumPattern = /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let match = enumPattern.exec(text);
+    match;
+    match = enumPattern.exec(text)
+  ) {
+    const name = match[1];
+    definitions.push({
+      kind: "enum",
+      name,
+      offset: match.index + match[0].indexOf(name),
+    });
+  }
+
+  const defaultPattern =
+    /^\s*default\s+[A-Za-z_][A-Za-z0-9_]*(?:\s+([A-Za-z_][A-Za-z0-9_]*))?\s*=/gm;
+  for (
+    let match = defaultPattern.exec(text);
+    match;
+    match = defaultPattern.exec(text)
+  ) {
+    const name = match[1];
+    if (!name) {
+      continue;
+    }
+    definitions.push({
+      kind: "default instance",
+      name,
+      offset: match.index + match[0].indexOf(name),
+    });
+  }
+
+  for (const definition of definitions) {
+    const usagePattern = new RegExp(
+      `\\b${escapeRegex(definition.name)}\\b`,
+      "g",
+    );
+    let count = 0;
+    for (
+      let usage = usagePattern.exec(text);
+      usage;
+      usage = usagePattern.exec(text)
+    ) {
+      if (isCommentLineAtIndex(text, usage.index)) {
+        continue;
+      }
+      count += 1;
+    }
+    if (count > 1) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        definition.offset,
+        definition.offset + definition.name.length,
+        "allium.definition.unused",
+        `${capitalize(definition.kind)} '${definition.name}' is declared but not referenced elsewhere.`,
+        "warning",
+      ),
+    );
+  }
+
+  return findings;
+}
+
 function findUnusedFieldIssues(text: string, lineStarts: number[]): Finding[] {
   const findings: Finding[] = [];
   const fields = collectDeclaredEntityFields(text);
@@ -2134,6 +2223,76 @@ function findUnusedFieldIssues(text: string, lineStarts: number[]): Finding[] {
       ),
     );
   }
+  return findings;
+}
+
+function findUnreachableRuleTriggerIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  const provided = new Set<string>();
+  for (const surface of surfaces) {
+    for (const trigger of parseProvidesTriggerCalls(surface.body)) {
+      provided.add(trigger.name);
+    }
+  }
+
+  const produced = new Set<string>();
+  const rules = blocks.filter((block) => block.kind === "rule");
+  const ensureCallPattern = /^\s*ensures\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/gm;
+  for (const rule of rules) {
+    for (
+      let match = ensureCallPattern.exec(rule.body);
+      match;
+      match = ensureCallPattern.exec(rule.body)
+    ) {
+      produced.add(match[1]);
+    }
+  }
+
+  for (const rule of rules) {
+    const whenLine = rule.body.match(/^\s*when\s*:\s*(.+)$/m);
+    if (!whenLine) {
+      continue;
+    }
+    const triggerLine = whenLine[1].trim();
+    if (
+      triggerLine.includes(":") ||
+      /\b(becomes|<=|>=|<|>|if|exists)\b/.test(triggerLine)
+    ) {
+      continue;
+    }
+
+    const callPattern = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+    for (
+      let call = callPattern.exec(triggerLine);
+      call;
+      call = callPattern.exec(triggerLine)
+    ) {
+      const callName = call[1];
+      if (provided.has(callName) || produced.has(callName)) {
+        continue;
+      }
+      const callOffset =
+        rule.startOffset +
+        1 +
+        rule.body.indexOf(whenLine[0]) +
+        whenLine[0].indexOf(callName);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          callOffset,
+          callOffset + callName.length,
+          "allium.rule.unreachableTrigger",
+          `Rule '${rule.name}' listens for trigger '${callName}' but no local surface provides or rule emits it.`,
+          "info",
+        ),
+      );
+    }
+  }
+
   return findings;
 }
 
@@ -2421,9 +2580,40 @@ function findExpressionTypeMismatchIssues(
           );
         }
       }
+
+      const equality = line.text.match(
+        /("[^"]*"|-?\d+(?:\.\d+)?)\s*(=|!=)\s*("[^"]*"|-?\d+(?:\.\d+)?)/,
+      );
+      if (equality) {
+        const lhs = equality[1];
+        const rhs = equality[3];
+        const lhsString = lhs.startsWith('"');
+        const rhsString = rhs.startsWith('"');
+        if (lhsString !== rhsString) {
+          const mismatchOffset =
+            rule.startOffset +
+            1 +
+            line.startOffset +
+            line.text.indexOf(equality[0]);
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              mismatchOffset,
+              mismatchOffset + equality[0].length,
+              "allium.expression.typeMismatch",
+              `Equality expression '${equality[0]}' compares incompatible literal types.`,
+              "error",
+            ),
+          );
+        }
+      }
     }
   }
   return findings;
+}
+
+function capitalize(value: string): string {
+  return value[0].toUpperCase() + value.slice(1);
 }
 
 function findDerivedCircularDependencyIssues(

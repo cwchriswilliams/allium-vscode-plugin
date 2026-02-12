@@ -18,6 +18,7 @@ rule LocalReleaseBuildCreatesArtifacts {
 
     ensures: ReleaseArtifact.created(kind: vsix, name: "allium-vscode-<version>.vsix")
     ensures: ReleaseArtifact.created(kind: cli_npm_tgz, name: "allium-cli-<version>.tgz")
+    ensures: FileWritten(path: "artifacts/SHA256SUMS.txt")
 }
 
 rule TaggedBuildPublishesReleaseAssets {
@@ -33,4 +34,11 @@ rule ManualBuildUploadsArtifacts {
 
     ensures: ReleaseArtifactUploaded(kind: vsix)
     ensures: ReleaseArtifactUploaded(kind: cli_npm_tgz)
+}
+
+rule ReleaseGuidesIncludeInstallSnippets {
+    when: ReleaseArtifactsPublished()
+
+    ensures: InstallSnippetAvailable(target: vsix)
+    ensures: InstallSnippetAvailable(target: cli_tgz)
 }

@@ -103,6 +103,8 @@ Current status:
 - Implemented config/default parameter and duplicate/undefined-type checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`, `allium.default.duplicateName`, `allium.default.undefinedType`).
 - Implemented contradictory-requires warning for rules that may never fire (`allium.rule.neverFires`).
 - Implemented expression semantic checks for obvious type mismatches and derived cycles (`allium.expression.typeMismatch`, `allium.derived.circularDependency`).
+- Implemented unreachable-trigger informational hints for rules with no local provider/emitter (`allium.rule.unreachableTrigger`).
+- Implemented warnings for unused named value/enum/default declarations (`allium.definition.unused`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
 ### Phase 3: Snippets (Priority 3)
@@ -207,6 +209,7 @@ Current implementation will proceed with defaults unless you override:
 
 - Consumer distribution before Marketplace:
   - Completed: repeatable VSIX + standalone CLI archive artifacts via local script and GitHub Actions release workflow.
+  - Completed: release checksum manifest generation (`artifacts/SHA256SUMS.txt`).
 - Publish standalone CLI tooling:
   - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check`, `allium-format`, and experimental `allium-diagram`.
 - Improve Allium formatter depth:

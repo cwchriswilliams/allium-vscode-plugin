@@ -238,6 +238,38 @@ rule OpenQuestionEmitsWarningFinding {
     )
 }
 
+rule UnusedNamedDefinitionIsWarning {
+    when: ValueOrEnumOrNamedDefaultParsed(definition)
+    requires: definition.has_no_references = true
+
+    ensures: Finding.created(
+    code: "allium.definition.unused",
+    severity: warning
+    )
+}
+
+rule RuleTriggerWithoutProducerOrProviderIsWarning {
+    when: RuleBlockParsed(rule)
+    requires: rule.when_is_external_trigger_call = true
+    requires: TriggerProvidedBySurface(rule.trigger_name) = false
+    requires: TriggerEmittedByRule(rule.trigger_name) = false
+
+    ensures: Finding.created(
+    code: "allium.rule.unreachableTrigger",
+    severity: info
+    )
+}
+
+rule EqualityLiteralTypeMismatchIsError {
+    when: RuleClauseParsed(clause)
+    requires: clause compares_string_literal_with_numeric_literal_using_equality = true
+
+    ensures: Finding.created(
+    code: "allium.expression.typeMismatch",
+    severity: error
+    )
+}
+
 rule DuplicateEnumLiteralIsError {
     when: EnumBlockParsed(enum_block)
     requires: enum_block.contains_duplicate_literal = true

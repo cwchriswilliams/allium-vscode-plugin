@@ -23,6 +23,7 @@ Each tagged release publishes:
 
 - `allium-vscode-<version>.vsix` (VS Code extension package)
 - `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, and `allium-diagram`)
+- `SHA256SUMS.txt` (artifact checksums)
 
 Install extension from VSIX:
 
@@ -38,6 +39,12 @@ npm install -g ./allium-cli-<version>.tgz
 allium-check --help
 allium-format --help
 allium-diagram --help
+```
+
+Optional checksum verification:
+
+```bash
+sha256sum -c SHA256SUMS.txt
 ```
 
 ### Option B: Install from source checkout
@@ -106,7 +113,9 @@ Implemented checks:
 - status enum values never assigned by any rule (`unreachable` state hints)
 - non-terminal status enum values with no observed exit transitions
 - contradictory `requires` constraints that imply a rule may never fire
+- external trigger rules with no local provider/emitter path (informational unreachable trigger hints)
 - obvious expression type mismatches in `requires`/`ensures` comparisons and arithmetic
+- unused named value/enum/default declarations
 - circular dependencies across derived entity values
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
@@ -321,6 +330,7 @@ Produces `artifacts/` containing:
 
 - VS Code extension package: `allium-vscode-<version>.vsix`
 - standalone CLI npm artifact: `allium-cli-<version>.tgz`
+- checksum manifest: `SHA256SUMS.txt`
 
 ### Automated release path
 
