@@ -175,12 +175,12 @@ rule UndefinedConfigReferenceIsInfoInRelaxedMode {
     )
 }
 
-rule OpenQuestionEmitsInformationalFinding {
+rule OpenQuestionEmitsWarningFinding {
     when: OpenQuestionParsed(open_question)
 
     ensures: Finding.created(
     code: "allium.openQuestion.present",
-    severity: info
+    severity: warning
     )
 }
 
@@ -416,5 +416,8 @@ rule ProvideKeywordAndConfigCompletions {
     ensures: CompletionItemAvailable(label: enum)
     ensures: CompletionItemAvailable(label: context)
     ensures: CompletionItemAvailable(label: module)
+    ensures: CompletionItemAvailable(label: with)
+    ensures: CompletionItemAvailable(label: exists)
+    ensures: CompletionItemAvailable(label: identified_by)
     ensures: CompletionAfter("config.") includes_declared_config_keys = true
 }

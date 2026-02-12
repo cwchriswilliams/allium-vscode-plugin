@@ -155,13 +155,13 @@ Current status:
 ## Decisions Made
 
 1. Target `.allium` files only (for now).
-2. `open_question` diagnostic severity is `Information`.
+2. `open_question` diagnostic severity is `Warning`.
 3. Diagnostics are strict by default, with a relaxed mode available.
 4. Packaging format is one extension with internal basics/tools split.
 
 Current implementation will proceed with defaults unless you override:
 - file support: `.allium` only
-- `open_question`: `Information`
+- `open_question`: `Warning`
 - packaging: one extension (`allium`) with internal split
 - diagnostics mode: strict by default, configurable to relaxed
 

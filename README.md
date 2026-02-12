@@ -81,7 +81,7 @@ Implemented checks:
 - undefined `config.<key>` reference
 - duplicate literal in a named `enum` declaration
 - empty named `enum` declaration
-- `open_question` informational finding
+- `open_question` warning finding
 
 Diagnostics setting:
 

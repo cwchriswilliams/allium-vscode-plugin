@@ -52,13 +52,13 @@ test("reports undefined config reference", () => {
   );
 });
 
-test("reports open_question as informational finding", () => {
+test("reports open_question as warning finding", () => {
   const findings = analyzeAllium(`open_question "Needs decision?"`);
   const finding = findings.find(
     (f) => f.code === "allium.openQuestion.present",
   );
   assert.ok(finding);
-  assert.equal(finding.severity, "info");
+  assert.equal(finding.severity, "warning");
 });
 
 test("relaxed mode suppresses temporal guard warning", () => {
