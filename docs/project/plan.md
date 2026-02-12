@@ -96,6 +96,7 @@ Current status:
 - Implemented status-machine heuristic checks for unassigned and no-exit status values (`allium.status.unreachableValue`, `allium.status.noExit`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Implemented warning checks for unused entities and external entity source hints.
+- Implemented informational unused-field checks (`allium.field.unused`).
 - Implemented warning checks for deferred specifications missing location hints.
 - Implemented config/default parameter and duplicate-name checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`, `allium.default.duplicateName`).
 - Implemented contradictory-requires warning for rules that may never fire (`allium.rule.neverFires`).

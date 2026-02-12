@@ -127,6 +127,7 @@ export function analyzeAllium(
   );
   findings.push(...findSurfaceProvidesTriggerIssues(lineStarts, blocks, text));
   findings.push(...findUnusedEntityIssues(text, lineStarts));
+  findings.push(...findUnusedFieldIssues(text, lineStarts));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
@@ -2007,6 +2008,42 @@ function findUnusedEntityIssues(text: string, lineStarts: number[]): Finding[] {
   return findings;
 }
 
+function findUnusedFieldIssues(text: string, lineStarts: number[]): Finding[] {
+  const findings: Finding[] = [];
+  const fields = collectDeclaredEntityFields(text);
+  if (fields.length === 0) {
+    return findings;
+  }
+  for (const field of fields) {
+    const usagePattern = new RegExp(`\\.${escapeRegex(field.name)}\\b`, "g");
+    let count = 0;
+    for (
+      let usage = usagePattern.exec(text);
+      usage;
+      usage = usagePattern.exec(text)
+    ) {
+      if (isCommentLineAtIndex(text, usage.index)) {
+        continue;
+      }
+      count += 1;
+    }
+    if (count > 0) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        field.offset,
+        field.offset + field.name.length,
+        "allium.field.unused",
+        `Field '${field.entity}.${field.name}' is declared but not referenced elsewhere.`,
+        "info",
+      ),
+    );
+  }
+  return findings;
+}
+
 function findExternalEntitySourceHints(
   text: string,
   lineStarts: number[],
@@ -2882,6 +2919,48 @@ function parseEntityBlocks(text: string): Array<{
     entities.push({ name: match[1], pipeFields });
   }
   return entities;
+}
+
+function collectDeclaredEntityFields(
+  text: string,
+): Array<{ entity: string; name: string; offset: number }> {
+  const out: Array<{ entity: string; name: string; offset: number }> = [];
+  const entityPattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let entity = entityPattern.exec(text);
+    entity;
+    entity = entityPattern.exec(text)
+  ) {
+    const entityName = entity[1];
+    const open = text.indexOf("{", entity.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const fieldPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$/gm;
+    for (
+      let field = fieldPattern.exec(body);
+      field;
+      field = fieldPattern.exec(body)
+    ) {
+      const name = field[1];
+      const rhs = field[2].trim();
+      if (rhs.length === 0) {
+        continue;
+      }
+      out.push({
+        entity: entityName,
+        name,
+        offset: open + 1 + field.index + field[0].indexOf(name),
+      });
+    }
+  }
+  return out;
 }
 
 function applySuppressions(

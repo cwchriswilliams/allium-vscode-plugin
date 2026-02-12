@@ -114,6 +114,7 @@ Implemented checks:
 - trigger used in surface `provides` but not defined as external-stimulus rule trigger
 - implicit lambda shorthand in collection operators (`any/all/each`) instead of explicit `x => ...`
 - entity declared but never referenced elsewhere
+- entity field declared but not referenced elsewhere
 - external entity declared without obvious governing specification import hint
 - deferred specification declaration without location hint
 - `open_question` warning finding

@@ -404,6 +404,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UnusedFieldIsInfo {
+        when: EntityFieldParsed(field)
+        requires: field.referenced_elsewhere_in_module = false
+
+        ensures: Finding.created(
+        code: "allium.field.unused",
+        severity: info
+        )
+    }
+
     rule ExternalEntityWithoutSourceHintIsWarning {
         when: ExternalEntityParsed(entity, current_module)
         requires: current_module.has_no_use_imports = true

@@ -546,6 +546,23 @@ test("reports entity declared but never referenced", () => {
   assert.ok(findings.some((f) => f.code === "allium.entity.unused"));
 });
 
+test("reports field declared but never referenced", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: String\n  ignored: String\n}\n\nrule TouchStatus {\n  when: invitation: Invitation.created\n  ensures: invitation.status = active\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.field.unused"));
+});
+
+test("does not report field when referenced", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: String\n}\n\nrule TouchStatus {\n  when: invitation: Invitation.created\n  ensures: invitation.status = active\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.field.unused"),
+    false,
+  );
+});
+
 test("reports external entity without import source hints", () => {
   const findings = analyzeAllium(
     `external entity DirectoryUser {\n  id: String\n}\n`,
