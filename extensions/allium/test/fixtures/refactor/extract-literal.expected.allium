@@ -1,0 +1,13 @@
+config {
+    extracted_pending: String = "pending"
+}
+
+rule A {
+  when: Ping()
+  ensures: status = config.extracted_pending
+}
+
+rule B {
+  when: Pong()
+  ensures: previous = config.extracted_pending
+}

@@ -1,0 +1,8 @@
+rule A{
+when: Ping()  
+ensures: Done()
+}
+rule B {
+when: Pong()
+ensures: Done()
+}

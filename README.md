@@ -251,6 +251,7 @@ Pre-commit runs:
 - Add or update unit tests for non-trivial behavior changes.
 - Prefer behavior-focused tests over implementation-detail tests.
 - Preserve or improve signal quality (avoid brittle tests).
+- Keep and extend golden fixture tests for formatter and refactor output stability.
 
 ### Spec maintenance expectations
 
