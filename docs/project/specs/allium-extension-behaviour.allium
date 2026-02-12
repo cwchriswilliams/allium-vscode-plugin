@@ -349,6 +349,26 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule DuplicateNamedRequiresBlockIsError {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.named_requires_block_names_not_unique = true
+
+        ensures: Finding.created(
+        code: "allium.surface.duplicateRequiresBlock",
+        severity: error
+        )
+    }
+
+    rule DuplicateNamedProvidesBlockIsError {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.named_provides_block_names_not_unique = true
+
+        ensures: Finding.created(
+        code: "allium.surface.duplicateProvidesBlock",
+        severity: error
+        )
+    }
+
     rule SuppressionCommentDisablesDiagnostic {
         when: SuppressionDirectiveParsed(line, code)
         requires: code = "all" or code = finding.code

@@ -80,6 +80,7 @@ Current status:
 - Implemented surface/actor linkage checks (`allium.surface.missingActor`, `allium.actor.unused`).
 - Implemented surface `related:` reference checks (`allium.surface.relatedUndefined`).
 - Implemented surface binding usage checks (`allium.surface.unusedBinding`).
+- Implemented named surface block uniqueness checks (`allium.surface.duplicateRequiresBlock`, `allium.surface.duplicateProvidesBlock`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
 - Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).

@@ -279,3 +279,21 @@ test("does not report known imported alias in type reference", () => {
     false,
   );
 });
+
+test("reports duplicate named requires blocks in surface", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  requires Visibility:\n    viewer.id != null\n  requires Visibility:\n    viewer.active = true\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.surface.duplicateRequiresBlock"),
+  );
+});
+
+test("reports duplicate named provides blocks in surface", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  provides Navigate:\n    Opened()\n  provides Navigate:\n    Refreshed()\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.surface.duplicateProvidesBlock"),
+  );
+});

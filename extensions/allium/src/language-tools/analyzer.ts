@@ -110,6 +110,7 @@ export function analyzeAllium(
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
+  findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -876,6 +877,71 @@ function findSurfaceBindingUsageIssues(
     }
   }
 
+  return findings;
+}
+
+function findSurfaceNamedBlockUniquenessIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  for (const surface of surfaces) {
+    findings.push(
+      ...findDuplicateNamedSurfaceBlocks(
+        surface,
+        lineStarts,
+        "requires",
+        "allium.surface.duplicateRequiresBlock",
+      ),
+    );
+    findings.push(
+      ...findDuplicateNamedSurfaceBlocks(
+        surface,
+        lineStarts,
+        "provides",
+        "allium.surface.duplicateProvidesBlock",
+      ),
+    );
+  }
+  return findings;
+}
+
+function findDuplicateNamedSurfaceBlocks(
+  surface: ReturnType<typeof parseAlliumBlocks>[number],
+  lineStarts: number[],
+  keyword: "requires" | "provides",
+  code: string,
+): Finding[] {
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  const pattern = new RegExp(
+    `^\\s*${keyword}\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:`,
+    "gm",
+  );
+  for (
+    let match = pattern.exec(surface.body);
+    match;
+    match = pattern.exec(surface.body)
+  ) {
+    const name = match[1];
+    if (!seen.has(name)) {
+      seen.add(name);
+      continue;
+    }
+    const offset =
+      surface.startOffset + 1 + match.index + match[0].indexOf(name);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        offset,
+        offset + name.length,
+        code,
+        `Surface '${surface.name}' has duplicate named '${keyword}' block '${name}'.`,
+        "error",
+      ),
+    );
+  }
   return findings;
 }
 

@@ -93,6 +93,8 @@ Implemented checks:
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section
 - surface `for`/`context` binding declared but not used in surface body
+- duplicate named `requires` block in a surface
+- duplicate named `provides` block in a surface
 - `open_question` warning finding
 
 Diagnostics setting:
