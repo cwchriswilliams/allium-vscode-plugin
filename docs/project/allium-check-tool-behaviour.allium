@@ -85,3 +85,9 @@ rule InformationalOnlyFindingsSucceed {
     ensures: LinePrinted(message: "No blocking findings.")
     ensures: ProcessExit(code: 0)
 }
+
+rule WorkspaceCheckCommandDelegatesToChecker {
+    when: WorkspaceCommandInvoked(name: "npm run check -- <inputs>")
+
+    ensures: CheckCommandInvokedWithInputs(inputs)
+}

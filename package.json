@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run --workspaces build",
     "test": "npm run --workspaces test",
-    "lint": "npm run --workspaces lint"
+    "lint": "npm run --workspaces lint",
+    "check": "npm run --workspace extensions/allium check --"
   }
 }

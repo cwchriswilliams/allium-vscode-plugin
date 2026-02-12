@@ -15,4 +15,5 @@ VS Code support for [Allium](https://juxt.github.io/allium/) including syntax hi
 npm install
 npm run build
 npm run test
+npm run check -- path/to/spec.allium
 ```
