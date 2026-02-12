@@ -1,0 +1,186 @@
+-- allium-extension-behaviour.allium
+-- Scope: VS Code runtime behavior for Allium diagnostics and quick fixes.
+-- Includes:
+--   - Document analysis triggers
+--   - Analyzer findings and severities
+--   - Diagnostics mode effects
+--   - Quick-fix generation behavior
+-- Excludes:
+--   - TextMate grammar implementation details
+--   - Snippet definitions
+--   - VS Code packaging and publish mechanics
+
+value Document {
+    uri: String
+    language_id: String
+    text: String
+}
+
+value FindingRange {
+    start_line: Integer
+    start_character: Integer
+    end_line: Integer
+    end_character: Integer
+}
+
+entity Finding {
+    code: String
+    message: String
+    severity: error | warning | info
+    range: FindingRange
+}
+
+entity DiagnosticsMode {
+    value: strict | relaxed
+}
+
+entity DiagnosticCollection {
+    documents: Set<Document>
+}
+
+rule RefreshAlliumDiagnostics {
+    when: DocumentOpened(document) or DocumentChanged(document) or DocumentSaved(document)
+    requires: document.language_id = "allium"
+
+    ensures: FindingsComputed(document)
+    ensures: DiagnosticsStored(document)
+}
+
+rule IgnoreNonAlliumDocuments {
+    when: DocumentOpened(document) or DocumentChanged(document) or DocumentSaved(document)
+    requires: document.language_id != "allium"
+
+    ensures: NoDiagnosticsChange(document)
+}
+
+rule ClearDiagnosticsOnClose {
+    when: DocumentClosed(document)
+
+    ensures: DiagnosticsRemoved(document)
+}
+
+rule RefreshOnDiagnosticsModeChange {
+    when: ConfigurationChanged(key: "allium.diagnostics.mode")
+
+    ensures: OpenAlliumDocumentsReanalyzed()
+}
+
+rule RunChecksWithoutAlliumEditor {
+    when: CommandInvoked(name: "allium.runChecks")
+    requires: ActiveEditorMissing() or ActiveEditorLanguage() != "allium"
+
+    ensures: UserInformed(message: "Open an .allium file to run checks.")
+}
+
+rule RunChecksWithAlliumEditor {
+    when: CommandInvoked(name: "allium.runChecks")
+    requires: ActiveEditorLanguage() = "allium"
+
+    ensures: FindingsComputed(ActiveEditorDocument())
+    ensures: DiagnosticsStored(ActiveEditorDocument())
+    ensures: UserInformed(message: "Allium checks completed.")
+}
+
+rule RuleMustHaveWhenTrigger {
+    when: RuleBlockParsed(rule)
+    requires: rule.has_when = false
+
+    ensures: Finding.created(
+        code: "allium.rule.missingWhen",
+        severity: error
+    )
+}
+
+rule RuleShouldHaveEnsuresClause {
+    when: RuleBlockParsed(rule)
+    requires: rule.has_ensures = false
+
+    ensures: Finding.created(
+        code: "allium.rule.missingEnsures",
+        severity: error
+    )
+}
+
+rule TemporalTriggerNeedsGuardInStrictMode {
+    when: RuleBlockParsed(rule)
+    requires: rule.when_is_temporal = true
+    requires: rule.has_requires = false
+    requires: DiagnosticsMode.value = strict
+
+    ensures: Finding.created(
+        code: "allium.temporal.missingGuard",
+        severity: warning
+    )
+}
+
+rule DuplicateLetBindingIsError {
+    when: RuleBlockParsed(rule)
+    requires: rule.contains_duplicate_let_name = true
+
+    ensures: Finding.created(
+        code: "allium.let.duplicateBinding",
+        severity: error
+    )
+}
+
+rule DuplicateConfigKeyIsError {
+    when: ConfigBlockParsed(config_block)
+    requires: config_block.contains_duplicate_key = true
+
+    ensures: Finding.created(
+        code: "allium.config.duplicateKey",
+        severity: error
+    )
+}
+
+rule UndefinedConfigReferenceSeverityDependsOnMode {
+    when: ConfigReferenceParsed(reference)
+    requires: ConfigKeyDeclared(reference.key) = false
+    requires: DiagnosticsMode.value = strict
+
+    ensures: Finding.created(
+        code: "allium.config.undefinedReference",
+        severity: warning
+    )
+}
+
+rule UndefinedConfigReferenceIsInfoInRelaxedMode {
+    when: ConfigReferenceParsed(reference)
+    requires: ConfigKeyDeclared(reference.key) = false
+    requires: DiagnosticsMode.value = relaxed
+
+    ensures: Finding.created(
+        code: "allium.config.undefinedReference",
+        severity: info
+    )
+}
+
+rule OpenQuestionEmitsInformationalFinding {
+    when: OpenQuestionParsed(open_question)
+
+    ensures: Finding.created(
+        code: "allium.openQuestion.present",
+        severity: info
+    )
+}
+
+rule QuickFixForMissingEnsures {
+    when: QuickFixRequestedForFinding(finding)
+    requires: finding.code = "allium.rule.missingEnsures"
+
+    ensures: EditProposed(
+        title: "Insert ensures scaffold",
+        insertion: "    ensures: TODO()"
+    )
+    ensures: PreferredQuickFix()
+}
+
+rule QuickFixForTemporalMissingGuard {
+    when: QuickFixRequestedForFinding(finding)
+    requires: finding.code = "allium.temporal.missingGuard"
+
+    ensures: EditProposed(
+        title: "Insert requires guard",
+        insertion: "requires: /* add temporal guard */"
+    )
+}
