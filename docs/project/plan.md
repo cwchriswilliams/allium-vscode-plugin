@@ -104,6 +104,7 @@ Current status:
 - Implemented: add temporal guard from selected `when` condition.
 - Pending: inline enum conversion once enum syntax is finalized.
 - Implemented: command to apply all safe built-in quick fixes in one action.
+- Implemented: quick fix action to add `-- allium-ignore <code>` suppression directives.
 
 Then migrate to semantic refactors via parser AST + symbol table.
 
@@ -118,6 +119,7 @@ Then migrate to semantic refactors via parser AST + symbol table.
 
 Current status:
 - Implemented: document symbols and outline for top-level Allium blocks.
+- Implemented: workspace symbol provider for cross-file Allium symbol search.
 - Implemented: go to definition for local top-level symbols and `config.<key>` references.
 - Implemented: go to definition across local `use "... " as alias` imports.
 - Implemented: find references for local symbols/config keys and imported symbols.

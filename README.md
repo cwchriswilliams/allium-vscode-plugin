@@ -100,6 +100,7 @@ Formatting settings:
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
   - insert temporal `requires:` guard scaffold
+  - insert `-- allium-ignore <code>` suppression directive for diagnostics
 - Refactorings:
   - extract repeated string/integer literal to `config.<key>`
   - add temporal guard from selected temporal `when:` line
@@ -107,6 +108,7 @@ Formatting settings:
 ### Productivity features
 
 - document symbols / outline for top-level blocks
+- workspace symbol search across `.allium` files
 - go to definition for local top-level symbols, `config.<key>`, and imported symbols via `use "... " as alias`
 - find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols

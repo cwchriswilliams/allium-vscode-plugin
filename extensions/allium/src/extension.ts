@@ -20,10 +20,12 @@ import {
   ALLIUM_SEMANTIC_TOKEN_TYPES,
   collectSemanticTokenEntries,
 } from "./language-tools/semantic-tokens";
+import { buildSuppressionDirectiveEdit } from "./language-tools/suppression";
 import {
   buildWorkspaceIndex,
   resolveImportedDefinition,
 } from "./language-tools/workspace-index";
+import { collectWorkspaceSymbolRecords } from "./language-tools/workspace-symbols";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -189,6 +191,11 @@ export function activate(context: vscode.ExtensionContext): void {
       ".",
     ),
   );
+  context.subscriptions.push(
+    vscode.languages.registerWorkspaceSymbolProvider(
+      new AlliumWorkspaceSymbolProvider(),
+    ),
+  );
 }
 
 export function deactivate(): void {
@@ -242,6 +249,30 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         );
         action.edit = edit;
         actions.push(action);
+      }
+
+      const diagnosticCode = String(diagnostic.code ?? "");
+      if (diagnosticCode.startsWith("allium.")) {
+        const suppression = buildSuppressionDirectiveEdit(
+          document.getText(),
+          diagnosticCode,
+          diagnostic.range.start.line,
+        );
+        if (suppression) {
+          const action = new vscode.CodeAction(
+            "Suppress this diagnostic here",
+            vscode.CodeActionKind.QuickFix,
+          );
+          action.diagnostics = [diagnostic];
+          const edit = new vscode.WorkspaceEdit();
+          edit.insert(
+            document.uri,
+            document.positionAt(suppression.offset),
+            suppression.text,
+          );
+          action.edit = edit;
+          actions.push(action);
+        }
       }
     }
 
@@ -337,18 +368,35 @@ class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 }
 
 function toSymbolKind(
-  type: ReturnType<typeof collectAlliumSymbols>[number]["type"],
+  type:
+    | ReturnType<typeof collectAlliumSymbols>[number]["type"]
+    | "external_entity"
+    | "value"
+    | "variant"
+    | "config_key",
 ): vscode.SymbolKind {
+  if (type === "entity" || type === "external_entity") {
+    return vscode.SymbolKind.Class;
+  }
+  if (type === "value" || type === "variant") {
+    return vscode.SymbolKind.EnumMember;
+  }
   if (type === "rule") {
     return vscode.SymbolKind.Method;
   }
   if (type === "surface") {
     return vscode.SymbolKind.Interface;
   }
+  if (type === "actor") {
+    return vscode.SymbolKind.Class;
+  }
+  if (type === "config_key") {
+    return vscode.SymbolKind.Property;
+  }
   if (type === "config") {
     return vscode.SymbolKind.Module;
   }
-  return vscode.SymbolKind.Class;
+  return vscode.SymbolKind.Variable;
 }
 
 class AlliumDefinitionProvider implements vscode.DefinitionProvider {
@@ -565,6 +613,42 @@ class AlliumCompletionProvider implements vscode.CompletionItemProvider {
           : vscode.CompletionItemKind.Keyword;
       return new vscode.CompletionItem(candidate.label, kind);
     });
+  }
+}
+
+class AlliumWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
+  provideWorkspaceSymbols(query: string): vscode.SymbolInformation[] {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    const out: vscode.SymbolInformation[] = [];
+    for (const folder of folders) {
+      const index = buildWorkspaceIndex(folder.uri.fsPath);
+      const records = collectWorkspaceSymbolRecords(index, query);
+      for (const record of records) {
+        out.push(
+          new vscode.SymbolInformation(
+            record.name,
+            toSymbolKind(record.kind),
+            path.basename(record.filePath),
+            new vscode.Location(
+              vscode.Uri.file(record.filePath),
+              new vscode.Range(
+                offsetToPositionForFile(
+                  record.filePath,
+                  record.startOffset,
+                  index,
+                ),
+                offsetToPositionForFile(
+                  record.filePath,
+                  record.endOffset,
+                  index,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    }
+    return out;
   }
 }
 

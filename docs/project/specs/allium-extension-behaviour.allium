@@ -233,6 +233,16 @@ rule QuickFixForTemporalMissingGuard {
     )
 }
 
+rule QuickFixForDiagnosticSuppression {
+    when: QuickFixRequestedForFinding(finding)
+    requires: finding.code starts_with "allium."
+
+    ensures: EditProposed(
+    title: "Suppress this diagnostic here",
+    insertion: "-- allium-ignore <finding.code>"
+    )
+}
+
 rule RefactorTemporalWhenToGuardedRule {
     when: RefactorRequestedFromSelection(selection)
     requires: selection.line starts_with "when:"
@@ -268,6 +278,14 @@ rule BuildOutlineSymbols {
     ensures: SymbolListed(kind: rule, label: "<rule_name>")
     ensures: SymbolListed(kind: surface, label: "<surface_name>")
     ensures: SymbolListed(kind: actor, label: "<actor_name>")
+}
+
+rule BuildWorkspaceSymbols {
+    when: WorkspaceSymbolSearchRequested(query)
+
+    ensures: SymbolListed(kind: entity, label: "<entity_name>")
+    ensures: SymbolListed(kind: rule, label: "<rule_name>")
+    ensures: SymbolListFilteredByQuery(query)
 }
 
 rule ResolveLocalDefinitions {
