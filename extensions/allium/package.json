@@ -82,6 +82,10 @@
       {
         "command": "allium.showSpecHealth",
         "title": "Allium: Show Spec Health"
+      },
+      {
+        "command": "allium.generateDiagram",
+        "title": "Allium: Generate Diagram"
       }
     ]
   },

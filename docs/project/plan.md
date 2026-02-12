@@ -158,6 +158,7 @@ Current status:
 - Implemented: completion provider for core keywords and `config.<key>` suggestions.
 - Implemented: named `enum` declarations in definitions/outline/folding and related editor semantics.
 - Implemented: `default` declarations in definitions/outline and related editor semantics.
+- Implemented: `Allium: Generate Diagram` command with preview panel and copy/export actions.
 
 ## Engineering Approach
 

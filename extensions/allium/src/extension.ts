@@ -17,6 +17,13 @@ import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
 import { collectCompletionCandidates } from "./language-tools/completion";
+import {
+  buildDiagramResult,
+  renderDiagram,
+  type DiagramFormat,
+  type DiagramModel,
+} from "./language-tools/diagram";
+import { buildDiagramPreviewHtml } from "./language-tools/diagram-preview";
 import { findReferencesInText } from "./language-tools/references";
 import {
   ALLIUM_SEMANTIC_TOKEN_TYPES,
@@ -116,6 +123,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("allium.showSpecHealth", async () => {
       await showSpecHealthSummary();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.generateDiagram", async () => {
+      await showDiagramPreview();
     }),
   );
 
@@ -844,6 +856,124 @@ async function showSpecHealthSummary(): Promise<void> {
   void vscode.window.showInformationMessage(pick);
 }
 
+async function showDiagramPreview(): Promise<void> {
+  const active = vscode.window.activeTextEditor?.document;
+  const choices: Array<{
+    label: string;
+    detail: string;
+    scope: "active" | "workspace";
+  }> = [];
+  if (active?.languageId === ALLIUM_LANGUAGE_ID) {
+    choices.push({
+      label: "Active .allium file",
+      detail: path.basename(active.uri.fsPath),
+      scope: "active",
+    });
+  }
+  choices.push({
+    label: "All workspace .allium files",
+    detail: "Merge all specs into one diagram",
+    scope: "workspace",
+  });
+
+  const scopePick = await vscode.window.showQuickPick(choices, {
+    placeHolder: "Choose diagram source",
+  });
+  if (!scopePick) {
+    return;
+  }
+
+  const formatPick = (await vscode.window.showQuickPick(["d2", "mermaid"], {
+    placeHolder: "Choose diagram format",
+  })) as DiagramFormat | undefined;
+  if (!formatPick) {
+    return;
+  }
+
+  let documents: vscode.TextDocument[] = [];
+  if (scopePick.scope === "active") {
+    if (!active || active.languageId !== ALLIUM_LANGUAGE_ID) {
+      void vscode.window.showInformationMessage("Open an .allium file first.");
+      return;
+    }
+    documents = [active];
+  } else {
+    const files = await vscode.workspace.findFiles(
+      "**/*.allium",
+      "**/{node_modules,dist,.git}/**",
+    );
+    if (files.length === 0) {
+      void vscode.window.showInformationMessage(
+        "No .allium files found in workspace.",
+      );
+      return;
+    }
+    documents = await Promise.all(
+      files.map((file) => vscode.workspace.openTextDocument(file)),
+    );
+  }
+
+  const results = documents.map((document) =>
+    buildDiagramResult(document.getText()),
+  );
+  const mergedModel = mergeDiagramModels(results.map((result) => result.model));
+  const issues = results.flatMap((result) => result.issues);
+  const diagramText = renderDiagram(mergedModel, formatPick);
+
+  const panel = vscode.window.createWebviewPanel(
+    "allium.diagram.preview",
+    `Allium Diagram (${formatPick})`,
+    vscode.ViewColumn.Beside,
+    { enableScripts: true },
+  );
+  panel.webview.html = buildDiagramPreviewHtml({
+    format: formatPick,
+    diagramText,
+    issues,
+  });
+
+  panel.webview.onDidReceiveMessage(
+    async (message: unknown) => {
+      if (!message || typeof message !== "object") {
+        return;
+      }
+      const typed = message as { type?: string };
+      if (typed.type === "copy") {
+        await vscode.env.clipboard.writeText(diagramText);
+        void vscode.window.showInformationMessage("Allium diagram copied.");
+        return;
+      }
+      if (typed.type === "export") {
+        const extension = formatPick === "mermaid" ? "mmd" : "d2";
+        const uri = await vscode.window.showSaveDialog({
+          defaultUri: vscode.Uri.file(
+            path.join(
+              workspaceRootForUri(documents[0].uri) ?? process.cwd(),
+              `allium-diagram.${extension}`,
+            ),
+          ),
+          filters:
+            formatPick === "mermaid"
+              ? { Mermaid: ["mmd", "mermaid"], Text: ["txt"] }
+              : { D2: ["d2"], Text: ["txt"] },
+        });
+        if (!uri) {
+          return;
+        }
+        await vscode.workspace.fs.writeFile(
+          uri,
+          Buffer.from(diagramText, "utf8"),
+        );
+        void vscode.window.showInformationMessage(
+          `Allium diagram exported to ${uri.fsPath}.`,
+        );
+      }
+    },
+    undefined,
+    [],
+  );
+}
+
 function offsetToPosition(text: string, offset: number): vscode.Position {
   let line = 0;
   let character = 0;
@@ -923,4 +1053,25 @@ function resolveImportPath(
     return path.resolve(path.dirname(currentFilePath), `${sourcePath}.allium`);
   }
   return path.resolve(path.dirname(currentFilePath), sourcePath);
+}
+
+function mergeDiagramModels(models: DiagramModel[]): DiagramModel {
+  const nodes = new Map<string, DiagramModel["nodes"][number]>();
+  const edges = new Map<string, DiagramModel["edges"][number]>();
+  for (const model of models) {
+    for (const node of model.nodes) {
+      nodes.set(node.id, node);
+    }
+    for (const edge of model.edges) {
+      edges.set(`${edge.from}|${edge.to}|${edge.label}`, edge);
+    }
+  }
+  return {
+    nodes: [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    edges: [...edges.values()].sort((a, b) =>
+      `${a.from}|${a.to}|${a.label}`.localeCompare(
+        `${b.from}|${b.to}|${b.label}`,
+      ),
+    ),
+  };
 }

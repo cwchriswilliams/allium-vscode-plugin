@@ -142,6 +142,7 @@ Formatting settings:
 - Command: `Allium: Run Checks` (`allium.runChecks`)
 - Command: `Allium: Apply All Safe Fixes` (`allium.applySafeFixes`)
 - Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
+- Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
   - insert temporal `requires:` guard scaffold
@@ -160,6 +161,7 @@ Formatting settings:
 - rename for locally declared symbols
 - document links for `use "..." as alias` import paths
 - hover docs for core Allium keywords with declaration/import context
+- diagram preview panel with copy/export actions from active file or workspace (`allium.generateDiagram`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
 - semantic tokens for richer syntax-aware highlighting layers

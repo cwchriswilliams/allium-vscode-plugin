@@ -1,0 +1,50 @@
+module allium_extension_diagram_preview_behaviour
+
+entity DiagramPreviewSession {
+    scope: active_file | workspace
+    format: d2 | mermaid
+}
+
+rule DiagramCommandPromptsForScope {
+    when: CommandInvoked(name: "allium.generateDiagram")
+
+    ensures: ScopePickerShown(options: active_file | workspace)
+}
+
+rule DiagramCommandPromptsForFormat {
+    when: CommandInvoked(name: "allium.generateDiagram")
+
+    ensures: FormatPickerShown(options: d2 | mermaid)
+}
+
+rule DiagramCommandBuildsMergedWorkspaceDiagram {
+    when: CommandInvoked(name: "allium.generateDiagram")
+    requires: UserSelected(scope: workspace)
+
+    ensures: DiagramPreviewSession.created(scope: workspace)
+    ensures: WorkspaceAlliumFilesRead()
+    ensures: DiagramPreviewOpened()
+}
+
+rule DiagramCommandBuildsActiveFileDiagram {
+    when: CommandInvoked(name: "allium.generateDiagram")
+    requires: UserSelected(scope: active_file)
+
+    ensures: DiagramPreviewSession.created(scope: active_file)
+    ensures: DiagramPreviewOpened()
+}
+
+rule DiagramPreviewCopyAction {
+    when: PreviewActionInvoked(name: copy)
+
+    ensures: ClipboardWritten()
+    ensures: UserInformed(message: "Allium diagram copied.")
+}
+
+rule DiagramPreviewExportAction {
+    when: PreviewActionInvoked(name: export)
+
+    ensures: SaveDialogShown()
+    ensures: FileWritten(path: "allium-diagram.<ext>")
+    ensures: UserInformed(message: "Allium diagram exported")
+}
