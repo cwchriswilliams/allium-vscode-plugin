@@ -8,6 +8,7 @@ import {
   parseUseAliases,
   tokenAtOffset,
 } from "./language-tools/definitions";
+import { collectUseImportPaths } from "./language-tools/document-links";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
 import { formatAlliumText } from "./format";
@@ -194,6 +195,12 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerWorkspaceSymbolProvider(
       new AlliumWorkspaceSymbolProvider(),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerDocumentLinkProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumDocumentLinkProvider(),
     ),
   );
 }
@@ -652,6 +659,24 @@ class AlliumWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
   }
 }
 
+class AlliumDocumentLinkProvider implements vscode.DocumentLinkProvider {
+  provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
+    const links = collectUseImportPaths(document.getText());
+    return links.map((link) => {
+      const start = document.positionAt(link.startOffset);
+      const end = document.positionAt(link.endOffset);
+      const targetPath = resolveImportPath(
+        document.uri.fsPath,
+        link.sourcePath,
+      );
+      return new vscode.DocumentLink(
+        new vscode.Range(start, end),
+        vscode.Uri.file(targetPath),
+      );
+    });
+  }
+}
+
 class AlliumReferenceProvider implements vscode.ReferenceProvider {
   provideReferences(
     document: vscode.TextDocument,
@@ -859,4 +884,14 @@ function isDefinitionReference(
     definition.startOffset === reference.startOffset &&
     definition.endOffset === reference.endOffset
   );
+}
+
+function resolveImportPath(
+  currentFilePath: string,
+  sourcePath: string,
+): string {
+  if (path.extname(sourcePath) !== ".allium") {
+    return path.resolve(path.dirname(currentFilePath), `${sourcePath}.allium`);
+  }
+  return path.resolve(path.dirname(currentFilePath), sourcePath);
 }

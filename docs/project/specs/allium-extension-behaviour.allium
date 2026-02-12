@@ -304,6 +304,15 @@ rule ResolveDefinitionsAcrossUseImports {
     ensures: DefinitionLocationReturned()
 }
 
+rule ProvideDocumentLinksForUseImports {
+    when: DocumentLinksRequested(document)
+    requires: document.language_id = "allium"
+    requires: document contains use_import_alias_statement
+
+    ensures: LinkReturned(for: quoted_use_import_path)
+    ensures: LinkTargetResolvesRelativeToCurrentDocument()
+}
+
 rule FindReferencesForDeclaredSymbol {
     when: ReferencesRequested(document, symbol_at_cursor)
     requires: symbol_at_cursor references locally_declared_symbol or local_config_key

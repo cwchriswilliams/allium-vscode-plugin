@@ -112,6 +112,7 @@ Formatting settings:
 - go to definition for local top-level symbols, `config.<key>`, and imported symbols via `use "... " as alias`
 - find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols
+- document links for `use "..." as alias` import paths
 - hover docs for core Allium keywords with declaration/import context
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
