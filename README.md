@@ -78,9 +78,15 @@ Implemented checks:
 - temporal `when:` without `requires:` guard
 - duplicate `let` binding in a rule
 - duplicate key in a `config` block
+- config parameter missing explicit type or default value
 - undefined `config.<key>` reference
+- undefined external config alias in `<alias>/config.<key>` reference
 - duplicate literal in a named `enum` declaration
 - empty named `enum` declaration
+- discriminator names that do not match declared variants
+- variants extending a base but missing from its discriminator field
+- direct `.created(...)` calls on sum-type base entities
+- top-level variant-like declarations missing the `variant` keyword
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section

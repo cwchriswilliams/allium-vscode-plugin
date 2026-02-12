@@ -81,7 +81,9 @@ Current status:
 - Implemented surface `related:` reference checks (`allium.surface.relatedUndefined`).
 - Implemented surface binding usage checks (`allium.surface.unusedBinding`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
+- Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
+- Implemented config parameter shape and external alias checks (`allium.config.invalidParameter`, `allium.config.undefinedExternalReference`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
 ### Phase 3: Snippets (Priority 3)

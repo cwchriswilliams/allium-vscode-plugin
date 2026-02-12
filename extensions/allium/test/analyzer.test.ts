@@ -185,3 +185,61 @@ test("does not report used surface bindings", () => {
     false,
   );
 });
+
+test("reports config parameter missing explicit type/default", () => {
+  const findings = analyzeAllium(`config {\n  timeout: Integer\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.config.invalidParameter"));
+});
+
+test("reports unknown alias in external config reference", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  ensures: now + oauth/config.session_duration\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.config.undefinedExternalReference"),
+  );
+});
+
+test("does not report known alias in external config reference", () => {
+  const findings = analyzeAllium(
+    `use "./oauth.allium" as oauth\n\nrule A {\n  when: Ping()\n  ensures: now + oauth/config.session_duration\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.config.undefinedExternalReference"),
+    false,
+  );
+});
+
+test("reports discriminator references without matching variant declarations", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nvariant Branch : Node {\n  children: List<Node>\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.sum.discriminatorUnknownVariant"),
+  );
+});
+
+test("reports variant missing from base discriminator field", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nvariant Branch : Node {\n  children: List<Node>\n}\nvariant Trunk : Node {\n  rings: Integer\n}\nvariant Leaf : Node {\n  data: String\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.sum.variantMissingInDiscriminator"),
+  );
+});
+
+test("reports direct base instantiation for sum type entity", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nvariant Branch : Node {\n  children: List<Node>\n}\nvariant Leaf : Node {\n  data: String\n}\n\nrule CreateNode {\n  when: Ping()\n  ensures: Node.created(kind: Branch)\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.sum.baseInstantiation"));
+});
+
+test("reports variant-like declaration missing keyword", () => {
+  const findings = analyzeAllium(
+    `entity Node {\n  kind: Branch | Leaf\n}\n\nBranch : Node {\n  children: List<Node>\n}\n`,
+  );
+  assert.ok(
+    findings.some((f) => f.code === "allium.sum.missingVariantKeyword"),
+  );
+});

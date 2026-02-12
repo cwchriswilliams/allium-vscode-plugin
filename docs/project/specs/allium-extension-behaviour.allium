@@ -41,6 +41,8 @@ entity DiagnosticCollection {
 config {
     duplicateKey: String = "allium.config.duplicateKey"
     undefinedReference: String = "allium.config.undefinedReference"
+    invalidParameter: String = "allium.config.invalidParameter"
+    undefinedExternalReference: String = "allium.config.undefinedExternalReference"
 }
 
 rule RefreshAlliumDiagnostics {
@@ -153,6 +155,16 @@ rule DuplicateConfigKeyIsError {
     )
 }
 
+rule ConfigParameterNeedsTypeAndDefault {
+    when: ConfigBlockParsed(config_block)
+    requires: config_block.parameter_missing_type_or_default = true
+
+    ensures: Finding.created(
+    code: "allium.config.invalidParameter",
+    severity: error
+    )
+}
+
 rule UndefinedConfigReferenceSeverityDependsOnMode {
     when: ConfigReferenceParsed(reference)
     requires: ConfigKeyDeclared(reference.key) = false
@@ -172,6 +184,17 @@ rule UndefinedConfigReferenceIsInfoInRelaxedMode {
     ensures: Finding.created(
     code: "allium.config.undefinedReference",
     severity: info
+    )
+}
+
+rule UnknownExternalConfigAliasIsError {
+    when: ConfigReferenceParsed(reference)
+    requires: reference matches "<alias>/config.<key>"
+    requires: alias not declared in use_imports
+
+    ensures: Finding.created(
+    code: "allium.config.undefinedExternalReference",
+    severity: error
     )
 }
 
@@ -204,260 +227,301 @@ rule EmptyEnumIsWarning {
     )
 }
 
-rule DuplicateContextBindingIsError {
-    when: ContextBlockParsed(context_block)
-    requires: context_block.contains_duplicate_binding_name = true
+rule DiscriminatorMustResolveToVariants {
+    when: EntityDiscriminatorParsed(entity, discriminator)
+    requires: discriminator.names include name_without_matching_variant_declaration
 
     ensures: Finding.created(
-    code: "allium.context.duplicateBinding",
+    code: "allium.sum.discriminatorUnknownVariant",
     severity: error
     )
 }
 
-rule UndefinedContextBindingTypeIsError {
-    when: ContextBlockParsed(context_block)
-    requires: context_block.binding_type_not_declared_locally_or_imported = true
+rule VariantMustAppearInBaseDiscriminator {
+    when: VariantParsed(variant, base_entity)
+    requires: variant.name missing_from base_entity.discriminator_names
 
     ensures: Finding.created(
-    code: "allium.context.undefinedType",
+    code: "allium.sum.variantMissingInDiscriminator",
     severity: error
     )
 }
 
-rule SurfaceActorLinkValidation {
-    when: SurfaceBlockParsed(surface)
-    requires: surface.actor_reference_missing_locally = true
+rule SumTypeBaseCannotBeInstantiatedDirectly {
+    when: EnsuresCreationCallParsed(call)
+    requires: call.target is base_entity_with_discriminator
 
     ensures: Finding.created(
-    code: "allium.surface.missingActor",
-    severity: warning
-    )
-}
-
-rule UnusedActorReported {
-    when: ActorBlockParsed(actor)
-    requires: actor.referenced_by_local_surface = false
-
-    ensures: Finding.created(
-    code: "allium.actor.unused",
-    severity: info
-    )
-}
-
-rule UndefinedRelatedSurfaceIsError {
-    when: SurfaceBlockParsed(surface)
-    requires: surface.related_references_unknown_surface = true
-
-    ensures: Finding.created(
-    code: "allium.surface.relatedUndefined",
+    code: "allium.sum.baseInstantiation",
     severity: error
     )
 }
 
-rule UnusedSurfaceBindingIsWarning {
-    when: SurfaceBlockParsed(surface)
-    requires: surface.for_or_context_binding_unused = true
+rule VariantDeclarationRequiresVariantKeyword {
+    when: TopLevelDeclarationParsed(declaration)
+    requires: declaration matches "<Name> : <Base> {"
+        requires: declaration.keyword != variant
 
-    ensures: Finding.created(
-    code: "allium.surface.unusedBinding",
-    severity: warning
-    )
-}
+        ensures: Finding.created(
+        code: "allium.sum.missingVariantKeyword",
+        severity: error
+        )
+    }
 
-rule SuppressionCommentDisablesDiagnostic {
-    when: SuppressionDirectiveParsed(line, code)
-    requires: code = "all" or code = finding.code
-    requires: finding.line = line or finding.line = line + 1
+    rule DuplicateContextBindingIsError {
+        when: ContextBlockParsed(context_block)
+        requires: context_block.contains_duplicate_binding_name = true
 
-    ensures: FindingSuppressed(finding)
-}
+        ensures: Finding.created(
+        code: "allium.context.duplicateBinding",
+        severity: error
+        )
+    }
 
-rule QuickFixForMissingEnsures {
-    when: QuickFixRequestedForFinding(finding)
-    requires: finding.code = "allium.rule.missingEnsures"
+    rule UndefinedContextBindingTypeIsError {
+        when: ContextBlockParsed(context_block)
+        requires: context_block.binding_type_not_declared_locally_or_imported = true
 
-    ensures: EditProposed(
-    title: "Insert ensures scaffold",
-    insertion: "    ensures: TODO()"
-    )
-    ensures: PreferredQuickFix()
-}
+        ensures: Finding.created(
+        code: "allium.context.undefinedType",
+        severity: error
+        )
+    }
 
-rule QuickFixForTemporalMissingGuard {
-    when: QuickFixRequestedForFinding(finding)
-    requires: finding.code = "allium.temporal.missingGuard"
+    rule SurfaceActorLinkValidation {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.actor_reference_missing_locally = true
 
-    ensures: EditProposed(
-    title: "Insert requires guard",
-    insertion: "requires: /* add temporal guard */"
-    )
-}
+        ensures: Finding.created(
+        code: "allium.surface.missingActor",
+        severity: warning
+        )
+    }
 
-rule QuickFixForDiagnosticSuppression {
-    when: QuickFixRequestedForFinding(finding)
-    requires: finding.code starts_with "allium."
+    rule UnusedActorReported {
+        when: ActorBlockParsed(actor)
+        requires: actor.referenced_by_local_surface = false
 
-    ensures: EditProposed(
-    title: "Suppress this diagnostic here",
-    insertion: "-- allium-ignore <finding.code>"
-    )
-}
+        ensures: Finding.created(
+        code: "allium.actor.unused",
+        severity: info
+        )
+    }
 
-rule RefactorTemporalWhenToGuardedRule {
-    when: RefactorRequestedFromSelection(selection)
-    requires: selection.line starts_with "when:"
-    requires: selection.when_clause is temporal
-    requires: selection.containing_rule.has_requires = false
+    rule UndefinedRelatedSurfaceIsError {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.related_references_unknown_surface = true
 
-    ensures: EditProposed(
-    title: "Add temporal requires guard",
-    insertion: "requires: /* add temporal guard */"
-    )
-}
+        ensures: Finding.created(
+        code: "allium.surface.relatedUndefined",
+        severity: error
+        )
+    }
 
-rule RefactorExtractRepeatedLiteralToConfig {
-    when: RefactorRequestedFromSelection(selection)
-    requires: selection.value is string_literal or integer_literal
-    requires: selection.value appears_multiple_times_in_document
+    rule UnusedSurfaceBindingIsWarning {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.for_or_context_binding_unused = true
 
-    ensures: EditProposed(
-    title: "Extract repeated literal to config",
-    insertion: "config.<generated_key>"
-    )
-}
+        ensures: Finding.created(
+        code: "allium.surface.unusedBinding",
+        severity: warning
+        )
+    }
 
-rule RefactorInlineEnumToNamedEnum {
-    when: RefactorRequestedFromSelection(selection)
-    requires: selection.line contains inline_enum_field
-    requires: inline_enum_field.values_are_lowercase_literals = true
+    rule SuppressionCommentDisablesDiagnostic {
+        when: SuppressionDirectiveParsed(line, code)
+        requires: code = "all" or code = finding.code
+        requires: finding.line = line or finding.line = line + 1
 
-    ensures: EditProposed(
-    title: "Extract inline enum to named enum",
-    insertion: "enum <GeneratedName> { <values> }"
-    )
-    ensures: EditProposed(
-    title: "Extract inline enum to named enum",
-    replacement: "<field>: <GeneratedName>"
-    )
-}
+        ensures: FindingSuppressed(finding)
+    }
 
-rule BuildOutlineSymbols {
-    when: OutlineRequested(document)
-    requires: document.language_id = "allium"
+    rule QuickFixForMissingEnsures {
+        when: QuickFixRequestedForFinding(finding)
+        requires: finding.code = "allium.rule.missingEnsures"
 
-    ensures: SymbolListed(kind: config, label: "config")
-    ensures: SymbolListed(kind: entity, label: "<entity_name>")
-    ensures: SymbolListed(kind: external_entity, label: "<external_entity_name>")
-    ensures: SymbolListed(kind: value, label: "<value_name>")
-    ensures: SymbolListed(kind: variant, label: "<variant_name>")
-    ensures: SymbolListed(kind: enum, label: "<enum_name>")
-    ensures: SymbolListed(kind: default, label: "<default_instance_name>")
-    ensures: SymbolListed(kind: rule, label: "<rule_name>")
-    ensures: SymbolListed(kind: surface, label: "<surface_name>")
-    ensures: SymbolListed(kind: actor, label: "<actor_name>")
-}
+        ensures: EditProposed(
+        title: "Insert ensures scaffold",
+        insertion: "    ensures: TODO()"
+        )
+        ensures: PreferredQuickFix()
+    }
 
-rule BuildWorkspaceSymbols {
-    when: WorkspaceSymbolSearchRequested(query)
+    rule QuickFixForTemporalMissingGuard {
+        when: QuickFixRequestedForFinding(finding)
+        requires: finding.code = "allium.temporal.missingGuard"
 
-    ensures: SymbolListed(kind: entity, label: "<entity_name>")
-    ensures: SymbolListed(kind: rule, label: "<rule_name>")
-    ensures: SymbolListFilteredByQuery(query)
-}
+        ensures: EditProposed(
+        title: "Insert requires guard",
+        insertion: "requires: /* add temporal guard */"
+        )
+    }
 
-rule ResolveLocalDefinitions {
-    when: DefinitionRequested(document, symbol_at_cursor)
-    requires: document.language_id = "allium"
-    requires: symbol_at_cursor references local declaration (including enum) or config key
+    rule QuickFixForDiagnosticSuppression {
+        when: QuickFixRequestedForFinding(finding)
+        requires: finding.code starts_with "allium."
 
-    ensures: DefinitionLocationReturned()
-}
+        ensures: EditProposed(
+        title: "Suppress this diagnostic here",
+        insertion: "-- allium-ignore <finding.code>"
+        )
+    }
 
-rule ResolveDefinitionsAcrossUseImports {
-    when: DefinitionRequested(document, symbol_at_cursor)
-    requires: symbol_at_cursor references imported_alias_symbol
-    requires: use_import_target_file_exists = true
+    rule RefactorTemporalWhenToGuardedRule {
+        when: RefactorRequestedFromSelection(selection)
+        requires: selection.line starts_with "when:"
+        requires: selection.when_clause is temporal
+        requires: selection.containing_rule.has_requires = false
 
-    ensures: DefinitionLocationReturned()
-}
+        ensures: EditProposed(
+        title: "Add temporal requires guard",
+        insertion: "requires: /* add temporal guard */"
+        )
+    }
 
-rule ProvideDocumentLinksForUseImports {
-    when: DocumentLinksRequested(document)
-    requires: document.language_id = "allium"
-    requires: document contains use_import_alias_statement
+    rule RefactorExtractRepeatedLiteralToConfig {
+        when: RefactorRequestedFromSelection(selection)
+        requires: selection.value is string_literal or integer_literal
+        requires: selection.value appears_multiple_times_in_document
 
-    ensures: LinkReturned(for: quoted_use_import_path)
-    ensures: LinkTargetResolvesRelativeToCurrentDocument()
-}
+        ensures: EditProposed(
+        title: "Extract repeated literal to config",
+        insertion: "config.<generated_key>"
+        )
+    }
 
-rule FindReferencesForDeclaredSymbol {
-    when: ReferencesRequested(document, symbol_at_cursor)
-    requires: symbol_at_cursor references locally_declared_symbol or local_config_key
+    rule RefactorInlineEnumToNamedEnum {
+        when: RefactorRequestedFromSelection(selection)
+        requires: selection.line contains inline_enum_field
+        requires: inline_enum_field.values_are_lowercase_literals = true
 
-    ensures: ReferenceLocationsReturned()
-    ensures: ReferenceLocationsExcludeCommentOnlyMatches()
-}
+        ensures: EditProposed(
+        title: "Extract inline enum to named enum",
+        insertion: "enum <GeneratedName> { <values> }"
+        )
+        ensures: EditProposed(
+        title: "Extract inline enum to named enum",
+        replacement: "<field>: <GeneratedName>"
+        )
+    }
 
-rule FindReferencesForImportedSymbol {
-    when: ReferencesRequested(document, symbol_at_cursor)
-    requires: symbol_at_cursor references imported_alias_symbol
-    requires: use_import_target_file_exists = true
+    rule BuildOutlineSymbols {
+        when: OutlineRequested(document)
+        requires: document.language_id = "allium"
 
-    ensures: ReferenceLocationsReturned(from: import_target_document)
-}
+        ensures: SymbolListed(kind: config, label: "config")
+        ensures: SymbolListed(kind: entity, label: "<entity_name>")
+        ensures: SymbolListed(kind: external_entity, label: "<external_entity_name>")
+        ensures: SymbolListed(kind: value, label: "<value_name>")
+        ensures: SymbolListed(kind: variant, label: "<variant_name>")
+        ensures: SymbolListed(kind: enum, label: "<enum_name>")
+        ensures: SymbolListed(kind: default, label: "<default_instance_name>")
+        ensures: SymbolListed(kind: rule, label: "<rule_name>")
+        ensures: SymbolListed(kind: surface, label: "<surface_name>")
+        ensures: SymbolListed(kind: actor, label: "<actor_name>")
+    }
 
-rule RenameDeclaredSymbol {
-    when: RenameRequested(document, symbol_at_cursor, new_name)
-    requires: new_name is valid_identifier
-    requires: symbol_at_cursor references locally_declared_symbol
+    rule BuildWorkspaceSymbols {
+        when: WorkspaceSymbolSearchRequested(query)
 
-    ensures: SymbolOccurrencesRewritten(document)
-    ensures: CommentOnlyMatchesNotRewritten()
-}
+        ensures: SymbolListed(kind: entity, label: "<entity_name>")
+        ensures: SymbolListed(kind: rule, label: "<rule_name>")
+        ensures: SymbolListFilteredByQuery(query)
+    }
 
-rule ProvideKeywordHoverDocumentation {
-    when: HoverRequested(document, token_at_cursor)
-    requires: document.language_id = "allium"
-    requires: token_at_cursor in [entity, rule, when, requires, ensures, config, surface, actor, open_question, deferred]
+    rule ResolveLocalDefinitions {
+        when: DefinitionRequested(document, symbol_at_cursor)
+        requires: document.language_id = "allium"
+        requires: symbol_at_cursor references local declaration (including enum) or config key
 
-    ensures: HoverDocumentationReturned()
-    ensures: HoverIncludesDeclarationContextWhenAvailable()
-}
+        ensures: DefinitionLocationReturned()
+    }
 
-rule ProvideTopLevelFoldingRanges {
-    when: FoldingRangesRequested(document)
-    requires: document.language_id = "allium"
+    rule ResolveDefinitionsAcrossUseImports {
+        when: DefinitionRequested(document, symbol_at_cursor)
+        requires: symbol_at_cursor references imported_alias_symbol
+        requires: use_import_target_file_exists = true
 
-    ensures: FoldingRangeReturned(for: top_level_blocks)
-}
+        ensures: DefinitionLocationReturned()
+    }
 
-rule FormatDocumentWithAlliumFormatter {
-    when: DocumentFormattingRequested(document)
-    requires: document.language_id = "allium"
+    rule ProvideDocumentLinksForUseImports {
+        when: DocumentLinksRequested(document)
+        requires: document.language_id = "allium"
+        requires: document contains use_import_alias_statement
 
-    ensures: DocumentRewrittenWithAlliumFormatter()
-    ensures: FormatterSettingsApplied(indent_width_setting: "allium.format.indentWidth", top_level_spacing_setting: "allium.format.topLevelSpacing")
-}
+        ensures: LinkReturned(for: quoted_use_import_path)
+        ensures: LinkTargetResolvesRelativeToCurrentDocument()
+    }
 
-rule ProvideSemanticTokens {
-    when: SemanticTokensRequested(document)
-    requires: document.language_id = "allium"
+    rule FindReferencesForDeclaredSymbol {
+        when: ReferencesRequested(document, symbol_at_cursor)
+        requires: symbol_at_cursor references locally_declared_symbol or local_config_key
 
-    ensures: SemanticTokensReturned(for: keywords)
-    ensures: SemanticTokensReturned(for: declarations)
-    ensures: SemanticTokensReturned(for: literals_and_comments)
-}
+        ensures: ReferenceLocationsReturned()
+        ensures: ReferenceLocationsExcludeCommentOnlyMatches()
+    }
 
-rule ProvideKeywordAndConfigCompletions {
-    when: CompletionRequested(document, cursor)
-    requires: document.language_id = "allium"
+    rule FindReferencesForImportedSymbol {
+        when: ReferencesRequested(document, symbol_at_cursor)
+        requires: symbol_at_cursor references imported_alias_symbol
+        requires: use_import_target_file_exists = true
 
-    ensures: CompletionItemAvailable(kind: keyword)
-    ensures: CompletionItemAvailable(label: enum)
-    ensures: CompletionItemAvailable(label: context)
-    ensures: CompletionItemAvailable(label: module)
-    ensures: CompletionItemAvailable(label: with)
-    ensures: CompletionItemAvailable(label: exists)
-    ensures: CompletionItemAvailable(label: identified_by)
-    ensures: CompletionAfter("config.") includes_declared_config_keys = true
-}
+        ensures: ReferenceLocationsReturned(from: import_target_document)
+    }
+
+    rule RenameDeclaredSymbol {
+        when: RenameRequested(document, symbol_at_cursor, new_name)
+        requires: new_name is valid_identifier
+        requires: symbol_at_cursor references locally_declared_symbol
+
+        ensures: SymbolOccurrencesRewritten(document)
+        ensures: CommentOnlyMatchesNotRewritten()
+    }
+
+    rule ProvideKeywordHoverDocumentation {
+        when: HoverRequested(document, token_at_cursor)
+        requires: document.language_id = "allium"
+        requires: token_at_cursor in [entity, rule, when, requires, ensures, config, surface, actor, open_question, deferred]
+
+        ensures: HoverDocumentationReturned()
+        ensures: HoverIncludesDeclarationContextWhenAvailable()
+    }
+
+    rule ProvideTopLevelFoldingRanges {
+        when: FoldingRangesRequested(document)
+        requires: document.language_id = "allium"
+
+        ensures: FoldingRangeReturned(for: top_level_blocks)
+    }
+
+    rule FormatDocumentWithAlliumFormatter {
+        when: DocumentFormattingRequested(document)
+        requires: document.language_id = "allium"
+
+        ensures: DocumentRewrittenWithAlliumFormatter()
+        ensures: FormatterSettingsApplied(indent_width_setting: "allium.format.indentWidth", top_level_spacing_setting: "allium.format.topLevelSpacing")
+    }
+
+    rule ProvideSemanticTokens {
+        when: SemanticTokensRequested(document)
+        requires: document.language_id = "allium"
+
+        ensures: SemanticTokensReturned(for: keywords)
+        ensures: SemanticTokensReturned(for: declarations)
+        ensures: SemanticTokensReturned(for: literals_and_comments)
+    }
+
+    rule ProvideKeywordAndConfigCompletions {
+        when: CompletionRequested(document, cursor)
+        requires: document.language_id = "allium"
+
+        ensures: CompletionItemAvailable(kind: keyword)
+        ensures: CompletionItemAvailable(label: enum)
+        ensures: CompletionItemAvailable(label: context)
+        ensures: CompletionItemAvailable(label: module)
+        ensures: CompletionItemAvailable(label: with)
+        ensures: CompletionItemAvailable(label: exists)
+        ensures: CompletionItemAvailable(label: identified_by)
+        ensures: CompletionAfter("config.") includes_declared_config_keys = true
+    }

@@ -1,4 +1,4 @@
-import { parseAlliumBlocks } from "./parser";
+import { findMatchingBrace, parseAlliumBlocks } from "./parser";
 
 export type FindingSeverity = "error" | "warning" | "info";
 export type DiagnosticsMode = "strict" | "relaxed";
@@ -97,8 +97,13 @@ export function analyzeAllium(
   }
 
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
+  findings.push(...findConfigParameterShapeIssues(lineStarts, blocks));
   findings.push(...findUndefinedConfigReferences(text, lineStarts, blocks));
+  findings.push(
+    ...findUndefinedExternalConfigReferences(text, lineStarts, blocks),
+  );
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
+  findings.push(...findSumTypeIssues(text, lineStarts));
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
@@ -196,6 +201,43 @@ function findUndefinedConfigReferences(
   return findings;
 }
 
+function findUndefinedExternalConfigReferences(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const aliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+  const pattern =
+    /\b([A-Za-z_][A-Za-z0-9_]*)\/config\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
+
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    if (isCommentLineAtIndex(text, match.index)) {
+      continue;
+    }
+    const alias = match[1];
+    if (aliases.has(alias)) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        match.index,
+        match.index + match[0].length,
+        "allium.config.undefinedExternalReference",
+        `External config reference '${match[0]}' uses unknown import alias '${alias}'.`,
+        "error",
+      ),
+    );
+  }
+
+  return findings;
+}
+
 function findDuplicateConfigKeys(
   text: string,
   lineStarts: number[],
@@ -230,6 +272,47 @@ function findDuplicateConfigKeys(
     }
   }
 
+  return findings;
+}
+
+function findConfigParameterShapeIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const configBlocks = blocks.filter((block) => block.kind === "config");
+  const validPattern =
+    /^\s*[A-Za-z_][A-Za-z0-9_]*\s*:\s*[A-Za-z_][A-Za-z0-9_<?>[\]| ]*\s*=\s*.+$/;
+  const keyLinePattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/;
+
+  for (const block of configBlocks) {
+    const body = block.body;
+    let cursor = 0;
+    while (cursor < body.length) {
+      const lineEnd = body.indexOf("\n", cursor);
+      const end = lineEnd >= 0 ? lineEnd : body.length;
+      const line = body.slice(cursor, end);
+      const trimmed = line.trim();
+      if (trimmed.length > 0 && !trimmed.startsWith("--")) {
+        const keyMatch = line.match(keyLinePattern);
+        if (keyMatch && !validPattern.test(line)) {
+          const keyOffset =
+            block.startOffset + 1 + cursor + line.indexOf(keyMatch[1]);
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              keyOffset,
+              keyOffset + keyMatch[1].length,
+              "allium.config.invalidParameter",
+              `Config parameter '${keyMatch[1]}' must declare both explicit type and default value.`,
+              "error",
+            ),
+          );
+        }
+      }
+      cursor = end + 1;
+    }
+  }
   return findings;
 }
 
@@ -279,6 +362,135 @@ function findEnumDeclarationIssues(
         ),
       );
     }
+  }
+
+  return findings;
+}
+
+function findSumTypeIssues(text: string, lineStarts: number[]): Finding[] {
+  const findings: Finding[] = [];
+  const variants = parseVariantDeclarations(text);
+  const variantsByBase = new Map<string, Set<string>>();
+  for (const variant of variants) {
+    const set = variantsByBase.get(variant.base) ?? new Set<string>();
+    set.add(variant.name);
+    variantsByBase.set(variant.base, set);
+  }
+
+  const entities = parseEntityBlocks(text);
+  const discriminatorByEntity = new Map<string, Set<string>>();
+  for (const entity of entities) {
+    for (const field of entity.pipeFields) {
+      if (!field.hasCapitalizedName) {
+        continue;
+      }
+      if (!field.allNamesCapitalized) {
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            field.startOffset,
+            field.startOffset + field.rawNames.length,
+            "allium.sum.invalidDiscriminator",
+            `Entity '${entity.name}' discriminator '${field.fieldName}' must use only capitalized variant names.`,
+            "error",
+          ),
+        );
+        continue;
+      }
+
+      const listed = new Set(field.names);
+      discriminatorByEntity.set(entity.name, listed);
+      const declaredForBase =
+        variantsByBase.get(entity.name) ?? new Set<string>();
+      for (const name of field.names) {
+        if (declaredForBase.has(name)) {
+          continue;
+        }
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            field.startOffset,
+            field.startOffset + field.rawNames.length,
+            "allium.sum.discriminatorUnknownVariant",
+            `Entity '${entity.name}' discriminator references '${name}' without matching 'variant ${name} : ${entity.name}'.`,
+            "error",
+          ),
+        );
+      }
+    }
+  }
+
+  for (const variant of variants) {
+    const listed = discriminatorByEntity.get(variant.base);
+    if (!listed || listed.has(variant.name)) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        variant.startOffset,
+        variant.startOffset + variant.name.length,
+        "allium.sum.variantMissingInDiscriminator",
+        `Variant '${variant.name}' extends '${variant.base}' but is missing from '${variant.base}' discriminator field.`,
+        "error",
+      ),
+    );
+  }
+
+  for (const entity of entities) {
+    if (!discriminatorByEntity.has(entity.name)) {
+      continue;
+    }
+    const pattern = new RegExp(
+      `\\b${escapeRegex(entity.name)}\\.created\\s*\\(`,
+      "g",
+    );
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      if (isCommentLineAtIndex(text, match.index)) {
+        continue;
+      }
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          match.index,
+          match.index + entity.name.length,
+          "allium.sum.baseInstantiation",
+          `Base entity '${entity.name}' with discriminator cannot be instantiated directly; instantiate a variant instead.`,
+          "error",
+        ),
+      );
+    }
+  }
+
+  const missingKeywordPattern =
+    /^\s*([A-Z][A-Za-z0-9_]*)\s*:\s*([A-Z][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let match = missingKeywordPattern.exec(text);
+    match;
+    match = missingKeywordPattern.exec(text)
+  ) {
+    const lineEnd = text.indexOf("\n", match.index);
+    const line = text.slice(
+      text.lastIndexOf("\n", match.index) + 1,
+      lineEnd >= 0 ? lineEnd : text.length,
+    );
+    if (
+      /^\s*(entity|external\s+entity|value|variant|rule|surface|actor|enum|config|context)\b/.test(
+        line,
+      )
+    ) {
+      continue;
+    }
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        match.index,
+        match.index + match[1].length,
+        "allium.sum.missingVariantKeyword",
+        `Declaration '${match[1]} : ${match[2]} { ... }' must use 'variant ${match[1]} : ${match[2]} { ... }'.`,
+        "error",
+      ),
+    );
   }
 
   return findings;
@@ -641,6 +853,89 @@ function parseRelatedReferences(
     }
   }
   return refs;
+}
+
+function parseVariantDeclarations(
+  text: string,
+): Array<{ name: string; base: string; startOffset: number }> {
+  const out: Array<{ name: string; base: string; startOffset: number }> = [];
+  const pattern =
+    /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    out.push({
+      name: match[1],
+      base: match[2],
+      startOffset: match.index + match[0].indexOf(match[1]),
+    });
+  }
+  return out;
+}
+
+function parseEntityBlocks(text: string): Array<{
+  name: string;
+  pipeFields: Array<{
+    fieldName: string;
+    names: string[];
+    rawNames: string;
+    allNamesCapitalized: boolean;
+    hasCapitalizedName: boolean;
+    startOffset: number;
+  }>;
+}> {
+  const entities: Array<{
+    name: string;
+    pipeFields: Array<{
+      fieldName: string;
+      names: string[];
+      rawNames: string;
+      allNamesCapitalized: boolean;
+      hasCapitalizedName: boolean;
+      startOffset: number;
+    }>;
+  }> = [];
+  const pattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const open = text.indexOf("{", match.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const pipeFields: Array<{
+      fieldName: string;
+      names: string[];
+      rawNames: string;
+      allNamesCapitalized: boolean;
+      hasCapitalizedName: boolean;
+      startOffset: number;
+    }> = [];
+    const fieldPattern =
+      /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\s*\|\s*[A-Za-z_][A-Za-z0-9_]*)+)\s*$/gm;
+    for (
+      let field = fieldPattern.exec(body);
+      field;
+      field = fieldPattern.exec(body)
+    ) {
+      const rawNames = field[2];
+      const names = rawNames.split("|").map((v) => v.trim());
+      const hasCapitalizedName = names.some((n) => /^[A-Z]/.test(n));
+      const allNamesCapitalized = names.every((n) => /^[A-Z]/.test(n));
+      pipeFields.push({
+        fieldName: field[1],
+        names,
+        rawNames,
+        hasCapitalizedName,
+        allNamesCapitalized,
+        startOffset: open + 1 + field.index + field[0].indexOf(rawNames),
+      });
+    }
+    entities.push({ name: match[1], pipeFields });
+  }
+  return entities;
 }
 
 function applySuppressions(
