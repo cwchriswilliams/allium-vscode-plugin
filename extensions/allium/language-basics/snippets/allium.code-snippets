@@ -54,6 +54,15 @@
     ],
     "description": "Allium variant scaffold"
   },
+  "Enum": {
+    "prefix": "enum",
+    "body": [
+      "enum ${1:EnumName} {",
+      "    ${2:pending} | ${3:active} | ${4:completed}",
+      "}"
+    ],
+    "description": "Allium named enumeration scaffold"
+  },
   "Config": {
     "prefix": "config",
     "body": ["config {", "    ${1:key}: ${2:Integer} = ${3:5}", "}"],
@@ -94,6 +103,29 @@
     "prefix": "deferred",
     "body": ["deferred ${1:Spec}.${2:function}"],
     "description": "Allium deferred declaration"
+  },
+  "Context": {
+    "prefix": "context",
+    "body": [
+      "context ${1:item}: ${2:Entity}"
+    ],
+    "description": "Allium context declaration"
+  },
+  "Default": {
+    "prefix": "default",
+    "body": [
+      "default ${1:Type} ${2:name} = {",
+      "    ${3:field}: ${4:value}",
+      "}"
+    ],
+    "description": "Allium default entity instance declaration"
+  },
+  "Module": {
+    "prefix": "module",
+    "body": [
+      "module ${1:module_name}"
+    ],
+    "description": "Allium module declaration"
   },
   "Use": {
     "prefix": "use",

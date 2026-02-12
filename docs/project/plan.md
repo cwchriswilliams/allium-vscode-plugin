@@ -83,9 +83,9 @@ Current status:
 ### Phase 3: Snippets (Priority 3)
 
 Provide high-value authoring snippets:
-- `entity`, `external entity`, `value`, `variant`
+- `entity`, `external entity`, `value`, `variant`, `enum`
 - `rule`, temporal rule, chained rule
-- `surface`, `actor`, `context`
+- `surface`, `actor`, `context`, `module`
 - `config`, `default`, `deferred`, `open_question`
 
 Acceptance criteria:

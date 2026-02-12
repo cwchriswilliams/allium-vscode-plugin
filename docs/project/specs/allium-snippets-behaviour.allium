@@ -1,0 +1,32 @@
+-- allium-snippets-behaviour.allium
+-- Scope: Snippet catalog behavior for authoring official Allium language constructs.
+-- Includes:
+--   - Availability of high-value language snippets in VS Code
+--   - Coverage of core declarations used by official language docs
+-- Excludes:
+--   - Runtime diagnostics or refactorings
+--   - TextMate scope behavior
+
+rule SnippetCatalogIncludesCoreDeclarations {
+    when: SnippetCatalogLoaded(language: allium)
+
+    ensures: SnippetAvailable(prefix: entity)
+    ensures: SnippetAvailable(prefix: value)
+    ensures: SnippetAvailable(prefix: variant)
+    ensures: SnippetAvailable(prefix: enum)
+    ensures: SnippetAvailable(prefix: rule)
+    ensures: SnippetAvailable(prefix: config)
+    ensures: SnippetAvailable(prefix: surface)
+    ensures: SnippetAvailable(prefix: actor)
+    ensures: SnippetAvailable(prefix: context)
+    ensures: SnippetAvailable(prefix: default)
+    ensures: SnippetAvailable(prefix: module)
+    ensures: SnippetAvailable(prefix: use)
+}
+
+rule SnippetCatalogIncludesOperationalConstructs {
+    when: SnippetCatalogLoaded(language: allium)
+
+    ensures: SnippetAvailable(prefix: deferred)
+    ensures: SnippetAvailable(prefix: open-question)
+}

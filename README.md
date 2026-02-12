@@ -67,7 +67,7 @@ allium-format --help
 - `.allium` language registration
 - syntax highlighting
 - language configuration (comments/brackets)
-- authoring snippets
+- authoring snippets covering core declarations (including `enum`, `context`, `default`, and `module`)
 
 ### Diagnostics
 
