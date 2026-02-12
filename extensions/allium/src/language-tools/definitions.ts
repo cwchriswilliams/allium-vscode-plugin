@@ -12,11 +12,14 @@ export interface DefinitionLookup {
 export function buildDefinitionLookup(text: string): DefinitionLookup {
   return {
     symbols: collectNamedDefinitions(text),
-    configKeys: collectConfigKeys(text)
+    configKeys: collectConfigKeys(text),
   };
 }
 
-export function findDefinitionsAtOffset(text: string, offset: number): DefinitionSite[] {
+export function findDefinitionsAtOffset(
+  text: string,
+  offset: number,
+): DefinitionSite[] {
   const token = tokenAtOffset(text, offset);
   if (!token) {
     return [];
@@ -37,7 +40,7 @@ function collectNamedDefinitions(text: string): DefinitionSite[] {
     /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
     /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
     /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm
+    /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
   ];
 
   const out: DefinitionSite[] = [];
@@ -55,7 +58,11 @@ function collectConfigKeys(text: string): DefinitionSite[] {
   const out: DefinitionSite[] = [];
   const blockPattern = /^\s*config\s*\{/gm;
 
-  for (let block = blockPattern.exec(text); block; block = blockPattern.exec(text)) {
+  for (
+    let block = blockPattern.exec(text);
+    block;
+    block = blockPattern.exec(text)
+  ) {
     const openOffset = text.indexOf("{", block.index);
     if (openOffset < 0) {
       continue;
@@ -67,7 +74,11 @@ function collectConfigKeys(text: string): DefinitionSite[] {
 
     const body = text.slice(openOffset + 1, closeOffset);
     const keyPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
-    for (let match = keyPattern.exec(body); match; match = keyPattern.exec(body)) {
+    for (
+      let match = keyPattern.exec(body);
+      match;
+      match = keyPattern.exec(body)
+    ) {
       const name = match[1];
       const startOffset = openOffset + 1 + match.index + match[0].indexOf(name);
       out.push({ name, startOffset, endOffset: startOffset + name.length });
@@ -77,12 +88,16 @@ function collectConfigKeys(text: string): DefinitionSite[] {
   return out;
 }
 
-function tokenAtOffset(text: string, offset: number): { name: string; kind: "symbol" | "configKey" } | null {
+function tokenAtOffset(
+  text: string,
+  offset: number,
+): { name: string; kind: "symbol" | "configKey" } | null {
   if (offset < 0 || offset >= text.length) {
     return null;
   }
 
-  const isIdent = (char: string | undefined): boolean => !!char && /[A-Za-z0-9_]/.test(char);
+  const isIdent = (char: string | undefined): boolean =>
+    !!char && /[A-Za-z0-9_]/.test(char);
   let start = offset;
   while (start > 0 && isIdent(text[start - 1])) {
     start -= 1;

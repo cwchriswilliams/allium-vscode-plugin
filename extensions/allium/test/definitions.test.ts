@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDefinitionLookup, findDefinitionsAtOffset } from "../src/language-tools/definitions";
+import {
+  buildDefinitionLookup,
+  findDefinitionsAtOffset,
+} from "../src/language-tools/definitions";
 
 test("collects top-level symbol definitions", () => {
   const text = `
@@ -14,10 +17,10 @@ rule ExpireInvitation {
 }
 `;
   const lookup = buildDefinitionLookup(text);
-  assert.deepEqual(
-    lookup.symbols.map((s) => s.name).sort(),
-    ["ExpireInvitation", "Invitation"]
-  );
+  assert.deepEqual(lookup.symbols.map((s) => s.name).sort(), [
+    "ExpireInvitation",
+    "Invitation",
+  ]);
 });
 
 test("finds entity definition at usage offset", () => {
@@ -31,7 +34,8 @@ rule ExpireInvitation {
   ensures: invitation.status = "expired"
 }
 `;
-  const usageOffset = text.indexOf("Invitation.expires_at") + "Invitation".length - 1;
+  const usageOffset =
+    text.indexOf("Invitation.expires_at") + "Invitation".length - 1;
   const matches = findDefinitionsAtOffset(text, usageOffset);
   assert.equal(matches.length, 1);
   assert.equal(matches[0].name, "Invitation");
@@ -48,7 +52,8 @@ rule ExpireInvitation {
   ensures: invitation.status = "expired"
 }
 `;
-  const usageOffset = text.indexOf("config.timeout_hours") + "config.timeout_".length;
+  const usageOffset =
+    text.indexOf("config.timeout_hours") + "config.timeout_".length;
   const matches = findDefinitionsAtOffset(text, usageOffset);
   assert.equal(matches.length, 1);
   assert.equal(matches[0].name, "timeout_hours");

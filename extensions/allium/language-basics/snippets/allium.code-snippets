@@ -23,11 +23,7 @@
   },
   "Entity": {
     "prefix": "entity",
-    "body": [
-      "entity ${1:EntityName} {",
-      "    ${2:field}: ${3:String}",
-      "}"
-    ],
+    "body": ["entity ${1:EntityName} {", "    ${2:field}: ${3:String}", "}"],
     "description": "Allium entity scaffold"
   },
   "External Entity": {
@@ -60,11 +56,7 @@
   },
   "Config": {
     "prefix": "config",
-    "body": [
-      "config {",
-      "    ${1:key}: ${2:Integer} = ${3:5}",
-      "}"
-    ],
+    "body": ["config {", "    ${1:key}: ${2:Integer} = ${3:5}", "}"],
     "description": "Allium config block"
   },
   "Surface": {
@@ -95,23 +87,17 @@
   },
   "Open Question": {
     "prefix": "open-question",
-    "body": [
-      "open_question \"${1:question}\""
-    ],
+    "body": ["open_question \"${1:question}\""],
     "description": "Allium open question"
   },
   "Deferred": {
     "prefix": "deferred",
-    "body": [
-      "deferred ${1:Spec}.${2:function}"
-    ],
+    "body": ["deferred ${1:Spec}.${2:function}"],
     "description": "Allium deferred declaration"
   },
   "Use": {
     "prefix": "use",
-    "body": [
-      "use \"${1:./other.allium}\" as ${2:alias}"
-    ],
+    "body": ["use \"${1:./other.allium}\" as ${2:alias}"],
     "description": "Import another Allium specification"
   }
 }

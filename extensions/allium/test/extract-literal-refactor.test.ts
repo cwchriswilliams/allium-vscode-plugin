@@ -29,8 +29,16 @@ test("adds config block and replaces all repeated string literal occurrences", (
   assert.ok(plan);
   assert.equal(plan.title, "Extract repeated literal to config");
   assert.equal(plan.edits.length, 3);
-  assert.ok(plan.edits.some((edit) => edit.text.startsWith("config {\n    extracted_pending: String = ")));
-  assert.equal(plan.edits.filter((edit) => edit.text === "config.extracted_pending").length, 2);
+  assert.ok(
+    plan.edits.some((edit) =>
+      edit.text.startsWith("config {\n    extracted_pending: String = "),
+    ),
+  );
+  assert.equal(
+    plan.edits.filter((edit) => edit.text === "config.extracted_pending")
+      .length,
+    2,
+  );
 });
 
 test("inserts key into existing config block", () => {
@@ -41,12 +49,15 @@ test("inserts key into existing config block", () => {
 
   const plan = planExtractLiteralToConfig(text, start, end);
   assert.ok(plan);
-  assert.equal(plan.edits.filter((edit) => edit.text === "config.extracted_3").length, 2);
+  assert.equal(
+    plan.edits.filter((edit) => edit.text === "config.extracted_3").length,
+    2,
+  );
   assert.ok(
     plan.edits.some(
       (edit) =>
         edit.startOffset === text.indexOf("}\n\nrule A") &&
-        edit.text.includes("\n    extracted_3: Integer = 3\n")
-    )
+        edit.text.includes("\n    extracted_3: Integer = 3\n"),
+    ),
   );
 });

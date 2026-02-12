@@ -5,20 +5,31 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 
-function writeAllium(dir: string, relativePath: string, contents: string): string {
+function writeAllium(
+  dir: string,
+  relativePath: string,
+  contents: string,
+): string {
   const fullPath = path.join(dir, relativePath);
   fs.mkdirSync(path.dirname(fullPath), { recursive: true });
   fs.writeFileSync(fullPath, contents, "utf8");
   return fullPath;
 }
 
-function runCheck(args: string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
+function runCheck(
+  args: string[],
+  cwd: string,
+): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(
     process.execPath,
     [path.resolve("dist/src/check.js"), ...args],
-    { cwd, encoding: "utf8" }
+    { cwd, encoding: "utf8" },
   );
-  return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
 }
 
 test("fails with exit code 1 on strict warning", () => {
@@ -26,7 +37,7 @@ test("fails with exit code 1 on strict warning", () => {
   writeAllium(
     dir,
     "spec.allium",
-    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`
+    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
   );
 
   const result = runCheck(["spec.allium"], dir);
@@ -39,7 +50,7 @@ test("relaxed mode suppresses temporal warning and returns success", () => {
   writeAllium(
     dir,
     "spec.allium",
-    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`
+    `rule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
   );
 
   const result = runCheck(["--mode", "relaxed", "spec.allium"], dir);
@@ -54,5 +65,8 @@ test("checks .allium files found through directory input", () => {
 
   const result = runCheck(["nested"], dir);
   assert.equal(result.status, 1);
-  assert.match(result.stdout, /nested\/a\.allium:3:1 error allium\.rule\.missingEnsures/);
+  assert.match(
+    result.stdout,
+    /nested\/a\.allium:3:1 error allium\.rule\.missingEnsures/,
+  );
 });

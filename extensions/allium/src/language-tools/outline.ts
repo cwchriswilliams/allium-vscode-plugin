@@ -20,13 +20,55 @@ export interface AlliumSymbol {
 export function collectAlliumSymbols(text: string): AlliumSymbol[] {
   const symbols: AlliumSymbol[] = [];
 
-  symbols.push(...findNamedBlocks(text, /^\s*entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "entity"));
-  symbols.push(...findNamedBlocks(text, /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "external entity"));
-  symbols.push(...findNamedBlocks(text, /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "value"));
-  symbols.push(...findNamedBlocks(text, /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/gm, "variant"));
-  symbols.push(...findNamedBlocks(text, /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "rule"));
-  symbols.push(...findNamedBlocks(text, /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "surface"));
-  symbols.push(...findNamedBlocks(text, /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm, "actor"));
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "entity",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "external entity",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "value",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/gm,
+      "variant",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "rule",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "surface",
+    ),
+  );
+  symbols.push(
+    ...findNamedBlocks(
+      text,
+      /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "actor",
+    ),
+  );
   symbols.push(...findConfigBlocks(text));
 
   return symbols.sort((a, b) => a.startOffset - b.startOffset);
@@ -35,7 +77,7 @@ export function collectAlliumSymbols(text: string): AlliumSymbol[] {
 function findNamedBlocks(
   text: string,
   pattern: RegExp,
-  type: Exclude<AlliumSymbolType, "config">
+  type: Exclude<AlliumSymbolType, "config">,
 ): AlliumSymbol[] {
   const symbols: AlliumSymbol[] = [];
 
@@ -58,7 +100,7 @@ function findNamedBlocks(
       startOffset: match.index,
       endOffset,
       nameStartOffset,
-      nameEndOffset
+      nameEndOffset,
     });
   }
 
@@ -84,7 +126,7 @@ function findConfigBlocks(text: string): AlliumSymbol[] {
       startOffset: match.index,
       endOffset,
       nameStartOffset: match.index + match[0].indexOf("config"),
-      nameEndOffset: match.index + match[0].indexOf("config") + "config".length
+      nameEndOffset: match.index + match[0].indexOf("config") + "config".length,
     });
   }
 

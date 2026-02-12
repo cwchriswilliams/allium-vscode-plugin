@@ -25,10 +25,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const diagnostic = new vscode.Diagnostic(
         new vscode.Range(
           new vscode.Position(finding.start.line, finding.start.character),
-          new vscode.Position(finding.end.line, finding.end.character)
+          new vscode.Position(finding.end.line, finding.end.character),
         ),
         finding.message,
-        severity
+        severity,
       );
       diagnostic.code = finding.code;
       diagnostic.source = "allium";
@@ -40,9 +40,13 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument(refreshDocument),
-    vscode.workspace.onDidChangeTextDocument((event) => refreshDocument(event.document)),
+    vscode.workspace.onDidChangeTextDocument((event) =>
+      refreshDocument(event.document),
+    ),
     vscode.workspace.onDidSaveTextDocument(refreshDocument),
-    vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri)),
+    vscode.workspace.onDidCloseTextDocument((document) =>
+      diagnostics.delete(document.uri),
+    ),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (!event.affectsConfiguration("allium.diagnostics.mode")) {
         return;
@@ -50,7 +54,7 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const document of vscode.workspace.textDocuments) {
         refreshDocument(document);
       }
-    })
+    }),
   );
 
   for (const document of vscode.workspace.textDocuments) {
@@ -61,13 +65,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("allium.runChecks", () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
-        void vscode.window.showInformationMessage("Open an .allium file to run checks.");
+        void vscode.window.showInformationMessage(
+          "Open an .allium file to run checks.",
+        );
         return;
       }
 
       refreshDocument(editor.document);
       void vscode.window.showInformationMessage("Allium checks completed.");
-    })
+    }),
   );
 
   context.subscriptions.push(
@@ -78,38 +84,38 @@ export function activate(context: vscode.ExtensionContext): void {
         providedCodeActionKinds: [
           vscode.CodeActionKind.QuickFix,
           vscode.CodeActionKind.RefactorExtract,
-          vscode.CodeActionKind.RefactorRewrite
-        ]
-      }
-    )
+          vscode.CodeActionKind.RefactorRewrite,
+        ],
+      },
+    ),
   );
 
   context.subscriptions.push(
     vscode.languages.registerDocumentSymbolProvider(
       { language: ALLIUM_LANGUAGE_ID },
-      new AlliumDocumentSymbolProvider()
-    )
+      new AlliumDocumentSymbolProvider(),
+    ),
   );
 
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(
       { language: ALLIUM_LANGUAGE_ID },
-      new AlliumDefinitionProvider()
-    )
+      new AlliumDefinitionProvider(),
+    ),
   );
 
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(
       { language: ALLIUM_LANGUAGE_ID },
-      new AlliumHoverProvider()
-    )
+      new AlliumHoverProvider(),
+    ),
   );
 
   context.subscriptions.push(
     vscode.languages.registerFoldingRangeProvider(
       { language: ALLIUM_LANGUAGE_ID },
-      new AlliumFoldingRangeProvider()
-    )
+      new AlliumFoldingRangeProvider(),
+    ),
   );
 }
 
@@ -121,7 +127,7 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
   provideCodeActions(
     document: vscode.TextDocument,
     range: vscode.Range,
-    context: vscode.CodeActionContext
+    context: vscode.CodeActionContext,
   ): vscode.CodeAction[] {
     const actions: vscode.CodeAction[] = [];
 
@@ -129,13 +135,16 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
       if (diagnostic.code === "allium.rule.missingEnsures") {
         const action = new vscode.CodeAction(
           "Insert ensures scaffold",
-          vscode.CodeActionKind.QuickFix
+          vscode.CodeActionKind.QuickFix,
         );
         action.diagnostics = [diagnostic];
         action.isPreferred = true;
 
         const edit = new vscode.WorkspaceEdit();
-        const insertPosition = new vscode.Position(diagnostic.range.start.line, 0);
+        const insertPosition = new vscode.Position(
+          diagnostic.range.start.line,
+          0,
+        );
         edit.insert(document.uri, insertPosition, "    ensures: TODO()\n");
         action.edit = edit;
         actions.push(action);
@@ -144,7 +153,7 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
       if (diagnostic.code === "allium.temporal.missingGuard") {
         const action = new vscode.CodeAction(
           "Insert requires guard",
-          vscode.CodeActionKind.QuickFix
+          vscode.CodeActionKind.QuickFix,
         );
         action.diagnostics = [diagnostic];
 
@@ -154,7 +163,11 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
 
         const edit = new vscode.WorkspaceEdit();
         const insertPosition = new vscode.Position(whenLine + 1, 0);
-        edit.insert(document.uri, insertPosition, `${indent}requires: /* add temporal guard */\n`);
+        edit.insert(
+          document.uri,
+          insertPosition,
+          `${indent}requires: /* add temporal guard */\n`,
+        );
         action.edit = edit;
         actions.push(action);
       }
@@ -163,12 +176,12 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
     const extractPlan = planExtractLiteralToConfig(
       document.getText(),
       document.offsetAt(range.start),
-      document.offsetAt(range.end)
+      document.offsetAt(range.end),
     );
     if (extractPlan) {
       const action = new vscode.CodeAction(
         extractPlan.title,
-        vscode.CodeActionKind.RefactorExtract
+        vscode.CodeActionKind.RefactorExtract,
       );
       const edit = new vscode.WorkspaceEdit();
       for (const change of extractPlan.edits) {
@@ -183,17 +196,20 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
     const temporalGuardPlan = planInsertTemporalGuard(
       document.getText(),
       document.offsetAt(range.start),
-      document.offsetAt(range.end)
     );
     if (temporalGuardPlan) {
       const action = new vscode.CodeAction(
         temporalGuardPlan.title,
-        vscode.CodeActionKind.RefactorRewrite
+        vscode.CodeActionKind.RefactorRewrite,
       );
       const edit = new vscode.WorkspaceEdit();
       const start = document.positionAt(temporalGuardPlan.edit.startOffset);
       const end = document.positionAt(temporalGuardPlan.edit.endOffset);
-      edit.replace(document.uri, new vscode.Range(start, end), temporalGuardPlan.edit.text);
+      edit.replace(
+        document.uri,
+        new vscode.Range(start, end),
+        temporalGuardPlan.edit.text,
+      );
       action.edit = edit;
       actions.push(action);
     }
@@ -210,7 +226,9 @@ function readDiagnosticsMode(): "strict" | "relaxed" {
   return configuredMode === "relaxed" ? "relaxed" : "strict";
 }
 
-function toDiagnosticSeverity(severity: "error" | "warning" | "info"): vscode.DiagnosticSeverity {
+function toDiagnosticSeverity(
+  severity: "error" | "warning" | "info",
+): vscode.DiagnosticSeverity {
   if (severity === "error") {
     return vscode.DiagnosticSeverity.Error;
   }
@@ -221,30 +239,34 @@ function toDiagnosticSeverity(severity: "error" | "warning" | "info"): vscode.Di
 }
 
 class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-  provideDocumentSymbols(document: vscode.TextDocument): vscode.DocumentSymbol[] {
+  provideDocumentSymbols(
+    document: vscode.TextDocument,
+  ): vscode.DocumentSymbol[] {
     const text = document.getText();
     const symbols = collectAlliumSymbols(text);
     return symbols.map((symbol) => {
       const range = new vscode.Range(
         document.positionAt(symbol.startOffset),
-        document.positionAt(symbol.endOffset + 1)
+        document.positionAt(symbol.endOffset + 1),
       );
       const selectionRange = new vscode.Range(
         document.positionAt(symbol.nameStartOffset),
-        document.positionAt(symbol.nameEndOffset)
+        document.positionAt(symbol.nameEndOffset),
       );
       return new vscode.DocumentSymbol(
         symbol.name,
         symbol.type,
         toSymbolKind(symbol.type),
         range,
-        selectionRange
+        selectionRange,
       );
     });
   }
 }
 
-function toSymbolKind(type: ReturnType<typeof collectAlliumSymbols>[number]["type"]): vscode.SymbolKind {
+function toSymbolKind(
+  type: ReturnType<typeof collectAlliumSymbols>[number]["type"],
+): vscode.SymbolKind {
   if (type === "rule") {
     return vscode.SymbolKind.Method;
   }
@@ -258,7 +280,10 @@ function toSymbolKind(type: ReturnType<typeof collectAlliumSymbols>[number]["typ
 }
 
 class AlliumDefinitionProvider implements vscode.DefinitionProvider {
-  provideDefinition(document: vscode.TextDocument, position: vscode.Position): vscode.Location[] {
+  provideDefinition(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Location[] {
     const text = document.getText();
     const offset = document.offsetAt(position);
     const matches = findDefinitionsAtOffset(text, offset);
@@ -271,7 +296,10 @@ class AlliumDefinitionProvider implements vscode.DefinitionProvider {
 }
 
 class AlliumHoverProvider implements vscode.HoverProvider {
-  provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | null {
+  provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Hover | null {
     const text = document.getText();
     const message = hoverTextAtOffset(text, document.offsetAt(position));
     if (!message) {
@@ -284,6 +312,8 @@ class AlliumHoverProvider implements vscode.HoverProvider {
 class AlliumFoldingRangeProvider implements vscode.FoldingRangeProvider {
   provideFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
     const blocks = collectTopLevelFoldingBlocks(document.getText());
-    return blocks.map((block) => new vscode.FoldingRange(block.startLine, block.endLine));
+    return blocks.map(
+      (block) => new vscode.FoldingRange(block.startLine, block.endLine),
+    );
   }
 }

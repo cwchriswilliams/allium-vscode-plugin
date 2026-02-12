@@ -2,13 +2,26 @@
   "name": "allium-vscode-plugin-workspace",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "extensions/allium"
-  ],
+  "workspaces": ["extensions/allium"],
   "scripts": {
     "build": "npm run --workspaces build",
     "test": "npm run --workspaces test",
-    "lint": "npm run --workspaces lint",
-    "check": "npm run --workspace extensions/allium check --"
+    "lint": "eslint . && npm run --workspaces lint",
+    "lint:fix": "eslint . --fix",
+    "format": "biome format --write .",
+    "format:check": "biome format --check .",
+    "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,cjs,mjs}": ["biome format --write", "eslint --fix"],
+    "*.{json,md,yml,yaml}": ["biome format --write"]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.1",
+    "globals": "^15.15.0",
+    "lint-staged": "^15.4.3",
+    "typescript-eslint": "^8.24.0"
   }
 }

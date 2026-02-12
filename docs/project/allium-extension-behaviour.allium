@@ -38,6 +38,11 @@ entity DiagnosticCollection {
     documents: Set<Document>
 }
 
+config {
+    duplicateKey: String = "allium.config.duplicateKey"
+    undefinedReference: String = "allium.config.undefinedReference"
+}
+
 rule RefreshAlliumDiagnostics {
     when: DocumentOpened(document) or DocumentChanged(document) or DocumentSaved(document)
     requires: document.language_id = "allium"

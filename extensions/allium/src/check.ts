@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { analyzeAllium, type DiagnosticsMode, type Finding } from "./language-tools/analyzer";
+import {
+  analyzeAllium,
+  type DiagnosticsMode,
+  type Finding,
+} from "./language-tools/analyzer";
 
 interface ParsedArgs {
   mode: DiagnosticsMode;
@@ -81,7 +85,9 @@ function printUsage(error?: string): void {
   if (error) {
     process.stderr.write(`${error}\n`);
   }
-  process.stderr.write("Usage: node dist/src/check.js [--mode strict|relaxed] <file|directory|glob> [...]\n");
+  process.stderr.write(
+    "Usage: node dist/src/check.js [--mode strict|relaxed] <file|directory|glob> [...]\n",
+  );
 }
 
 function resolveInputs(inputs: string[]): string[] {

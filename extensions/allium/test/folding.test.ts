@@ -7,7 +7,7 @@ test("collects folding ranges for top-level block declarations", () => {
   const ranges = collectTopLevelFoldingBlocks(text);
   assert.deepEqual(ranges, [
     { startLine: 0, endLine: 2 },
-    { startLine: 3, endLine: 7 }
+    { startLine: 3, endLine: 7 },
   ]);
 });
 

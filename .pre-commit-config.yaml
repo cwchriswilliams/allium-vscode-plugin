@@ -1,0 +1,20 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint-staged
+        name: lint-staged (biome + eslint autofix)
+        entry: env PRE_COMMIT_HOME=.pre-commit-cache npx lint-staged --concurrent false
+        language: system
+        pass_filenames: false
+      - id: allium-check
+        name: allium-check
+        entry: env PRE_COMMIT_HOME=.pre-commit-cache npm run check -- docs/project
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: unit-tests
+        name: unit-tests
+        entry: env PRE_COMMIT_HOME=.pre-commit-cache npm run test
+        language: system
+        pass_filenames: false
+        always_run: true

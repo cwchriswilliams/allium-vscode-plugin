@@ -17,10 +17,13 @@ interface RuleRange {
 export function planInsertTemporalGuard(
   text: string,
   selectionStart: number,
-  _selectionEnd: number
 ): InsertTemporalGuardPlan | null {
   const line = lineForOffset(text, selectionStart);
-  if (!line || !/^\s*when\s*:/.test(line.text) || !isTemporalWhenClause(line.text)) {
+  if (
+    !line ||
+    !/^\s*when\s*:/.test(line.text) ||
+    !isTemporalWhenClause(line.text)
+  ) {
     return null;
   }
 
@@ -42,12 +45,15 @@ export function planInsertTemporalGuard(
     edit: {
       startOffset: insertOffset,
       endOffset: insertOffset,
-      text: `${indent}requires: /* add temporal guard */\n`
-    }
+      text: `${indent}requires: /* add temporal guard */\n`,
+    },
   };
 }
 
-function lineForOffset(text: string, offset: number): { startOffset: number; endOffset: number; text: string } | null {
+function lineForOffset(
+  text: string,
+  offset: number,
+): { startOffset: number; endOffset: number; text: string } | null {
   if (offset < 0 || offset > text.length) {
     return null;
   }
@@ -58,14 +64,18 @@ function lineForOffset(text: string, offset: number): { startOffset: number; end
   return {
     startOffset,
     endOffset,
-    text: text.slice(startOffset, endOffset)
+    text: text.slice(startOffset, endOffset),
   };
 }
 
 function findContainingRule(text: string, offset: number): RuleRange | null {
   const rulePattern = /\brule\s+[A-Za-z_][A-Za-z0-9_]*\s*\{/g;
 
-  for (let match = rulePattern.exec(text); match; match = rulePattern.exec(text)) {
+  for (
+    let match = rulePattern.exec(text);
+    match;
+    match = rulePattern.exec(text)
+  ) {
     const openOffset = text.indexOf("{", match.index);
     if (openOffset < 0) {
       continue;

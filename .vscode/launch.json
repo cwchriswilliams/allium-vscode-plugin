@@ -9,9 +9,7 @@
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}/extensions/allium"
       ],
-      "outFiles": [
-        "${workspaceFolder}/extensions/allium/dist/**/*.js"
-      ]
+      "outFiles": ["${workspaceFolder}/extensions/allium/dist/**/*.js"]
     }
   ]
 }

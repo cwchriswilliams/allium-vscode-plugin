@@ -15,6 +15,7 @@ coverage/
 # Caches
 .npm-cache/
 .eslintcache
+.pre-commit-cache/
 
 # Logs
 npm-debug.log*

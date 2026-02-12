@@ -5,9 +5,14 @@ export interface FoldingBlock {
 
 export function collectTopLevelFoldingBlocks(text: string): FoldingBlock[] {
   const blocks: FoldingBlock[] = [];
-  const blockStart = /^\s*(entity|external\s+entity|value|variant|rule|surface|actor|config)\b[^{]*\{/gm;
+  const blockStart =
+    /^\s*(entity|external\s+entity|value|variant|rule|surface|actor|config)\b[^{]*\{/gm;
 
-  for (let match = blockStart.exec(text); match; match = blockStart.exec(text)) {
+  for (
+    let match = blockStart.exec(text);
+    match;
+    match = blockStart.exec(text)
+  ) {
     const openOffset = text.indexOf("{", match.index);
     if (openOffset < 0) {
       continue;

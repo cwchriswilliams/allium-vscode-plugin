@@ -4,11 +4,14 @@ const HOVER_DOCS: Record<string, string> = {
   when: "Trigger clause that starts a rule.",
   requires: "Precondition clause that must hold before a rule can apply.",
   ensures: "Outcome clause that must hold after a rule applies.",
-  config: "Declares reusable configuration values referenced as `config.<key>`.",
-  surface: "Defines an actor-facing projection with context, exposed fields, and capabilities.",
+  config:
+    "Declares reusable configuration values referenced as `config.<key>`.",
+  surface:
+    "Defines an actor-facing projection with context, exposed fields, and capabilities.",
   actor: "Defines a principal interacting with one or more surfaces.",
-  open_question: "Marks unresolved product or domain questions inside the specification.",
-  deferred: "Declares behavior that is intentionally deferred to another spec."
+  open_question:
+    "Marks unresolved product or domain questions inside the specification.",
+  deferred: "Declares behavior that is intentionally deferred to another spec.",
 };
 
 export function hoverTextAtOffset(text: string, offset: number): string | null {
@@ -25,7 +28,8 @@ function tokenAtOffset(text: string, offset: number): string | null {
     return null;
   }
 
-  const isIdent = (char: string | undefined): boolean => !!char && /[A-Za-z_]/.test(char);
+  const isIdent = (char: string | undefined): boolean =>
+    !!char && /[A-Za-z_]/.test(char);
   let start = offset;
   while (start > 0 && isIdent(text[start - 1])) {
     start -= 1;

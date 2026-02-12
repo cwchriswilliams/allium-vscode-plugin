@@ -22,7 +22,7 @@ rule Notify {
   assert.equal(symbols.length, 3);
   assert.deepEqual(
     symbols.map((s) => `${s.type}:${s.name}`),
-    ["config:config", "entity:Child", "rule:Notify"]
+    ["config:config", "entity:Child", "rule:Notify"],
   );
 });
 
@@ -57,7 +57,7 @@ actor Parent {
       "value:DurationWindow",
       "variant:PremiumRecord",
       "surface:ChildView",
-      "actor:Parent"
-    ]
+      "actor:Parent",
+    ],
   );
 });

@@ -12,7 +12,7 @@ export interface ExtractLiteralPlan {
 export function planExtractLiteralToConfig(
   text: string,
   selectionStart: number,
-  selectionEnd: number
+  selectionEnd: number,
 ): ExtractLiteralPlan | null {
   if (selectionEnd <= selectionStart) {
     return null;
@@ -37,7 +37,7 @@ export function planExtractLiteralToConfig(
   const edits: RefactorEdit[] = occurrences.map((startOffset) => ({
     startOffset,
     endOffset: startOffset + selected.length,
-    text: reference
+    text: reference,
   }));
 
   const configInsert = findConfigInsertion(text);
@@ -45,19 +45,19 @@ export function planExtractLiteralToConfig(
     edits.push({
       startOffset: configInsert.insertOffset,
       endOffset: configInsert.insertOffset,
-      text: `${configInsert.indent}${key}: ${typeName} = ${selected}\n`
+      text: `${configInsert.indent}${key}: ${typeName} = ${selected}\n`,
     });
   } else {
     edits.push({
       startOffset: 0,
       endOffset: 0,
-      text: `config {\n    ${key}: ${typeName} = ${selected}\n}\n\n`
+      text: `config {\n    ${key}: ${typeName} = ${selected}\n}\n\n`,
     });
   }
 
   return {
     title: "Extract repeated literal to config",
-    edits
+    edits,
   };
 }
 
@@ -71,7 +71,11 @@ function classifyLiteral(value: string): "string" | "integer" | null {
   return null;
 }
 
-function findLiteralOccurrences(text: string, literal: string, kind: "string" | "integer"): number[] {
+function findLiteralOccurrences(
+  text: string,
+  literal: string,
+  kind: "string" | "integer",
+): number[] {
   if (kind === "string") {
     const occurrences: number[] = [];
     let offset = text.indexOf(literal);
@@ -83,7 +87,10 @@ function findLiteralOccurrences(text: string, literal: string, kind: "string" | 
   }
 
   const escaped = escapeRegex(literal);
-  const pattern = new RegExp(`(?<![A-Za-z0-9_\\.])${escaped}(?![A-Za-z0-9_\\.])`, "g");
+  const pattern = new RegExp(
+    `(?<![A-Za-z0-9_\\.])${escaped}(?![A-Za-z0-9_\\.])`,
+    "g",
+  );
   const occurrences: number[] = [];
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     occurrences.push(match.index);
@@ -95,7 +102,11 @@ function collectConfigKeys(text: string): Set<string> {
   const keys = new Set<string>();
   const configPattern = /^\s*config\s*\{/gm;
 
-  for (let match = configPattern.exec(text); match; match = configPattern.exec(text)) {
+  for (
+    let match = configPattern.exec(text);
+    match;
+    match = configPattern.exec(text)
+  ) {
     const openOffset = text.indexOf("{", match.index);
     if (openOffset < 0) {
       continue;
@@ -107,7 +118,11 @@ function collectConfigKeys(text: string): Set<string> {
 
     const body = text.slice(openOffset + 1, closeOffset);
     const keyPattern = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
-    for (let keyMatch = keyPattern.exec(body); keyMatch; keyMatch = keyPattern.exec(body)) {
+    for (
+      let keyMatch = keyPattern.exec(body);
+      keyMatch;
+      keyMatch = keyPattern.exec(body)
+    ) {
       keys.add(keyMatch[1]);
     }
   }
@@ -122,7 +137,9 @@ function buildUniqueKey(literal: string, existing: Set<string>): string {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
 
-  const base = normalized ? `extracted_${normalized.slice(0, 20)}` : "extracted_value";
+  const base = normalized
+    ? `extracted_${normalized.slice(0, 20)}`
+    : "extracted_value";
 
   if (!existing.has(base)) {
     return base;
@@ -135,7 +152,9 @@ function buildUniqueKey(literal: string, existing: Set<string>): string {
   return `${base}_${suffix}`;
 }
 
-function findConfigInsertion(text: string): { insertOffset: number; indent: string } | null {
+function findConfigInsertion(
+  text: string,
+): { insertOffset: number; indent: string } | null {
   const configPattern = /^\s*config\s*\{/gm;
   const match = configPattern.exec(text);
   if (!match) {
@@ -159,7 +178,7 @@ function findConfigInsertion(text: string): { insertOffset: number; indent: stri
 
   return {
     insertOffset: closeOffset,
-    indent: `\n${keyIndent}`
+    indent: `\n${keyIndent}`,
   };
 }
 
