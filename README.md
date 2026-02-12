@@ -176,6 +176,7 @@ Current formatter behavior:
 - enforce a single trailing newline
 - normalize block indentation
 - normalize spacing between top-level blocks
+- normalize spacing around pipe-delimited literals (for example enum literal sets)
 
 ## Using CLI Tools Outside This Repo
 

@@ -112,7 +112,7 @@ export function formatAlliumText(
     }
 
     const indent = " ".repeat(indentLevel * indentWidth);
-    formattedLines.push(`${indent}${trimmed}`);
+    formattedLines.push(`${indent}${normalizePipeSpacing(trimmed)}`);
 
     const openCount = countOccurrences(trimmed, "{");
     const closeCount = countOccurrences(trimmed, "}");
@@ -285,6 +285,14 @@ function blankLinesAtEnd(lines: string[]): number {
 
 function clampInteger(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function normalizePipeSpacing(line: string): string {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("--") || !line.includes("|")) {
+    return line;
+  }
+  return line.replace(/\s*\|\s*/g, " | ");
 }
 
 if (require.main === module) {

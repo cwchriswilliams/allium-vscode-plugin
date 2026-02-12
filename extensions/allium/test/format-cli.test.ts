@@ -50,6 +50,15 @@ test("formatAlliumText respects indent width and top-level spacing options", () 
   );
 });
 
+test("formatAlliumText normalizes pipe spacing in enum literals", () => {
+  const input = "enum Recommendation {\nstrong_yes| yes|no |strong_no\n}\n";
+  const output = formatAlliumText(input);
+  assert.equal(
+    output,
+    "enum Recommendation {\n    strong_yes | yes | no | strong_no\n}\n",
+  );
+});
+
 test("format CLI rewrites .allium files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
   const target = path.join(dir, "spec.allium");

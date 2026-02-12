@@ -181,4 +181,5 @@ Current implementation will proceed with defaults unless you override:
   - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check` and `allium-format`.
 - Improve Allium formatter depth:
   - In progress: structure-aware indentation and top-level block spacing implemented.
+  - Implemented: spacing normalization for pipe-delimited literal sets.
   - Remaining: richer syntax-aware formatting for additional constructs.
