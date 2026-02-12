@@ -25,7 +25,17 @@ function runFormat(
 test("formatAlliumText normalizes line endings and trims trailing whitespace", () => {
   const input = "rule A {\r\n  when: Ping()  \r\n}\r\n\r\n";
   const output = formatAlliumText(input);
-  assert.equal(output, "rule A {\n  when: Ping()\n}\n");
+  assert.equal(output, "rule A {\n    when: Ping()\n}\n");
+});
+
+test("formatAlliumText applies structural indentation and top-level spacing", () => {
+  const input =
+    "rule A{\nwhen: Ping()\nensures: Done()\n}\nrule B {\nwhen: Pong()\nensures: Done()\n}\n";
+  const output = formatAlliumText(input);
+  assert.equal(
+    output,
+    "rule A{\n    when: Ping()\n    ensures: Done()\n}\n\nrule B {\n    when: Pong()\n    ensures: Done()\n}\n",
+  );
 });
 
 test("format CLI rewrites .allium files", () => {
@@ -38,7 +48,7 @@ test("format CLI rewrites .allium files", () => {
   assert.match(result.stdout, /spec\.allium: formatted/);
   assert.equal(
     fs.readFileSync(target, "utf8"),
-    "rule A {\n  when: Ping()\n}\n",
+    "rule A {\n    when: Ping()\n}\n",
   );
 });
 
@@ -55,7 +65,7 @@ test("format CLI --check fails when formatting is needed", () => {
 test("format CLI --check succeeds when file is already formatted", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
   const target = path.join(dir, "spec.allium");
-  fs.writeFileSync(target, "rule A {\n  when: Ping()\n}\n", "utf8");
+  fs.writeFileSync(target, "rule A {\n    when: Ping()\n}\n", "utf8");
 
   const result = runFormat(["--check", "spec.allium"], dir);
   assert.equal(result.status, 0);

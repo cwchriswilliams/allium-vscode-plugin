@@ -58,12 +58,71 @@ function main(argv: string[]): number {
 
 export function formatAlliumText(text: string): string {
   const normalized = text.replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
-  const trimmedLines = lines.map((line) => line.replace(/[ \t]+$/g, ""));
-  const joined = trimmedLines.join("\n");
+  const lines = normalized
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/g, ""));
 
-  const withoutTrailingBlankLines = joined.replace(/\n+$/g, "");
+  const formattedLines: string[] = [];
+  let indentLevel = 0;
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+
+    if (trimmed.length === 0) {
+      if (
+        formattedLines.length > 0 &&
+        formattedLines[formattedLines.length - 1] !== ""
+      ) {
+        formattedLines.push("");
+      }
+      continue;
+    }
+
+    const leadingClosers = countLeadingClosers(trimmed);
+    indentLevel = Math.max(indentLevel - leadingClosers, 0);
+
+    const isTopLevelDeclaration =
+      indentLevel === 0 &&
+      /^(entity|external\s+entity|value|variant|rule|surface|actor|config)\b/.test(
+        trimmed,
+      );
+    if (
+      isTopLevelDeclaration &&
+      formattedLines.length > 0 &&
+      formattedLines[formattedLines.length - 1] !== ""
+    ) {
+      formattedLines.push("");
+    }
+
+    const indent = " ".repeat(indentLevel * 4);
+    formattedLines.push(`${indent}${trimmed}`);
+
+    const openCount = countOccurrences(trimmed, "{");
+    const closeCount = countOccurrences(trimmed, "}");
+    const trailingCloseCount = Math.max(closeCount - leadingClosers, 0);
+    indentLevel = Math.max(indentLevel + openCount - trailingCloseCount, 0);
+  }
+
+  const withoutTrailingBlankLines = formattedLines
+    .join("\n")
+    .replace(/\n+$/g, "");
   return `${withoutTrailingBlankLines}\n`;
+}
+
+function countOccurrences(text: string, token: string): number {
+  return text.split(token).length - 1;
+}
+
+function countLeadingClosers(text: string): number {
+  let count = 0;
+  for (const char of text) {
+    if (char === "}") {
+      count += 1;
+      continue;
+    }
+    break;
+  }
+  return count;
 }
 
 function parseArgs(argv: string[]): ParsedArgs | null {

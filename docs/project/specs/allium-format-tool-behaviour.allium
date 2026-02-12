@@ -38,6 +38,8 @@ rule FormatterNormalizesText {
     ensures: file.line_endings = lf
     ensures: file.trailing_whitespace_removed = true
     ensures: file.ends_with_single_newline = true
+    ensures: file.block_indentation = normalized
+    ensures: file.top_level_blocks_separated_by_single_blank_line = true
 }
 
 rule CheckModeFailsIfFormattingNeeded {

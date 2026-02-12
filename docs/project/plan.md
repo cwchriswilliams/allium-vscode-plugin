@@ -162,4 +162,5 @@ Current implementation will proceed with defaults unless you override:
   - Partially completed: release tarball exposes `allium-check` and `allium-format`.
   - Remaining: dedicated standalone CLI package(s) with stable install name independent from extension package naming.
 - Improve Allium formatter depth:
-  - Move beyond whitespace normalization to structure-aware formatting for common Allium constructs.
+  - In progress: structure-aware indentation and top-level block spacing implemented.
+  - Remaining: richer syntax-aware formatting for additional constructs.

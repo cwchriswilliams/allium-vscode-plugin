@@ -91,8 +91,8 @@ rule RuleMustHaveWhenTrigger {
     requires: rule.has_when = false
 
     ensures: Finding.created(
-        code: "allium.rule.missingWhen",
-        severity: error
+    code: "allium.rule.missingWhen",
+    severity: error
     )
 }
 
@@ -101,8 +101,8 @@ rule RuleShouldHaveEnsuresClause {
     requires: rule.has_ensures = false
 
     ensures: Finding.created(
-        code: "allium.rule.missingEnsures",
-        severity: error
+    code: "allium.rule.missingEnsures",
+    severity: error
     )
 }
 
@@ -113,8 +113,8 @@ rule TemporalTriggerNeedsGuardInStrictMode {
     requires: DiagnosticsMode.value = strict
 
     ensures: Finding.created(
-        code: "allium.temporal.missingGuard",
-        severity: warning
+    code: "allium.temporal.missingGuard",
+    severity: warning
     )
 }
 
@@ -123,8 +123,8 @@ rule DuplicateLetBindingIsError {
     requires: rule.contains_duplicate_let_name = true
 
     ensures: Finding.created(
-        code: "allium.let.duplicateBinding",
-        severity: error
+    code: "allium.let.duplicateBinding",
+    severity: error
     )
 }
 
@@ -133,8 +133,8 @@ rule DuplicateConfigKeyIsError {
     requires: config_block.contains_duplicate_key = true
 
     ensures: Finding.created(
-        code: "allium.config.duplicateKey",
-        severity: error
+    code: "allium.config.duplicateKey",
+    severity: error
     )
 }
 
@@ -144,8 +144,8 @@ rule UndefinedConfigReferenceSeverityDependsOnMode {
     requires: DiagnosticsMode.value = strict
 
     ensures: Finding.created(
-        code: "allium.config.undefinedReference",
-        severity: warning
+    code: "allium.config.undefinedReference",
+    severity: warning
     )
 }
 
@@ -155,8 +155,8 @@ rule UndefinedConfigReferenceIsInfoInRelaxedMode {
     requires: DiagnosticsMode.value = relaxed
 
     ensures: Finding.created(
-        code: "allium.config.undefinedReference",
-        severity: info
+    code: "allium.config.undefinedReference",
+    severity: info
     )
 }
 
@@ -164,8 +164,8 @@ rule OpenQuestionEmitsInformationalFinding {
     when: OpenQuestionParsed(open_question)
 
     ensures: Finding.created(
-        code: "allium.openQuestion.present",
-        severity: info
+    code: "allium.openQuestion.present",
+    severity: info
     )
 }
 
@@ -174,8 +174,8 @@ rule QuickFixForMissingEnsures {
     requires: finding.code = "allium.rule.missingEnsures"
 
     ensures: EditProposed(
-        title: "Insert ensures scaffold",
-        insertion: "    ensures: TODO()"
+    title: "Insert ensures scaffold",
+    insertion: "    ensures: TODO()"
     )
     ensures: PreferredQuickFix()
 }
@@ -185,8 +185,8 @@ rule QuickFixForTemporalMissingGuard {
     requires: finding.code = "allium.temporal.missingGuard"
 
     ensures: EditProposed(
-        title: "Insert requires guard",
-        insertion: "requires: /* add temporal guard */"
+    title: "Insert requires guard",
+    insertion: "requires: /* add temporal guard */"
     )
 }
 
@@ -197,8 +197,8 @@ rule RefactorTemporalWhenToGuardedRule {
     requires: selection.containing_rule.has_requires = false
 
     ensures: EditProposed(
-        title: "Add temporal requires guard",
-        insertion: "requires: /* add temporal guard */"
+    title: "Add temporal requires guard",
+    insertion: "requires: /* add temporal guard */"
     )
 }
 
@@ -208,8 +208,8 @@ rule RefactorExtractRepeatedLiteralToConfig {
     requires: selection.value appears_multiple_times_in_document
 
     ensures: EditProposed(
-        title: "Extract repeated literal to config",
-        insertion: "config.<generated_key>"
+    title: "Extract repeated literal to config",
+    insertion: "config.<generated_key>"
     )
 }
 
