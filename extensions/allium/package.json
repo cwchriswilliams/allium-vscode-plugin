@@ -11,7 +11,8 @@
   "activationEvents": ["onLanguage:allium"],
   "main": "./dist/src/extension.js",
   "bin": {
-    "allium-check": "./dist/src/check.js"
+    "allium-check": "./dist/src/check.js",
+    "allium-format": "./dist/src/format.js"
   },
   "contributes": {
     "languages": [
@@ -57,7 +58,8 @@
     "build": "tsc -p ./tsconfig.json",
     "test": "npm run build && node --test ./dist/test/**/*.test.js",
     "lint": "tsc -p ./tsconfig.json --noEmit",
-    "check": "npm run build && node ./dist/src/check.js"
+    "check": "npm run build && node ./dist/src/check.js",
+    "format:allium": "npm run build && node ./dist/src/format.js"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",

@@ -9,6 +9,8 @@
     "lint": "eslint . && npm run --workspaces lint",
     "lint:fix": "eslint . --fix",
     "format": "biome format --write .",
+    "format:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js",
+    "format:allium:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js --check",
     "format:check": "biome format --check .",
     "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js"
   },

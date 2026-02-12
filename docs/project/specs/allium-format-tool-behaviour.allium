@@ -1,0 +1,57 @@
+-- allium-format-tool-behaviour.allium
+-- Scope: Standalone CLI behavior for formatting Allium specification files.
+-- Includes:
+--   - CLI argument parsing
+--   - Input resolution for files, directories, and wildcard patterns
+--   - Text normalization and write/check behavior
+-- Excludes:
+--   - VS Code editor formatting integration
+--   - Full semantic reformatting of Allium syntax
+
+value FormatMode {
+    value: write | check_only
+}
+
+entity FormatRun {
+    mode: FormatMode
+    files: Set<String>
+}
+
+rule MissingInputsAreRejected {
+    when: FormatCommandInvokedWithoutInputs()
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule MissingResolvedFilesAreRejected {
+    when: FormatCommandInvokedWithInputs(inputs)
+    requires: ResolveAlliumFiles(inputs).is_empty = true
+
+    ensures: UserInformed(message: "No .allium files found for the provided inputs.")
+    ensures: ProcessExit(code: 2)
+}
+
+rule FormatterNormalizesText {
+    when: FileFormatted(file)
+
+    ensures: file.line_endings = lf
+    ensures: file.trailing_whitespace_removed = true
+    ensures: file.ends_with_single_newline = true
+}
+
+rule CheckModeFailsIfFormattingNeeded {
+    when: FormatRunCompleted(run)
+    requires: run.mode = check_only
+    requires: run.files.any_needs_formatting = true
+
+    ensures: ProcessExit(code: 1)
+}
+
+rule WriteModeAppliesFormatting {
+    when: FormatRunCompleted(run)
+    requires: run.mode = write
+
+    ensures: FilesPersistedWithFormatting()
+    ensures: ProcessExit(code: 0)
+}

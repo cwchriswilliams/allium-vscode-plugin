@@ -16,4 +16,5 @@ npm install
 npm run build
 npm run test
 npm run check -- path/to/spec.allium
+npm run format:allium -- docs/project/specs
 ```

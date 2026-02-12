@@ -18,4 +18,6 @@ Run checks without VS Code:
 ```bash
 npm run check -- path/to/spec.allium
 npm run check -- --mode relaxed "specs/**/*.allium"
+npm run format:allium -- path/to/spec.allium
+npm run format:allium -- --check "specs/**/*.allium"
 ```
