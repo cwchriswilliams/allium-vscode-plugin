@@ -81,6 +81,7 @@ Current status:
 - Implemented surface `related:` reference checks (`allium.surface.relatedUndefined`).
 - Implemented surface binding usage checks (`allium.surface.unusedBinding`).
 - Implemented surface path and iteration checks (`allium.surface.undefinedPath`, `allium.surface.nonCollectionIteration`).
+- Implemented surface coverage/impossible-condition warnings (`allium.surface.unusedPath`, `allium.surface.impossibleWhen`).
 - Implemented named surface block uniqueness checks (`allium.surface.duplicateRequiresBlock`, `allium.surface.duplicateProvidesBlock`).
 - Implemented warning checks for named surface `requires` blocks without deferred hints (`allium.surface.requiresWithoutDeferred`).
 - Implemented surface `provides` trigger reference checks (`allium.surface.undefinedProvidesTrigger`).

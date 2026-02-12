@@ -296,6 +296,20 @@ test("does not report surface iteration over collection expression", () => {
   );
 });
 
+test("reports surface path not observed in rule references", () => {
+  const findings = analyzeAllium(
+    `entity SlotConfirmation {\n  status: String\n  score: Integer\n}\n\nrule KeepStatus {\n  when: assignment: SlotConfirmation.created\n  ensures: assignment.status = active\n}\n\nsurface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    assignment.score\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.unusedPath"));
+});
+
+test("warns on contradictory surface when condition", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  provides:\n    Opened()\n      when viewer.status = active and viewer.status = suspended\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.impossibleWhen"));
+});
+
 test("reports config parameter missing explicit type/default", () => {
   const findings = analyzeAllium(`config {\n  timeout: Integer\n}\n`);
   assert.ok(findings.some((f) => f.code === "allium.config.invalidParameter"));

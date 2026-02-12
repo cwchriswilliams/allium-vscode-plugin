@@ -515,6 +515,26 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule SurfacePathWithoutRuleCoverageIsInfo {
+        when: SurfaceClausePathParsed(path)
+        requires: path.not_observed_in_any_rule_field_references = true
+
+        ensures: Finding.created(
+        code: "allium.surface.unusedPath",
+        severity: info
+        )
+    }
+
+    rule SurfaceContradictoryWhenIsWarning {
+        when: SurfaceConditionParsed(condition)
+        requires: condition.contains_contradictory_equalities = true
+
+        ensures: Finding.created(
+        code: "allium.surface.impossibleWhen",
+        severity: warning
+        )
+    }
+
     rule DuplicateNamedRequiresBlockIsError {
         when: SurfaceBlockParsed(surface)
         requires: surface.named_requires_block_names_not_unique = true

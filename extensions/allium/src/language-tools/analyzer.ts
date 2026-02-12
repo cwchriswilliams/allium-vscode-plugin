@@ -119,6 +119,8 @@ export function analyzeAllium(
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
   findings.push(...findSurfacePathAndIterationIssues(text, lineStarts, blocks));
+  findings.push(...findSurfaceRuleCoverageIssues(text, lineStarts, blocks));
+  findings.push(...findSurfaceImpossibleWhenIssues(lineStarts, blocks));
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
   findings.push(
     ...findSurfaceRequiresDeferredHintIssues(lineStarts, blocks, text),
@@ -1620,6 +1622,122 @@ function findSurfacePathAndIterationIssues(
   return findings;
 }
 
+function findSurfaceRuleCoverageIssues(
+  _text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const ruleSuffixes = collectRulePathSuffixes(blocks);
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  const pathPattern = /\b([a-z_][a-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b/g;
+
+  for (const surface of surfaces) {
+    const bindings = collectSurfaceBindingTypes(surface.body);
+    for (
+      let path = pathPattern.exec(surface.body);
+      path;
+      path = pathPattern.exec(surface.body)
+    ) {
+      if (isCommentLineAtIndex(surface.body, path.index)) {
+        continue;
+      }
+      const value = path[1];
+      const parts = value.split(".");
+      if (!bindings.has(parts[0])) {
+        continue;
+      }
+      const suffix = parts.slice(1).join(".");
+      if (suffix.length === 0) {
+        continue;
+      }
+      const covered = [...ruleSuffixes].some(
+        (ruleSuffix) =>
+          suffix === ruleSuffix ||
+          suffix.endsWith(`.${ruleSuffix}`) ||
+          ruleSuffix.endsWith(`.${suffix}`),
+      );
+      if (covered) {
+        continue;
+      }
+      const offset = surface.startOffset + 1 + path.index;
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + value.length,
+          "allium.surface.unusedPath",
+          `Surface '${surface.name}' path '${value}' is not observed in rule field references.`,
+          "info",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
+function findSurfaceImpossibleWhenIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  const whenPattern = /\bwhen\s+(.+)$/;
+  const comparisonPattern =
+    /([A-Za-z_][A-Za-z0-9_.]*)\s*=\s*("[^"]*"|[a-z_][a-z0-9_]*|-?\d+(?:\.\d+)?)/g;
+
+  for (const surface of surfaces) {
+    let cursor = 0;
+    while (cursor < surface.body.length) {
+      const lineEnd = surface.body.indexOf("\n", cursor);
+      const end = lineEnd >= 0 ? lineEnd : surface.body.length;
+      const line = surface.body.slice(cursor, end);
+      const whenMatch = line.match(whenPattern);
+      if (!whenMatch) {
+        cursor = end + 1;
+        continue;
+      }
+
+      const condition = whenMatch[1];
+      const equalsByExpr = new Map<string, Set<string>>();
+      comparisonPattern.lastIndex = 0;
+      for (
+        let cmp = comparisonPattern.exec(condition);
+        cmp;
+        cmp = comparisonPattern.exec(condition)
+      ) {
+        const expr = cmp[1];
+        const value = cmp[2];
+        const set = equalsByExpr.get(expr) ?? new Set<string>();
+        set.add(value);
+        equalsByExpr.set(expr, set);
+      }
+
+      const contradictory = [...equalsByExpr.values()].some(
+        (set) => set.size > 1,
+      );
+      if (contradictory) {
+        const offset =
+          surface.startOffset + 1 + cursor + line.indexOf(whenMatch[0]);
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            offset,
+            offset + whenMatch[0].length,
+            "allium.surface.impossibleWhen",
+            `Surface '${surface.name}' has a 'when' condition that appears contradictory and may never be true.`,
+            "warning",
+          ),
+        );
+      }
+
+      cursor = end + 1;
+    }
+  }
+  return findings;
+}
+
 function findSurfaceNamedBlockUniquenessIssues(
   lineStarts: number[],
   blocks: ReturnType<typeof parseAlliumBlocks>,
@@ -2296,6 +2414,31 @@ function collectTypeSchemas(
     schemas.set(typeName, fields);
   }
   return schemas;
+}
+
+function collectRulePathSuffixes(
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Set<string> {
+  const suffixes = new Set<string>();
+  const rules = blocks.filter((block) => block.kind === "rule");
+  const pattern = /\b([a-z_][a-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\b/g;
+  for (const rule of rules) {
+    for (
+      let match = pattern.exec(rule.body);
+      match;
+      match = pattern.exec(rule.body)
+    ) {
+      if (isCommentLineAtIndex(rule.body, match.index)) {
+        continue;
+      }
+      const parts = match[1].split(".");
+      if (parts.length < 2) {
+        continue;
+      }
+      suffixes.add(parts.slice(1).join("."));
+    }
+  }
+  return suffixes;
 }
 
 function collectSurfaceBindingTypes(body: string): Map<string, string> {

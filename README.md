@@ -106,6 +106,8 @@ Implemented checks:
 - surface `for`/`context` binding declared but not used in surface body
 - unresolved field paths in surface clauses (`exposes`/`requires`/`provides`/`related`)
 - surface `for x in ...` iteration over expressions not known to be collections
+- surface paths not observed in any rule field references
+- contradictory `when` clauses inside surface entries
 - duplicate named `requires` block in a surface
 - named `requires` block in a surface without matching deferred hint
 - duplicate named `provides` block in a surface
