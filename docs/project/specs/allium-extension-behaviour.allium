@@ -244,6 +244,16 @@ rule UnusedActorReported {
     )
 }
 
+rule UndefinedRelatedSurfaceIsError {
+    when: SurfaceBlockParsed(surface)
+    requires: surface.related_references_unknown_surface = true
+
+    ensures: Finding.created(
+    code: "allium.surface.relatedUndefined",
+    severity: error
+    )
+}
+
 rule SuppressionCommentDisablesDiagnostic {
     when: SuppressionDirectiveParsed(line, code)
     requires: code = "all" or code = finding.code

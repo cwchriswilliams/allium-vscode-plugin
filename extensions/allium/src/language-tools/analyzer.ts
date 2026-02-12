@@ -102,6 +102,7 @@ export function analyzeAllium(
   findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
+  findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -494,6 +495,87 @@ function findSurfaceActorLinkIssues(
   }
 
   return findings;
+}
+
+function findSurfaceRelatedIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const surfaceBlocks = blocks.filter((block) => block.kind === "surface");
+  const knownSurfaceNames = new Set(
+    surfaceBlocks.map((surface) => surface.name),
+  );
+
+  for (const surface of surfaceBlocks) {
+    const relatedRefs = parseRelatedReferences(surface.body);
+    for (const ref of relatedRefs) {
+      if (knownSurfaceNames.has(ref.name)) {
+        continue;
+      }
+      const offset = surface.startOffset + 1 + ref.offsetInBody;
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + ref.name.length,
+          "allium.surface.relatedUndefined",
+          `Surface '${surface.name}' references unknown related surface '${ref.name}'.`,
+          "error",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
+function parseRelatedReferences(
+  body: string,
+): Array<{ name: string; offsetInBody: number }> {
+  const refs: Array<{ name: string; offsetInBody: number }> = [];
+  const relatedPattern = /^(\s*)related\s*:\s*$/gm;
+  for (
+    let related = relatedPattern.exec(body);
+    related;
+    related = relatedPattern.exec(body)
+  ) {
+    const baseIndent = (related[1] ?? "").length;
+    const sectionStart = related.index + related[0].length + 1;
+    let cursor = sectionStart;
+
+    while (cursor < body.length) {
+      const nextNewline = body.indexOf("\n", cursor);
+      const lineEnd = nextNewline >= 0 ? nextNewline : body.length;
+      const line = body.slice(cursor, lineEnd);
+      const trimmed = line.trim();
+      const indent = (line.match(/^\s*/) ?? [""])[0].length;
+
+      if (trimmed.length === 0) {
+        cursor = lineEnd + 1;
+        continue;
+      }
+      if (indent <= baseIndent) {
+        break;
+      }
+      if (!trimmed.startsWith("--")) {
+        const identifierPattern = /([A-Za-z_][A-Za-z0-9_]*)/g;
+        for (
+          let ident = identifierPattern.exec(line);
+          ident;
+          ident = identifierPattern.exec(line)
+        ) {
+          refs.push({
+            name: ident[1],
+            offsetInBody: cursor + ident.index,
+          });
+        }
+      }
+
+      cursor = lineEnd + 1;
+    }
+  }
+  return refs;
 }
 
 function applySuppressions(

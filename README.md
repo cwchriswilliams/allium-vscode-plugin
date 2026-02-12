@@ -83,6 +83,7 @@ Implemented checks:
 - empty named `enum` declaration
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
+- undefined surface name referenced inside a surface `related:` section
 - `open_question` warning finding
 
 Diagnostics setting:

@@ -78,6 +78,7 @@ Later checks (parser-backed):
 Current status:
 - Implemented parser-backed block parsing foundation for analyzer traversal.
 - Implemented surface/actor linkage checks (`allium.surface.missingActor`, `allium.actor.unused`).
+- Implemented surface `related:` reference checks (`allium.surface.relatedUndefined`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.

@@ -151,3 +151,20 @@ test("does not report context type for imported alias reference", () => {
     false,
   );
 });
+
+test("reports undefined related surface reference", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for user: User\n  related:\n    MissingSurface\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.relatedUndefined"));
+});
+
+test("does not report related surface when declared", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for user: User\n  related:\n    DetailView\n}\n\nsurface DetailView {\n  for user: User\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.relatedUndefined"),
+    false,
+  );
+});
