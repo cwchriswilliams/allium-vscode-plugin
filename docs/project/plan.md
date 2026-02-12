@@ -159,8 +159,7 @@ Current implementation will proceed with defaults unless you override:
 - Consumer distribution before Marketplace:
   - Completed: repeatable VSIX + standalone CLI archive artifacts via local script and GitHub Actions release workflow.
 - Publish standalone CLI tooling:
-  - Partially completed: release tarball exposes `allium-check` and `allium-format`.
-  - Remaining: dedicated standalone CLI package(s) with stable install name independent from extension package naming.
+  - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check` and `allium-format`.
 - Improve Allium formatter depth:
   - In progress: structure-aware indentation and top-level block spacing implemented.
   - Remaining: richer syntax-aware formatting for additional constructs.

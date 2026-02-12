@@ -6,7 +6,7 @@ This project provides:
 2. A standalone `allium-check` CLI for validation.
 3. A standalone `allium-format` CLI for formatting.
 
-The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI archive) or from source.
+The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
 
 ## Consumer Installation (No Marketplace Yet)
 
@@ -21,7 +21,7 @@ The extension is not yet published on the VS Code Marketplace. Consumers should 
 Each tagged release publishes:
 
 - `allium-vscode-<version>.vsix` (VS Code extension package)
-- `allium-cli-<version>.tar.gz` (standalone CLI bundle exposing `allium-check` and `allium-format`)
+- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check` and `allium-format`)
 
 Install extension from VSIX:
 
@@ -30,13 +30,12 @@ Install extension from VSIX:
 3. Run: `Extensions: Install from VSIX...`
 4. Select the downloaded `.vsix`.
 
-Install standalone CLI tools from release archive:
+Install standalone CLI tools from release npm artifact:
 
 ```bash
-tar -xzf allium-cli-<version>.tar.gz
-cd allium-cli-<version>
-./bin/allium-check --help
-./bin/allium-format --help
+npm install -g ./allium-cli-<version>.tgz
+allium-check --help
+allium-format --help
 ```
 
 ### Option B: Install from source checkout
@@ -48,18 +47,17 @@ npm install
 npm run release:artifacts
 ```
 
-Then install the locally built extension and CLI bundle:
+Then install the locally built extension and CLI package:
 
 1. Install extension VSIX from your local artifacts:
    - VS Code command palette: `Extensions: Install from VSIX...`
    - Select `artifacts/allium-vscode-<version>.vsix`
-2. Use standalone CLI tools from your local archive:
+2. Install standalone CLI tools from your local npm artifact:
 
 ```bash
-tar -xzf artifacts/allium-cli-<version>.tar.gz
-cd allium-cli-<version>
-./bin/allium-check --help
-./bin/allium-format --help
+npm install -g ./artifacts/allium-cli-<version>.tgz
+allium-check --help
+allium-format --help
 ```
 
 ## VS Code Features
@@ -163,7 +161,7 @@ Current formatter behavior:
 Supported paths:
 
 - source checkout usage (repo-level npm commands)
-- release archive usage (`allium-cli-<version>.tar.gz`)
+- release npm artifact usage (`allium-cli-<version>.tgz`)
 
 Planned improvements:
 
@@ -209,7 +207,7 @@ npm run release:artifacts
 Produces `artifacts/` containing:
 
 - VS Code extension package: `allium-vscode-<version>.vsix`
-- standalone CLI archive: `allium-cli-<version>.tar.gz`
+- standalone CLI npm artifact: `allium-cli-<version>.tgz`
 
 ### Automated release path
 

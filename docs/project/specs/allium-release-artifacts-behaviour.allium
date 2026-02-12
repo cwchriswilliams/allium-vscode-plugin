@@ -10,14 +10,14 @@
 
 entity ReleaseArtifact {
     name: String
-    kind: vsix | cli_archive
+    kind: vsix | cli_npm_tgz
 }
 
 rule LocalReleaseBuildCreatesArtifacts {
     when: CommandInvoked(name: "npm run release:artifacts")
 
     ensures: ReleaseArtifact.created(kind: vsix, name: "allium-vscode-<version>.vsix")
-    ensures: ReleaseArtifact.created(kind: cli_archive, name: "allium-cli-<version>.tar.gz")
+    ensures: ReleaseArtifact.created(kind: cli_npm_tgz, name: "allium-cli-<version>.tgz")
 }
 
 rule TaggedBuildPublishesReleaseAssets {
@@ -25,12 +25,12 @@ rule TaggedBuildPublishesReleaseAssets {
 
     ensures: CIWorkflowExecuted(name: release_artifacts)
     ensures: ReleaseArtifactUploaded(kind: vsix)
-    ensures: ReleaseArtifactUploaded(kind: cli_archive)
+    ensures: ReleaseArtifactUploaded(kind: cli_npm_tgz)
 }
 
 rule ManualBuildUploadsArtifacts {
     when: WorkflowDispatched(name: release_artifacts)
 
     ensures: ReleaseArtifactUploaded(kind: vsix)
-    ensures: ReleaseArtifactUploaded(kind: cli_archive)
+    ensures: ReleaseArtifactUploaded(kind: cli_npm_tgz)
 }

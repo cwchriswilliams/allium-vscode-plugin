@@ -5,7 +5,13 @@
   "version": "0.1.0",
   "license": "MIT",
   "publisher": "local",
-  "files": ["dist/**", "language-basics/**", "README.md", "package.json"],
+  "files": [
+    "dist/**",
+    "language-basics/**",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "engines": {
     "vscode": "^1.91.0"
   },

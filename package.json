@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
-  "workspaces": ["extensions/allium"],
+  "workspaces": ["extensions/allium", "packages/allium-cli"],
   "scripts": {
     "build": "npm run --workspaces build",
     "test": "npm run --workspaces test",

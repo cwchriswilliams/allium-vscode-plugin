@@ -59,7 +59,7 @@ rule WriteModeAppliesFormatting {
 }
 
 rule ReleasedCliPackageExposesFormatCommand {
-    when: CliPackageInstalledFromReleaseArchive()
+    when: CliPackageInstalledFromReleaseNpmArtifact()
 
     ensures: CommandAvailable(name: "allium-format")
 }

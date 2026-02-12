@@ -93,7 +93,7 @@ rule WorkspaceCheckCommandDelegatesToChecker {
 }
 
 rule ReleasedCliPackageExposesCheckCommand {
-    when: CliPackageInstalledFromReleaseArchive()
+    when: CliPackageInstalledFromReleaseNpmArtifact()
 
     ensures: CommandAvailable(name: "allium-check")
 }
