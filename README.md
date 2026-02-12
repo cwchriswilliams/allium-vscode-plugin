@@ -99,6 +99,7 @@ Implemented checks:
 - duplicate named `provides` block in a surface
 - entity declared but never referenced elsewhere
 - external entity declared without obvious governing specification import hint
+- deferred specification declaration without location hint
 - `open_question` warning finding
 
 Diagnostics setting:

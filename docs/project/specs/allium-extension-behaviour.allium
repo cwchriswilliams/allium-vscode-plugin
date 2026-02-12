@@ -331,6 +331,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule DeferredSpecificationWithoutLocationHintIsWarning {
+        when: DeferredSpecificationParsed(deferred_spec)
+        requires: deferred_spec.location_hint_present = false
+
+        ensures: Finding.created(
+        code: "allium.deferred.missingLocationHint",
+        severity: warning
+        )
+    }
+
     rule DuplicateContextBindingIsError {
         when: ContextBlockParsed(context_block)
         requires: context_block.contains_duplicate_binding_name = true

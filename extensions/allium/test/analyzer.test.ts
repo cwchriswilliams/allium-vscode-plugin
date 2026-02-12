@@ -349,3 +349,20 @@ test("does not report external entity source warning when imports exist", () => 
     false,
   );
 });
+
+test("reports deferred specification without location hint", () => {
+  const findings = analyzeAllium(`deferred EscalationPolicy.at_level\n`);
+  assert.ok(
+    findings.some((f) => f.code === "allium.deferred.missingLocationHint"),
+  );
+});
+
+test("does not report deferred specification with location hint", () => {
+  const findings = analyzeAllium(
+    `deferred EscalationPolicy.at_level "https://example.com/specs/escalation.allium"\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.deferred.missingLocationHint"),
+    false,
+  );
+});

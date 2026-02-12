@@ -114,6 +114,7 @@ export function analyzeAllium(
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
+  findings.push(...findDeferredLocationHints(text, lineStarts));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -1017,6 +1018,37 @@ function findExternalEntitySourceHints(
         offset + name.length,
         "allium.externalEntity.missingSourceHint",
         `External entity '${name}' has no obvious governing specification import in this module.`,
+        "warning",
+      ),
+    );
+  }
+  return findings;
+}
+
+function findDeferredLocationHints(
+  text: string,
+  lineStarts: number[],
+): Finding[] {
+  const findings: Finding[] = [];
+  const pattern = /^\s*deferred\s+([A-Za-z_][A-Za-z0-9_.]*)(.*)$/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const suffix = (match[2] ?? "").trim();
+    if (
+      suffix.includes("http://") ||
+      suffix.includes("https://") ||
+      suffix.includes('"')
+    ) {
+      continue;
+    }
+    const name = match[1];
+    const offset = match.index + match[0].indexOf(name);
+    findings.push(
+      rangeFinding(
+        lineStarts,
+        offset,
+        offset + name.length,
+        "allium.deferred.missingLocationHint",
+        `Deferred specification '${name}' should include a location hint.`,
         "warning",
       ),
     );
