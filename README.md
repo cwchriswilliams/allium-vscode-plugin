@@ -84,6 +84,7 @@ Implemented checks:
 - duplicate binding name in a module `context` block
 - undefined/unimported binding type in a module `context` block
 - undefined surface name referenced inside a surface `related:` section
+- surface `for`/`context` binding declared but not used in surface body
 - `open_question` warning finding
 
 Diagnostics setting:

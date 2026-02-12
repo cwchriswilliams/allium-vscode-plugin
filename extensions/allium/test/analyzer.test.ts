@@ -168,3 +168,20 @@ test("does not report related surface when declared", () => {
     false,
   );
 });
+
+test("reports unused surface for-binding", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  exposes:\n    System.status\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.unusedBinding"));
+});
+
+test("does not report used surface bindings", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  context assignment: SlotConfirmation\n  exposes:\n    assignment.status\n  provides:\n    DashboardViewed(viewer: viewer)\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.unusedBinding"),
+    false,
+  );
+});

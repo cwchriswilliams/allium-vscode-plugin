@@ -254,6 +254,16 @@ rule UndefinedRelatedSurfaceIsError {
     )
 }
 
+rule UnusedSurfaceBindingIsWarning {
+    when: SurfaceBlockParsed(surface)
+    requires: surface.for_or_context_binding_unused = true
+
+    ensures: Finding.created(
+    code: "allium.surface.unusedBinding",
+    severity: warning
+    )
+}
+
 rule SuppressionCommentDisablesDiagnostic {
     when: SuppressionDirectiveParsed(line, code)
     requires: code = "all" or code = finding.code

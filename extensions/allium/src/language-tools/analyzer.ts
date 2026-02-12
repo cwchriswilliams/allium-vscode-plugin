@@ -103,6 +103,7 @@ export function analyzeAllium(
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
+  findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
 
   return applySuppressions(
     applyDiagnosticsMode(findings, options.mode ?? "strict"),
@@ -530,6 +531,70 @@ function findSurfaceRelatedIssues(
   return findings;
 }
 
+function findSurfaceBindingUsageIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const surfaceBlocks = blocks.filter((block) => block.kind === "surface");
+
+  for (const surface of surfaceBlocks) {
+    const body = surface.body;
+    const forMatch = body.match(
+      /^\s*for\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*[A-Za-z_][A-Za-z0-9_]*(?:\s+with\s+.+)?\s*$/m,
+    );
+    const contextMatch = body.match(
+      /^\s*context\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*[A-Za-z_][A-Za-z0-9_]*(?:\s+with\s+.+)?\s*$/m,
+    );
+    const bindings = [
+      ...(forMatch
+        ? [{ name: forMatch[1], source: "for", line: forMatch[0] }]
+        : []),
+      ...(contextMatch
+        ? [{ name: contextMatch[1], source: "context", line: contextMatch[0] }]
+        : []),
+    ];
+
+    for (const binding of bindings) {
+      const usagePattern = new RegExp(
+        `\\b${escapeRegex(binding.name)}\\b`,
+        "g",
+      );
+      const matches = [...body.matchAll(usagePattern)];
+      if (matches.length > 1) {
+        continue;
+      }
+
+      const linePattern = new RegExp(
+        `^\\s*${binding.source}\\s+${escapeRegex(binding.name)}\\s*:`,
+        "m",
+      );
+      const lineMatch = body.match(linePattern);
+      if (!lineMatch) {
+        continue;
+      }
+      const offsetInBody = body.indexOf(lineMatch[0]);
+      const absoluteOffset =
+        surface.startOffset +
+        1 +
+        offsetInBody +
+        lineMatch[0].indexOf(binding.name);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          absoluteOffset,
+          absoluteOffset + binding.name.length,
+          "allium.surface.unusedBinding",
+          `Surface '${surface.name}' binding '${binding.name}' from '${binding.source}' is not used in the surface body.`,
+          "warning",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
 function parseRelatedReferences(
   body: string,
 ): Array<{ name: string; offsetInBody: number }> {
@@ -618,4 +683,8 @@ function isCommentLineAtIndex(text: string, index: number): boolean {
   const lineEnd = text.indexOf("\n", index);
   const line = text.slice(lineStart, lineEnd >= 0 ? lineEnd : text.length);
   return /^\s*--/.test(line);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
