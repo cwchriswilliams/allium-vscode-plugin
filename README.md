@@ -45,14 +45,22 @@ cd allium-cli-<version>
 git clone <repo-url> allium-vscode
 cd allium-vscode
 npm install
-npm run --workspace extensions/allium build
+npm run release:artifacts
 ```
 
-Local VS Code extension usage from source:
+Then install the locally built extension and CLI bundle:
 
-1. Open this repo in VS Code.
-2. Press `F5` (Run Extension).
-3. In the Extension Development Host window, open `.allium` files.
+1. Install extension VSIX from your local artifacts:
+   - VS Code command palette: `Extensions: Install from VSIX...`
+   - Select `artifacts/allium-vscode-<version>.vsix`
+2. Use standalone CLI tools from your local archive:
+
+```bash
+tar -xzf artifacts/allium-cli-<version>.tar.gz
+cd allium-cli-<version>
+./bin/allium-check --help
+./bin/allium-format --help
+```
 
 ## VS Code Features
 
@@ -183,6 +191,14 @@ npm run check -- docs/project/specs
 npm run format:allium -- docs/project/specs
 npm run release:artifacts
 ```
+
+### Extension development host flow (for plugin development)
+
+Use this when developing/testing extension behavior interactively:
+
+1. Open this repo in VS Code.
+2. Press `F5` to launch an Extension Development Host window.
+3. Open `.allium` files in that host to test extension features.
 
 ### Building release artifacts locally
 
