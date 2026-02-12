@@ -366,3 +366,20 @@ test("does not report deferred specification with location hint", () => {
     false,
   );
 });
+
+test("reports undefined status assignment value", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: pending | active | completed\n}\n\nrule CloseInvitation {\n  when: invitation: Invitation.created_at <= now\n  ensures: invitation.status = archived\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.status.undefinedValue"));
+});
+
+test("does not report known status assignment value", () => {
+  const findings = analyzeAllium(
+    `entity Invitation {\n  status: pending | active | completed\n}\n\nrule CloseInvitation {\n  when: invitation: Invitation.created_at <= now\n  ensures: invitation.status = completed\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.status.undefinedValue"),
+    false,
+  );
+});

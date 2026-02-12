@@ -85,6 +85,7 @@ Current status:
 - Implemented sum-type consistency checks (`allium.sum.*` discriminator/variant/base-instantiation rules).
 - Implemented field type reference checks (`allium.type.undefinedReference`, `allium.type.undefinedImportedAlias`).
 - Implemented rule trigger/creation type reference checks (`allium.rule.undefinedTypeReference`, `allium.rule.undefinedImportedAlias`).
+- Implemented status-assignment enum checks (`allium.status.undefinedValue`).
 - Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Implemented warning checks for unused entities and external entity source hints.
 - Implemented warning checks for deferred specifications missing location hints.

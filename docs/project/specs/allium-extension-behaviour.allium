@@ -311,6 +311,17 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule UndefinedStatusAssignmentValueIsError {
+        when: RuleEnsuresAssignmentParsed(assignment)
+        requires: assignment.target = "<bound_var>.status"
+        requires: assignment.value not in bound_var.entity.status_enum
+
+        ensures: Finding.created(
+        code: "allium.status.undefinedValue",
+        severity: error
+        )
+    }
+
     rule UnusedEntityIsWarning {
         when: EntityParsed(entity)
         requires: entity.referenced_elsewhere_in_module = false

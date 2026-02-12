@@ -102,6 +102,7 @@ export function analyzeAllium(
   findings.push(
     ...findUndefinedExternalConfigReferences(text, lineStarts, blocks),
   );
+  findings.push(...findUndefinedStatusAssignments(text, lineStarts, blocks));
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
   findings.push(...findSumTypeIssues(text, lineStarts));
   findings.push(...findTypeReferenceIssues(text, lineStarts, blocks));
@@ -239,6 +240,63 @@ function findUndefinedExternalConfigReferences(
         "error",
       ),
     );
+  }
+
+  return findings;
+}
+
+function findUndefinedStatusAssignments(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const statusByEntity = collectEntityStatusEnums(text);
+  if (statusByEntity.size === 0) {
+    return findings;
+  }
+
+  const ruleBlocks = blocks.filter((block) => block.kind === "rule");
+  for (const rule of ruleBlocks) {
+    const whenBindingMatch = rule.body.match(
+      /^\s*when\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\./m,
+    );
+    if (!whenBindingMatch) {
+      continue;
+    }
+    const bindingName = whenBindingMatch[1];
+    const entityName = whenBindingMatch[2];
+    const allowedStatuses = statusByEntity.get(entityName);
+    if (!allowedStatuses || allowedStatuses.size === 0) {
+      continue;
+    }
+
+    const ensuresPattern = new RegExp(
+      `^\\s*ensures\\s*:\\s*${escapeRegex(bindingName)}\\.status\\s*=\\s*([a-z_][a-z0-9_]*)\\b`,
+      "gm",
+    );
+    for (
+      let match = ensuresPattern.exec(rule.body);
+      match;
+      match = ensuresPattern.exec(rule.body)
+    ) {
+      const status = match[1];
+      if (allowedStatuses.has(status)) {
+        continue;
+      }
+      const statusOffset =
+        rule.startOffset + 1 + match.index + match[0].lastIndexOf(status);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          statusOffset,
+          statusOffset + status.length,
+          "allium.status.undefinedValue",
+          `Status value '${status}' is not declared in ${entityName}.status enum.`,
+          "error",
+        ),
+      );
+    }
   }
 
   return findings;
@@ -1207,6 +1265,39 @@ function collectFieldTypeSites(
         startOffset: open + 1 + field.index + field[0].indexOf(typeExpression),
       });
     }
+  }
+  return out;
+}
+
+function collectEntityStatusEnums(text: string): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  const entityPattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm;
+  for (
+    let entity = entityPattern.exec(text);
+    entity;
+    entity = entityPattern.exec(text)
+  ) {
+    const open = text.indexOf("{", entity.index);
+    if (open < 0) {
+      continue;
+    }
+    const close = findMatchingBrace(text, open);
+    if (close < 0) {
+      continue;
+    }
+    const body = text.slice(open + 1, close);
+    const statusField = body.match(
+      /^\s*status\s*:\s*([a-z_][a-z0-9_]*(?:\s*\|\s*[a-z_][a-z0-9_]*)+)\s*$/m,
+    );
+    if (!statusField) {
+      continue;
+    }
+    const values = statusField[1]
+      .split("|")
+      .map((v) => v.trim())
+      .filter((v) => v.length > 0);
+    out.set(entity[1], new Set(values));
   }
   return out;
 }
