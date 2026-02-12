@@ -443,6 +443,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule NamedRequiresBlockWithoutDeferredHintIsWarning {
+        when: SurfaceBlockParsed(surface)
+        requires: surface.named_requires_block_name_has_no_matching_deferred_hint = true
+
+        ensures: Finding.created(
+        code: "allium.surface.requiresWithoutDeferred",
+        severity: warning
+        )
+    }
+
     rule DuplicateNamedProvidesBlockIsError {
         when: SurfaceBlockParsed(surface)
         requires: surface.named_provides_block_names_not_unique = true

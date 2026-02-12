@@ -325,6 +325,27 @@ test("reports duplicate named requires blocks in surface", () => {
   );
 });
 
+test("warns for named requires block without deferred hint", () => {
+  const findings = analyzeAllium(
+    `surface Dashboard {\n  for viewer: User\n  requires ApprovalFlow:\n    viewer.id != null\n}\n`,
+  );
+  const finding = findings.find(
+    (f) => f.code === "allium.surface.requiresWithoutDeferred",
+  );
+  assert.ok(finding);
+  assert.equal(finding.severity, "warning");
+});
+
+test("does not warn when named requires block has deferred hint", () => {
+  const findings = analyzeAllium(
+    `deferred Dashboard.ApprovalFlow\n\nsurface Dashboard {\n  for viewer: User\n  requires ApprovalFlow:\n    viewer.id != null\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.surface.requiresWithoutDeferred"),
+    false,
+  );
+});
+
 test("reports duplicate named provides blocks in surface", () => {
   const findings = analyzeAllium(
     `surface Dashboard {\n  for viewer: User\n  provides Navigate:\n    Opened()\n  provides Navigate:\n    Refreshed()\n}\n`,

@@ -115,6 +115,9 @@ export function analyzeAllium(
   findings.push(...findSurfaceRelatedIssues(lineStarts, blocks));
   findings.push(...findSurfaceBindingUsageIssues(lineStarts, blocks));
   findings.push(...findSurfaceNamedBlockUniquenessIssues(lineStarts, blocks));
+  findings.push(
+    ...findSurfaceRequiresDeferredHintIssues(lineStarts, blocks, text),
+  );
   findings.push(...findSurfaceProvidesTriggerIssues(lineStarts, blocks, text));
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
@@ -1215,6 +1218,55 @@ function findSurfaceNamedBlockUniquenessIssues(
       ),
     );
   }
+  return findings;
+}
+
+function findSurfaceRequiresDeferredHintIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+  text: string,
+): Finding[] {
+  const findings: Finding[] = [];
+  const deferredNames = new Set<string>();
+  const deferredPattern = /^\s*deferred\s+([A-Za-z_][A-Za-z0-9_.]*)\b/gm;
+  for (
+    let deferred = deferredPattern.exec(text);
+    deferred;
+    deferred = deferredPattern.exec(text)
+  ) {
+    deferredNames.add(deferred[1]);
+  }
+
+  const surfaces = blocks.filter((block) => block.kind === "surface");
+  const requiresPattern = /^\s*requires\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
+  for (const surface of surfaces) {
+    for (
+      let match = requiresPattern.exec(surface.body);
+      match;
+      match = requiresPattern.exec(surface.body)
+    ) {
+      const requiresName = match[1];
+      const hasDeferredHint = [...deferredNames].some(
+        (name) => name === requiresName || name.endsWith(`.${requiresName}`),
+      );
+      if (hasDeferredHint) {
+        continue;
+      }
+      const offset =
+        surface.startOffset + 1 + match.index + match[0].indexOf(requiresName);
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          offset,
+          offset + requiresName.length,
+          "allium.surface.requiresWithoutDeferred",
+          `Named requires block '${requiresName}' in surface '${surface.name}' has no matching deferred specification hint.`,
+          "warning",
+        ),
+      );
+    }
+  }
+
   return findings;
 }
 

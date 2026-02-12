@@ -99,6 +99,7 @@ Implemented checks:
 - undefined surface name referenced inside a surface `related:` section
 - surface `for`/`context` binding declared but not used in surface body
 - duplicate named `requires` block in a surface
+- named `requires` block in a surface without matching deferred hint
 - duplicate named `provides` block in a surface
 - trigger used in surface `provides` but not defined as external-stimulus rule trigger
 - implicit lambda shorthand in collection operators (`any/all/each`) instead of explicit `x => ...`
