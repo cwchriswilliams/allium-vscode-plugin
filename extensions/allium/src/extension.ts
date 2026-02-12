@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import { findDefinitionsAtOffset } from "./language-tools/definitions";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
+import { hoverTextAtOffset } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import { collectAlliumSymbols } from "./language-tools/outline";
 
@@ -93,6 +94,13 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDefinitionProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumDefinitionProvider()
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumHoverProvider()
     )
   );
 }
@@ -251,5 +259,16 @@ class AlliumDefinitionProvider implements vscode.DefinitionProvider {
       const end = document.positionAt(match.endOffset);
       return new vscode.Location(document.uri, new vscode.Range(start, end));
     });
+  }
+}
+
+class AlliumHoverProvider implements vscode.HoverProvider {
+  provideHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | null {
+    const text = document.getText();
+    const message = hoverTextAtOffset(text, document.offsetAt(position));
+    if (!message) {
+      return null;
+    }
+    return new vscode.Hover(message);
   }
 }

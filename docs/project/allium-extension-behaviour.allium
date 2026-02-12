@@ -215,3 +215,11 @@ rule ResolveLocalDefinitions {
 
     ensures: DefinitionLocationReturned()
 }
+
+rule ProvideKeywordHoverDocumentation {
+    when: HoverRequested(document, token_at_cursor)
+    requires: document.language_id = "allium"
+    requires: token_at_cursor in [entity, rule, when, requires, ensures, config, surface, actor, open_question, deferred]
+
+    ensures: HoverDocumentationReturned()
+}
