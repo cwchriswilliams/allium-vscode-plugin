@@ -204,6 +204,26 @@ rule EmptyEnumIsWarning {
     )
 }
 
+rule DuplicateContextBindingIsError {
+    when: ContextBlockParsed(context_block)
+    requires: context_block.contains_duplicate_binding_name = true
+
+    ensures: Finding.created(
+    code: "allium.context.duplicateBinding",
+    severity: error
+    )
+}
+
+rule UndefinedContextBindingTypeIsError {
+    when: ContextBlockParsed(context_block)
+    requires: context_block.binding_type_not_declared_locally_or_imported = true
+
+    ensures: Finding.created(
+    code: "allium.context.undefinedType",
+    severity: error
+    )
+}
+
 rule SurfaceActorLinkValidation {
     when: SurfaceBlockParsed(surface)
     requires: surface.actor_reference_missing_locally = true

@@ -99,6 +99,7 @@ export function analyzeAllium(
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
   findings.push(...findUndefinedConfigReferences(text, lineStarts, blocks));
   findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
+  findings.push(...findContextBindingIssues(text, lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
 
@@ -275,6 +276,105 @@ function findEnumDeclarationIssues(
           "warning",
         ),
       );
+    }
+  }
+
+  return findings;
+}
+
+function findContextBindingIssues(
+  text: string,
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const localEntityTypes = new Set<string>();
+  const declaredEntityPattern =
+    /^\s*(?:external\s+)?entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm;
+  for (
+    let match = declaredEntityPattern.exec(text);
+    match;
+    match = declaredEntityPattern.exec(text)
+  ) {
+    localEntityTypes.add(match[1]);
+  }
+  const variantPattern = /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\s*:/gm;
+  for (
+    let match = variantPattern.exec(text);
+    match;
+    match = variantPattern.exec(text)
+  ) {
+    localEntityTypes.add(match[1]);
+  }
+
+  const importAliases = new Set(
+    blocks
+      .filter((block) => block.kind === "use")
+      .map((block) => block.alias ?? block.name),
+  );
+  const contextBlocks = blocks.filter((block) => block.kind === "context");
+  const bindingPattern =
+    /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*([A-Za-z_][A-Za-z0-9_]*(?:\/[A-Za-z_][A-Za-z0-9_]*)?)\s*$/gm;
+
+  for (const block of contextBlocks) {
+    const seenBindings = new Set<string>();
+    for (
+      let match = bindingPattern.exec(block.body);
+      match;
+      match = bindingPattern.exec(block.body)
+    ) {
+      const bindingName = match[1];
+      const bindingType = match[2];
+      const bindingOffset =
+        block.startOffset + 1 + match.index + match[0].indexOf(bindingName);
+
+      if (seenBindings.has(bindingName)) {
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            bindingOffset,
+            bindingOffset + bindingName.length,
+            "allium.context.duplicateBinding",
+            `Context binding '${bindingName}' is declared more than once.`,
+            "error",
+          ),
+        );
+      }
+      seenBindings.add(bindingName);
+
+      if (bindingType.includes("/")) {
+        const alias = bindingType.split("/")[0];
+        if (!importAliases.has(alias)) {
+          const typeOffset =
+            block.startOffset + 1 + match.index + match[0].indexOf(bindingType);
+          findings.push(
+            rangeFinding(
+              lineStarts,
+              typeOffset,
+              typeOffset + bindingType.length,
+              "allium.context.undefinedType",
+              `Context binding type '${bindingType}' does not resolve to a local entity or imported alias.`,
+              "error",
+            ),
+          );
+        }
+        continue;
+      }
+
+      if (!localEntityTypes.has(bindingType)) {
+        const typeOffset =
+          block.startOffset + 1 + match.index + match[0].indexOf(bindingType);
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            typeOffset,
+            typeOffset + bindingType.length,
+            "allium.context.undefinedType",
+            `Context binding type '${bindingType}' does not resolve to a local entity or imported alias.`,
+            "error",
+          ),
+        );
+      }
     }
   }
 

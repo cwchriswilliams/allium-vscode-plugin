@@ -129,3 +129,25 @@ test("reports empty enum declarations", () => {
   const findings = analyzeAllium(`enum Recommendation {\n}\n`);
   assert.ok(findings.some((f) => f.code === "allium.enum.empty"));
 });
+
+test("reports duplicate context binding names", () => {
+  const findings = analyzeAllium(
+    `entity Pipeline {\n  status: String\n}\n\ncontext {\n  pipeline: Pipeline\n  pipeline: Pipeline\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.context.duplicateBinding"));
+});
+
+test("reports undefined context binding type", () => {
+  const findings = analyzeAllium(`context {\n  pipeline: MissingType\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.context.undefinedType"));
+});
+
+test("does not report context type for imported alias reference", () => {
+  const findings = analyzeAllium(
+    `use "./shared.allium" as scheduling\n\ncontext {\n  calendar: scheduling/calendar\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.context.undefinedType"),
+    false,
+  );
+});

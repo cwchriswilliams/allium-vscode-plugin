@@ -79,6 +79,7 @@ Current status:
 - Implemented parser-backed block parsing foundation for analyzer traversal.
 - Implemented surface/actor linkage checks (`allium.surface.missingActor`, `allium.actor.unused`).
 - Implemented enum declaration checks (`allium.enum.duplicateLiteral`, `allium.enum.empty`).
+- Implemented context block binding checks (`allium.context.duplicateBinding`, `allium.context.undefinedType`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
 ### Phase 3: Snippets (Priority 3)

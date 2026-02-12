@@ -81,6 +81,8 @@ Implemented checks:
 - undefined `config.<key>` reference
 - duplicate literal in a named `enum` declaration
 - empty named `enum` declaration
+- duplicate binding name in a module `context` block
+- undefined/unimported binding type in a module `context` block
 - `open_question` warning finding
 
 Diagnostics setting:
