@@ -117,3 +117,15 @@ test("does not treat config references inside comments as findings", () => {
     false,
   );
 });
+
+test("reports duplicate enum literals", () => {
+  const findings = analyzeAllium(
+    `enum Recommendation {\n  yes | no | yes\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.enum.duplicateLiteral"));
+});
+
+test("reports empty enum declarations", () => {
+  const findings = analyzeAllium(`enum Recommendation {\n}\n`);
+  assert.ok(findings.some((f) => f.code === "allium.enum.empty"));
+});

@@ -98,6 +98,7 @@ export function analyzeAllium(
 
   findings.push(...findDuplicateConfigKeys(text, lineStarts, blocks));
   findings.push(...findUndefinedConfigReferences(text, lineStarts, blocks));
+  findings.push(...findEnumDeclarationIssues(lineStarts, blocks));
   findings.push(...findOpenQuestions(text, lineStarts));
   findings.push(...findSurfaceActorLinkIssues(text, lineStarts, blocks));
 
@@ -223,6 +224,57 @@ function findDuplicateConfigKeys(
         );
       }
       seen.add(key);
+    }
+  }
+
+  return findings;
+}
+
+function findEnumDeclarationIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const enumBlocks = blocks.filter((block) => block.kind === "enum");
+
+  for (const block of enumBlocks) {
+    const literals = new Set<string>();
+    let foundAny = false;
+    const literalPattern = /\b([a-z_][a-z0-9_]*)\b/g;
+    for (
+      let literal = literalPattern.exec(block.body);
+      literal;
+      literal = literalPattern.exec(block.body)
+    ) {
+      foundAny = true;
+      const value = literal[1];
+      if (literals.has(value)) {
+        const offset = block.startOffset + 1 + literal.index;
+        findings.push(
+          rangeFinding(
+            lineStarts,
+            offset,
+            offset + value.length,
+            "allium.enum.duplicateLiteral",
+            `Enum '${block.name}' declares literal '${value}' more than once.`,
+            "error",
+          ),
+        );
+      }
+      literals.add(value);
+    }
+
+    if (!foundAny) {
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          block.startOffset,
+          block.startOffset + block.name.length,
+          "allium.enum.empty",
+          `Enum '${block.name}' should declare at least one literal.`,
+          "warning",
+        ),
+      );
     }
   }
 

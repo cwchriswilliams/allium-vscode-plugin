@@ -184,6 +184,26 @@ rule OpenQuestionEmitsInformationalFinding {
     )
 }
 
+rule DuplicateEnumLiteralIsError {
+    when: EnumBlockParsed(enum_block)
+    requires: enum_block.contains_duplicate_literal = true
+
+    ensures: Finding.created(
+    code: "allium.enum.duplicateLiteral",
+    severity: error
+    )
+}
+
+rule EmptyEnumIsWarning {
+    when: EnumBlockParsed(enum_block)
+    requires: enum_block.literal_count = 0
+
+    ensures: Finding.created(
+    code: "allium.enum.empty",
+    severity: warning
+    )
+}
+
 rule SurfaceActorLinkValidation {
     when: SurfaceBlockParsed(surface)
     requires: surface.actor_reference_missing_locally = true

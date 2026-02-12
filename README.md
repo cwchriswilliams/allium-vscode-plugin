@@ -79,6 +79,8 @@ Implemented checks:
 - duplicate `let` binding in a rule
 - duplicate key in a `config` block
 - undefined `config.<key>` reference
+- duplicate literal in a named `enum` declaration
+- empty named `enum` declaration
 - `open_question` informational finding
 
 Diagnostics setting:

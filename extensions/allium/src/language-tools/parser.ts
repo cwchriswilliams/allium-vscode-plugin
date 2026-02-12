@@ -1,5 +1,5 @@
 export interface ParsedBlock {
-  kind: "rule" | "config" | "surface" | "actor" | "use";
+  kind: "rule" | "config" | "surface" | "actor" | "enum" | "use";
   name: string;
   startOffset: number;
   endOffset: number;
@@ -15,6 +15,13 @@ export function parseAlliumBlocks(text: string): ParsedBlock[] {
       text,
       /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
       "rule",
+    ),
+  );
+  blocks.push(
+    ...findNamedBraceBlocks(
+      text,
+      /^\s*enum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{/gm,
+      "enum",
     ),
   );
   blocks.push(
