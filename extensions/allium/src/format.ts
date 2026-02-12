@@ -4,6 +4,8 @@ import * as path from "node:path";
 
 interface ParsedArgs {
   checkOnly: boolean;
+  indentWidth: number;
+  topLevelSpacing: number;
   inputs: string[];
 }
 
@@ -22,7 +24,10 @@ function main(argv: string[]): number {
   let changed = 0;
   for (const filePath of files) {
     const original = fs.readFileSync(filePath, "utf8");
-    const formatted = formatAlliumText(original);
+    const formatted = formatAlliumText(original, {
+      indentWidth: parsed.indentWidth,
+      topLevelSpacing: parsed.topLevelSpacing,
+    });
     if (formatted === original) {
       continue;
     }
@@ -56,7 +61,17 @@ function main(argv: string[]): number {
   return 0;
 }
 
-export function formatAlliumText(text: string): string {
+export interface FormatOptions {
+  indentWidth?: number;
+  topLevelSpacing?: number;
+}
+
+export function formatAlliumText(
+  text: string,
+  options: FormatOptions = {},
+): string {
+  const indentWidth = clampInteger(options.indentWidth ?? 4, 1, 8);
+  const topLevelSpacing = clampInteger(options.topLevelSpacing ?? 1, 0, 3);
   const normalized = text.replace(/\r\n?/g, "\n");
   const lines = normalized
     .split("\n")
@@ -89,12 +104,14 @@ export function formatAlliumText(text: string): string {
     if (
       isTopLevelDeclaration &&
       formattedLines.length > 0 &&
-      formattedLines[formattedLines.length - 1] !== ""
+      blankLinesAtEnd(formattedLines) < topLevelSpacing
     ) {
-      formattedLines.push("");
+      while (blankLinesAtEnd(formattedLines) < topLevelSpacing) {
+        formattedLines.push("");
+      }
     }
 
-    const indent = " ".repeat(indentLevel * 4);
+    const indent = " ".repeat(indentLevel * indentWidth);
     formattedLines.push(`${indent}${trimmed}`);
 
     const openCount = countOccurrences(trimmed, "{");
@@ -128,10 +145,33 @@ function countLeadingClosers(text: string): number {
 function parseArgs(argv: string[]): ParsedArgs | null {
   const inputs: string[] = [];
   let checkOnly = false;
+  let indentWidth = 4;
+  let topLevelSpacing = 1;
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
     if (arg === "--check") {
       checkOnly = true;
+      continue;
+    }
+    if (arg === "--indent-width") {
+      const value = Number(argv[i + 1]);
+      if (!Number.isInteger(value) || value < 1 || value > 8) {
+        printUsage("Expected --indent-width <1-8>");
+        return null;
+      }
+      indentWidth = value;
+      i += 1;
+      continue;
+    }
+    if (arg === "--top-level-spacing") {
+      const value = Number(argv[i + 1]);
+      if (!Number.isInteger(value) || value < 0 || value > 3) {
+        printUsage("Expected --top-level-spacing <0-3>");
+        return null;
+      }
+      topLevelSpacing = value;
+      i += 1;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -146,7 +186,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { checkOnly, inputs };
+  return { checkOnly, indentWidth, topLevelSpacing, inputs };
 }
 
 function printUsage(error?: string): void {
@@ -154,7 +194,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/format.js [--check] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/format.js [--check] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
   );
 }
 
@@ -230,6 +270,21 @@ function wildcardToRegex(pattern: string): RegExp {
     .replace(/\?/g, ".");
 
   return new RegExp(`^${escaped}$`);
+}
+
+function blankLinesAtEnd(lines: string[]): number {
+  let count = 0;
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (lines[i] !== "") {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.floor(value)));
 }
 
 if (require.main === module) {

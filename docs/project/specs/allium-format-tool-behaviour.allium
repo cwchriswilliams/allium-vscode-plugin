@@ -63,3 +63,11 @@ rule ReleasedCliPackageExposesFormatCommand {
 
     ensures: CommandAvailable(name: "allium-format")
 }
+
+rule FormatterSupportsConfigurableIndentAndSpacing {
+    when: FormatCommandInvokedWithOptions(indent_width, top_level_spacing)
+    requires: indent_width in [1..8]
+    requires: top_level_spacing in [0..3]
+
+    ensures: FormattingAppliedWith(indent_width, top_level_spacing)
+}

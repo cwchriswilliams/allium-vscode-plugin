@@ -87,9 +87,16 @@ Diagnostics setting:
   - `strict` (default)
   - `relaxed` (suppresses temporal-guard warning and downgrades undefined config reference severity)
 
+Formatting settings:
+
+- `allium.format.indentWidth` (default: `4`)
+- `allium.format.topLevelSpacing` (default: `1`)
+
 ### Commands and quick actions
 
 - Command: `Allium: Run Checks` (`allium.runChecks`)
+- Command: `Allium: Apply All Safe Fixes` (`allium.applySafeFixes`)
+- Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
   - insert temporal `requires:` guard scaffold
@@ -100,9 +107,11 @@ Diagnostics setting:
 ### Productivity features
 
 - document symbols / outline for top-level blocks
-- go to definition for local top-level symbols and `config.<key>` references
-- hover docs for core Allium keywords
+- go to definition for local top-level symbols, `config.<key>`, and imported symbols via `use "... " as alias`
+- rename for locally declared symbols
+- hover docs for core Allium keywords with declaration/import context
 - folding ranges for top-level blocks
+- document formatting for `.allium` files
 
 ## Standalone CLI Usage
 
@@ -148,6 +157,7 @@ Direct built script:
 ```bash
 node extensions/allium/dist/src/format.js docs/project/specs
 node extensions/allium/dist/src/format.js --check "docs/project/specs/**/*.allium"
+node extensions/allium/dist/src/format.js --indent-width 2 --top-level-spacing 0 docs/project/specs
 ```
 
 Current formatter behavior:
@@ -155,6 +165,8 @@ Current formatter behavior:
 - normalize line endings to LF
 - trim trailing whitespace
 - enforce a single trailing newline
+- normalize block indentation
+- normalize spacing between top-level blocks
 
 ## Using CLI Tools Outside This Repo
 

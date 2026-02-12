@@ -38,6 +38,18 @@ test("formatAlliumText applies structural indentation and top-level spacing", ()
   );
 });
 
+test("formatAlliumText respects indent width and top-level spacing options", () => {
+  const input = "rule A {\nwhen: Ping()\n}\nrule B {\nwhen: Pong()\n}\n";
+  const output = formatAlliumText(input, {
+    indentWidth: 2,
+    topLevelSpacing: 2,
+  });
+  assert.equal(
+    output,
+    "rule A {\n  when: Ping()\n}\n\n\nrule B {\n  when: Pong()\n}\n",
+  );
+});
+
 test("format CLI rewrites .allium files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
   const target = path.join(dir, "spec.allium");
@@ -86,4 +98,20 @@ test("format CLI fails with exit code 2 when input has no .allium files", () => 
   const result = runFormat(["notes.txt"], dir);
   assert.equal(result.status, 2);
   assert.match(result.stderr, /No \.allium files found/);
+});
+
+test("format CLI accepts indent and spacing options", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  const target = path.join(dir, "spec.allium");
+  fs.writeFileSync(target, "rule A {\nwhen: Ping()\n}\n", "utf8");
+
+  const result = runFormat(
+    ["--indent-width", "2", "--top-level-spacing", "0", "spec.allium"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  assert.equal(
+    fs.readFileSync(target, "utf8"),
+    "rule A {\n  when: Ping()\n}\n",
+  );
 });

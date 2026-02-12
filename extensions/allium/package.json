@@ -52,6 +52,20 @@
           "enum": ["strict", "relaxed"],
           "default": "strict",
           "markdownDescription": "Controls diagnostics strictness. `strict` enables all checks. `relaxed` suppresses temporal-guard warnings and downgrades some diagnostics."
+        },
+        "allium.format.indentWidth": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "markdownDescription": "Indent width used by Allium document formatting."
+        },
+        "allium.format.topLevelSpacing": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 3,
+          "markdownDescription": "Blank lines inserted between top-level Allium blocks during formatting."
         }
       }
     },
@@ -59,6 +73,14 @@
       {
         "command": "allium.runChecks",
         "title": "Allium: Run Checks"
+      },
+      {
+        "command": "allium.applySafeFixes",
+        "title": "Allium: Apply All Safe Fixes"
+      },
+      {
+        "command": "allium.showSpecHealth",
+        "title": "Allium: Show Spec Health"
       }
     ]
   },

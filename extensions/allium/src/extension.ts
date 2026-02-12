@@ -1,6 +1,13 @@
 import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
-import { findDefinitionsAtOffset } from "./language-tools/definitions";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import {
+  findDefinitionsAtOffset,
+  importedSymbolAtOffset,
+  parseUseAliases,
+  tokenAtOffset,
+} from "./language-tools/definitions";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
 import { formatAlliumText } from "./format";
@@ -76,6 +83,24 @@ export function activate(context: vscode.ExtensionContext): void {
       void vscode.window.showInformationMessage("Allium checks completed.");
     }),
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.applySafeFixes", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+        void vscode.window.showInformationMessage(
+          "Open an .allium file to apply safe fixes.",
+        );
+        return;
+      }
+      await applySafeFixes(editor.document);
+    }),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.showSpecHealth", async () => {
+      await showSpecHealthSummary();
+    }),
+  );
 
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
@@ -102,6 +127,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.languages.registerDefinitionProvider(
       { language: ALLIUM_LANGUAGE_ID },
       new AlliumDefinitionProvider(),
+    ),
+  );
+  context.subscriptions.push(
+    vscode.languages.registerRenameProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumRenameProvider(),
     ),
   );
 
@@ -294,12 +325,95 @@ class AlliumDefinitionProvider implements vscode.DefinitionProvider {
   ): vscode.Location[] {
     const text = document.getText();
     const offset = document.offsetAt(position);
-    const matches = findDefinitionsAtOffset(text, offset);
-    return matches.map((match) => {
-      const start = document.positionAt(match.startOffset);
-      const end = document.positionAt(match.endOffset);
-      return new vscode.Location(document.uri, new vscode.Range(start, end));
+    const localMatches = findDefinitionsAtOffset(text, offset);
+    if (localMatches.length > 0) {
+      return localMatches.map((match) => {
+        const start = document.positionAt(match.startOffset);
+        const end = document.positionAt(match.endOffset);
+        return new vscode.Location(document.uri, new vscode.Range(start, end));
+      });
+    }
+
+    const imported = importedSymbolAtOffset(text, offset);
+    if (!imported) {
+      return [];
+    }
+
+    const alias = parseUseAliases(text).find(
+      (value) => value.alias === imported.alias,
+    );
+    if (!alias) {
+      return [];
+    }
+
+    const targetPath = path.resolve(
+      path.dirname(document.uri.fsPath),
+      alias.sourcePath,
+    );
+    if (!fs.existsSync(targetPath)) {
+      return [];
+    }
+    const targetText = fs.readFileSync(targetPath, "utf8");
+    const targetMatches = findDefinitionsAtOffset(
+      targetText,
+      findTokenOffset(targetText, imported.symbol),
+    ).filter((entry) => entry.name === imported.symbol);
+    return targetMatches.map((match) => {
+      const start = offsetToPosition(targetText, match.startOffset);
+      const end = offsetToPosition(targetText, match.endOffset);
+      return new vscode.Location(
+        vscode.Uri.file(targetPath),
+        new vscode.Range(start, end),
+      );
     });
+  }
+}
+
+class AlliumRenameProvider implements vscode.RenameProvider {
+  provideRenameEdits(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    newName: string,
+  ): vscode.WorkspaceEdit | null {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(newName)) {
+      return null;
+    }
+
+    const text = document.getText();
+    const offset = document.offsetAt(position);
+    const token = tokenAtOffset(text, offset);
+    if (!token) {
+      return null;
+    }
+    const definitions = findDefinitionsAtOffset(text, offset);
+    if (definitions.length === 0) {
+      return null;
+    }
+
+    const edit = new vscode.WorkspaceEdit();
+    const pattern = new RegExp(`\\b${escapeRegex(token.name)}\\b`, "g");
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      const start = document.positionAt(match.index);
+      const end = document.positionAt(match.index + token.name.length);
+      edit.replace(document.uri, new vscode.Range(start, end), newName);
+    }
+    return edit;
+  }
+
+  prepareRename(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.Range | null {
+    const text = document.getText();
+    const offset = document.offsetAt(position);
+    const tokenRange = tokenRangeAtOffset(text, offset);
+    if (!tokenRange) {
+      return null;
+    }
+    return new vscode.Range(
+      document.positionAt(tokenRange.startOffset),
+      document.positionAt(tokenRange.endOffset),
+    );
   }
 }
 
@@ -310,10 +424,39 @@ class AlliumHoverProvider implements vscode.HoverProvider {
   ): vscode.Hover | null {
     const text = document.getText();
     const message = hoverTextAtOffset(text, document.offsetAt(position));
-    if (!message) {
+    const definitions = findDefinitionsAtOffset(
+      text,
+      document.offsetAt(position),
+    );
+    if (!message && definitions.length === 0) {
       return null;
     }
-    return new vscode.Hover(message);
+
+    const lines: string[] = [];
+    if (message) {
+      lines.push(message);
+    }
+    if (definitions.length > 0) {
+      const symbol = definitions[0];
+      lines.push(`\nDeclared as \`${symbol.kind}\` in this file.`);
+    } else {
+      const imported = importedSymbolAtOffset(
+        text,
+        document.offsetAt(position),
+      );
+      if (imported) {
+        const alias = parseUseAliases(text).find(
+          (entry) => entry.alias === imported.alias,
+        );
+        if (alias) {
+          lines.push(
+            `\nImported via \`${imported.alias}\` from \`${alias.sourcePath}\`.`,
+          );
+        }
+      }
+    }
+
+    return new vscode.Hover(lines.join(""));
   }
 }
 
@@ -333,7 +476,11 @@ class AlliumFormattingProvider
     document: vscode.TextDocument,
   ): vscode.TextEdit[] {
     const original = document.getText();
-    const formatted = formatAlliumText(original);
+    const config = vscode.workspace.getConfiguration("allium");
+    const formatted = formatAlliumText(original, {
+      indentWidth: config.get<number>("format.indentWidth", 4),
+      topLevelSpacing: config.get<number>("format.topLevelSpacing", 1),
+    });
     if (formatted === original) {
       return [];
     }
@@ -344,4 +491,112 @@ class AlliumFormattingProvider
     );
     return [vscode.TextEdit.replace(wholeDocument, formatted)];
   }
+}
+
+async function applySafeFixes(document: vscode.TextDocument): Promise<void> {
+  const findings = analyzeAllium(document.getText(), {
+    mode: readDiagnosticsMode(),
+  });
+  const edit = new vscode.WorkspaceEdit();
+
+  for (const finding of findings) {
+    if (finding.code === "allium.rule.missingEnsures") {
+      edit.insert(
+        document.uri,
+        new vscode.Position(finding.start.line, 0),
+        "    ensures: TODO()\n",
+      );
+    }
+    if (finding.code === "allium.temporal.missingGuard") {
+      const whenLine = finding.start.line;
+      const indent =
+        document.lineAt(whenLine).text.match(/^\s*/)?.[0] ?? "    ";
+      edit.insert(
+        document.uri,
+        new vscode.Position(whenLine + 1, 0),
+        `${indent}requires: /* add temporal guard */\n`,
+      );
+    }
+  }
+
+  await vscode.workspace.applyEdit(edit);
+  void vscode.window.showInformationMessage("Applied all safe Allium fixes.");
+}
+
+async function showSpecHealthSummary(): Promise<void> {
+  const files = await vscode.workspace.findFiles(
+    "**/*.allium",
+    "**/{node_modules,dist,.git}/**",
+  );
+  let errors = 0;
+  let warnings = 0;
+  let infos = 0;
+  const fileSummaries: string[] = [];
+
+  for (const file of files) {
+    const text = Buffer.from(await vscode.workspace.fs.readFile(file)).toString(
+      "utf8",
+    );
+    const findings = analyzeAllium(text, { mode: "strict" });
+    const e = findings.filter((f) => f.severity === "error").length;
+    const w = findings.filter((f) => f.severity === "warning").length;
+    const i = findings.filter((f) => f.severity === "info").length;
+    errors += e;
+    warnings += w;
+    infos += i;
+    fileSummaries.push(`${path.basename(file.fsPath)}  E:${e} W:${w} I:${i}`);
+  }
+
+  const pick = await vscode.window.showQuickPick(fileSummaries.sort(), {
+    placeHolder: `Allium spec health — Errors: ${errors}, Warnings: ${warnings}, Info: ${infos}`,
+  });
+  if (!pick) {
+    return;
+  }
+  void vscode.window.showInformationMessage(pick);
+}
+
+function findTokenOffset(text: string, token: string): number {
+  return Math.max(0, text.indexOf(token));
+}
+
+function offsetToPosition(text: string, offset: number): vscode.Position {
+  let line = 0;
+  let character = 0;
+  for (let i = 0; i < offset && i < text.length; i += 1) {
+    if (text[i] === "\n") {
+      line += 1;
+      character = 0;
+    } else {
+      character += 1;
+    }
+  }
+  return new vscode.Position(line, character);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tokenRangeAtOffset(
+  text: string,
+  offset: number,
+): { startOffset: number; endOffset: number } | null {
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+  const isIdent = (char: string | undefined): boolean =>
+    !!char && /[A-Za-z0-9_]/.test(char);
+  let start = offset;
+  while (start > 0 && isIdent(text[start - 1])) {
+    start -= 1;
+  }
+  let end = offset;
+  while (end < text.length && isIdent(text[end])) {
+    end += 1;
+  }
+  if (start === end) {
+    return null;
+  }
+  return { startOffset: start, endOffset: end };
 }

@@ -75,6 +75,11 @@ Later checks (parser-backed):
 - Sum type validations.
 - Surface/actor linkage validation.
 
+Current status:
+- Implemented parser-backed block parsing foundation for analyzer traversal.
+- Implemented surface/actor linkage checks (`allium.surface.missingActor`, `allium.actor.unused`).
+- Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
+
 ### Phase 3: Snippets (Priority 3)
 
 Provide high-value authoring snippets:
@@ -98,6 +103,7 @@ Current status:
 - Implemented: extract repeated literal to `config`.
 - Implemented: add temporal guard from selected `when` condition.
 - Pending: inline enum conversion once enum syntax is finalized.
+- Implemented: command to apply all safe built-in quick fixes in one action.
 
 Then migrate to semantic refactors via parser AST + symbol table.
 
@@ -113,9 +119,12 @@ Then migrate to semantic refactors via parser AST + symbol table.
 Current status:
 - Implemented: document symbols and outline for top-level Allium blocks.
 - Implemented: go to definition for local top-level symbols and `config.<key>` references.
+- Implemented: go to definition across local `use "... " as alias` imports.
+- Implemented: local symbol rename provider.
 - Implemented: hover documentation for core Allium keywords.
 - Implemented: folding ranges for top-level blocks.
 - Implemented: VS Code document formatting via shared Allium formatter.
+- Implemented: spec health command for workspace-level Allium diagnostics summary.
 
 ## Engineering Approach
 

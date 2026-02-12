@@ -83,3 +83,37 @@ test("relaxed mode downgrades undefined config severity", () => {
   assert.ok(finding);
   assert.equal(finding.severity, "info");
 });
+
+test("reports missing actor referenced by surface", () => {
+  const findings = analyzeAllium(
+    `surface ChildView {\n  for parent: Parent\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.surface.missingActor"));
+});
+
+test("reports unused actor when not referenced by any surface", () => {
+  const findings = analyzeAllium(
+    `actor Parent {\n  identified_by: User.email\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.actor.unused"));
+});
+
+test("suppresses finding using allium-ignore on previous line", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  -- allium-ignore allium.config.undefinedReference\n  ensures: now + config.missing\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.config.undefinedReference"),
+    false,
+  );
+});
+
+test("does not treat config references inside comments as findings", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping()\n  -- config.missing\n  ensures: Done()\n}\n`,
+  );
+  assert.equal(
+    findings.some((f) => f.code === "allium.config.undefinedReference"),
+    false,
+  );
+});

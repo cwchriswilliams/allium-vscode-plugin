@@ -86,6 +86,21 @@ rule RunChecksWithAlliumEditor {
     ensures: UserInformed(message: "Allium checks completed.")
 }
 
+rule ApplyAllSafeFixesCommand {
+    when: CommandInvoked(name: "allium.applySafeFixes")
+    requires: ActiveEditorLanguage() = "allium"
+
+    ensures: SafeQuickFixesApplied()
+    ensures: UserInformed(message: "Applied all safe Allium fixes.")
+}
+
+rule ShowSpecHealthCommand {
+    when: CommandInvoked(name: "allium.showSpecHealth")
+
+    ensures: WorkspaceAlliumFilesAnalyzed(mode: strict)
+    ensures: HealthSummaryPresented()
+}
+
 rule RuleMustHaveWhenTrigger {
     when: RuleBlockParsed(rule)
     requires: rule.has_when = false
@@ -169,6 +184,34 @@ rule OpenQuestionEmitsInformationalFinding {
     )
 }
 
+rule SurfaceActorLinkValidation {
+    when: SurfaceBlockParsed(surface)
+    requires: surface.actor_reference_missing_locally = true
+
+    ensures: Finding.created(
+    code: "allium.surface.missingActor",
+    severity: warning
+    )
+}
+
+rule UnusedActorReported {
+    when: ActorBlockParsed(actor)
+    requires: actor.referenced_by_local_surface = false
+
+    ensures: Finding.created(
+    code: "allium.actor.unused",
+    severity: info
+    )
+}
+
+rule SuppressionCommentDisablesDiagnostic {
+    when: SuppressionDirectiveParsed(line, code)
+    requires: code = "all" or code = finding.code
+    requires: finding.line = line or finding.line = line + 1
+
+    ensures: FindingSuppressed(finding)
+}
+
 rule QuickFixForMissingEnsures {
     when: QuickFixRequestedForFinding(finding)
     requires: finding.code = "allium.rule.missingEnsures"
@@ -235,12 +278,29 @@ rule ResolveLocalDefinitions {
     ensures: DefinitionLocationReturned()
 }
 
+rule ResolveDefinitionsAcrossUseImports {
+    when: DefinitionRequested(document, symbol_at_cursor)
+    requires: symbol_at_cursor references imported_alias_symbol
+    requires: use_import_target_file_exists = true
+
+    ensures: DefinitionLocationReturned()
+}
+
+rule RenameDeclaredSymbol {
+    when: RenameRequested(document, symbol_at_cursor, new_name)
+    requires: new_name is valid_identifier
+    requires: symbol_at_cursor references locally_declared_symbol
+
+    ensures: SymbolOccurrencesRewritten(document)
+}
+
 rule ProvideKeywordHoverDocumentation {
     when: HoverRequested(document, token_at_cursor)
     requires: document.language_id = "allium"
     requires: token_at_cursor in [entity, rule, when, requires, ensures, config, surface, actor, open_question, deferred]
 
     ensures: HoverDocumentationReturned()
+    ensures: HoverIncludesDeclarationContextWhenAvailable()
 }
 
 rule ProvideTopLevelFoldingRanges {
@@ -255,4 +315,5 @@ rule FormatDocumentWithAlliumFormatter {
     requires: document.language_id = "allium"
 
     ensures: DocumentRewrittenWithAlliumFormatter()
+    ensures: FormatterSettingsApplied(indent_width_setting: "allium.format.indentWidth", top_level_spacing_setting: "allium.format.topLevelSpacing")
 }

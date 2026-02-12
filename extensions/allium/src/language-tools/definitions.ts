@@ -1,5 +1,14 @@
 export interface DefinitionSite {
   name: string;
+  kind:
+    | "entity"
+    | "external_entity"
+    | "value"
+    | "variant"
+    | "rule"
+    | "surface"
+    | "actor"
+    | "config_key";
   startOffset: number;
   endOffset: number;
 }
@@ -33,22 +42,33 @@ export function findDefinitionsAtOffset(
 }
 
 function collectNamedDefinitions(text: string): DefinitionSite[] {
-  const patterns = [
-    /^\s*entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
-    /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+  const patterns: Array<{
+    pattern: RegExp;
+    kind: DefinitionSite["kind"];
+  }> = [
+    { pattern: /^\s*entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "entity" },
+    {
+      pattern: /^\s*external\s+entity\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm,
+      kind: "external_entity",
+    },
+    { pattern: /^\s*value\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "value" },
+    { pattern: /^\s*variant\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "variant" },
+    { pattern: /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "rule" },
+    { pattern: /^\s*surface\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "surface" },
+    { pattern: /^\s*actor\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm, kind: "actor" },
   ];
 
   const out: DefinitionSite[] = [];
-  for (const pattern of patterns) {
+  for (const { pattern, kind } of patterns) {
     for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
       const name = match[1];
       const startOffset = match.index + match[0].indexOf(name);
-      out.push({ name, startOffset, endOffset: startOffset + name.length });
+      out.push({
+        name,
+        kind,
+        startOffset,
+        endOffset: startOffset + name.length,
+      });
     }
   }
   return out;
@@ -81,14 +101,19 @@ function collectConfigKeys(text: string): DefinitionSite[] {
     ) {
       const name = match[1];
       const startOffset = openOffset + 1 + match.index + match[0].indexOf(name);
-      out.push({ name, startOffset, endOffset: startOffset + name.length });
+      out.push({
+        name,
+        kind: "config_key",
+        startOffset,
+        endOffset: startOffset + name.length,
+      });
     }
   }
 
   return out;
 }
 
-function tokenAtOffset(
+export function tokenAtOffset(
   text: string,
   offset: number,
 ): { name: string; kind: "symbol" | "configKey" } | null {
@@ -116,6 +141,59 @@ function tokenAtOffset(
     return { name, kind: "configKey" };
   }
   return { name, kind: "symbol" };
+}
+
+export interface UseAlias {
+  alias: string;
+  sourcePath: string;
+}
+
+export function parseUseAliases(text: string): UseAlias[] {
+  const aliases: UseAlias[] = [];
+  const pattern = /^\s*use\s+"([^"]+)"\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gm;
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    aliases.push({ sourcePath: match[1], alias: match[2] });
+  }
+  return aliases;
+}
+
+export function importedSymbolAtOffset(
+  text: string,
+  offset: number,
+): { alias: string; symbol: string } | null {
+  if (offset < 0 || offset >= text.length) {
+    return null;
+  }
+
+  const isIdent = (char: string | undefined): boolean =>
+    !!char && /[A-Za-z0-9_]/.test(char);
+  let start = offset;
+  while (start > 0 && isIdent(text[start - 1])) {
+    start -= 1;
+  }
+  let end = offset;
+  while (end < text.length && isIdent(text[end])) {
+    end += 1;
+  }
+  if (start === end) {
+    return null;
+  }
+  const symbol = text.slice(start, end);
+  const slashIndex = start - 1;
+  if (slashIndex < 1 || text[slashIndex] !== "/") {
+    return null;
+  }
+
+  const aliasEnd = slashIndex;
+  let aliasStart = aliasEnd;
+  while (aliasStart > 0 && isIdent(text[aliasStart - 1])) {
+    aliasStart -= 1;
+  }
+  if (aliasStart === aliasEnd) {
+    return null;
+  }
+  const alias = text.slice(aliasStart, aliasEnd);
+  return { alias, symbol };
 }
 
 function findMatchingBrace(text: string, openOffset: number): number {

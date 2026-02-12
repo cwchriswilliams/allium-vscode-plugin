@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   buildDefinitionLookup,
   findDefinitionsAtOffset,
+  importedSymbolAtOffset,
+  parseUseAliases,
 } from "../src/language-tools/definitions";
 
 test("collects top-level symbol definitions", () => {
@@ -69,4 +71,19 @@ rule A {
   const usageOffset = text.indexOf("UnknownThing") + 2;
   const matches = findDefinitionsAtOffset(text, usageOffset);
   assert.equal(matches.length, 0);
+});
+
+test("parses use aliases from document", () => {
+  const text = `use "./shared.allium" as shared\nrule A {\n  when: shared/Ping()\n  ensures: Done()\n}\n`;
+  const aliases = parseUseAliases(text);
+  assert.deepEqual(aliases, [
+    { alias: "shared", sourcePath: "./shared.allium" },
+  ]);
+});
+
+test("extracts imported symbol token at offset", () => {
+  const text = `rule A {\n  when: shared/Ping()\n  ensures: Done()\n}\n`;
+  const offset = text.indexOf("shared/Ping") + "shared/Pi".length;
+  const imported = importedSymbolAtOffset(text, offset);
+  assert.deepEqual(imported, { alias: "shared", symbol: "Ping" });
 });
