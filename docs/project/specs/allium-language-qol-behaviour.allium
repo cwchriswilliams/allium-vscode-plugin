@@ -41,6 +41,15 @@ rule RenameAppliesAcrossResolvedReferences {
     ensures: RenameAppliedToAllReferences()
 }
 
+rule RenameAlsoUpdatesImportedUsagesAcrossWorkspace {
+    when: RenameRequested(symbol, new_name)
+    requires: symbol is_declared_in_file_a
+    requires: file_b imports file_a as alias
+
+    ensures: RenameApplied(path: "file_a")
+    ensures: RenameApplied(path: "file_b")
+}
+
 rule ImportedSymbolMustResolveAcrossFiles {
     when: ImportedSymbolReferenceParsed(reference)
     requires: reference.alias is_declared

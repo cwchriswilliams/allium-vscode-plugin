@@ -17,6 +17,7 @@ export interface DiagramNode {
   key: string;
   label: string;
   kind: DiagramNodeKind;
+  sourceOffset?: number;
 }
 
 export interface DiagramEdge {
@@ -62,15 +63,19 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     kind: DiagramNodeKind,
     name: string,
     labelPrefix?: string,
+    sourceOffset?: number,
   ): DiagramNode => {
     const key = `${kind}:${name}`;
     const existing = nodeByKey.get(key);
     if (existing) {
+      if (existing.sourceOffset === undefined && sourceOffset !== undefined) {
+        existing.sourceOffset = sourceOffset;
+      }
       return existing;
     }
     const id = `${kind}_${name}`.replace(/[^A-Za-z0-9_]/g, "_");
     const label = labelPrefix ? `[${labelPrefix}] ${name}` : name;
-    const node: DiagramNode = { id, key, label, kind };
+    const node: DiagramNode = { id, key, label, kind, sourceOffset };
     nodeByKey.set(key, node);
     nodes.push(node);
     return node;
@@ -83,13 +88,13 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
   const blocks = parseAlliumBlocks(text);
   for (const block of blocks) {
     if (block.kind === "rule") {
-      ensureNode("rule", block.name, "rule");
+      ensureNode("rule", block.name, "rule", block.startOffset);
     } else if (block.kind === "surface") {
-      ensureNode("surface", block.name, "surface");
+      ensureNode("surface", block.name, "surface", block.startOffset);
     } else if (block.kind === "actor") {
-      ensureNode("actor", block.name, "actor");
+      ensureNode("actor", block.name, "actor", block.startOffset);
     } else if (block.kind === "enum") {
-      ensureNode("enum", block.name, "enum");
+      ensureNode("enum", block.name, "enum", block.startOffset);
     }
   }
 
@@ -104,11 +109,16 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     const name = match[2];
     const base = match[3];
     if (declKind === "value") {
-      ensureNode("value", name, "value");
+      ensureNode("value", name, "value", match.index + match[0].indexOf(name));
       continue;
     }
     if (declKind === "variant") {
-      const variant = ensureNode("variant", name, "variant");
+      const variant = ensureNode(
+        "variant",
+        name,
+        "variant",
+        match.index + match[0].indexOf(name),
+      );
       if (base) {
         const baseEntity = ensureNode("entity", base, "entity");
         addEdge(variant, baseEntity, "extends");
@@ -119,6 +129,7 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
       "entity",
       name,
       declKind.startsWith("external") ? "external" : "entity",
+      match.index + match[0].indexOf(name),
     );
   }
 
@@ -143,7 +154,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
   const rulePattern =
     /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^\s*\}/gm;
   for (let rule = rulePattern.exec(text); rule; rule = rulePattern.exec(text)) {
-    const ruleNode = ensureNode("rule", rule[1], "rule");
+    const ruleNode = ensureNode(
+      "rule",
+      rule[1],
+      "rule",
+      rule.index + rule[0].indexOf(rule[1]),
+    );
     const body = rule[2];
 
     const when = body.match(/^\s*when\s*:\s*(.+)$/m);
@@ -192,7 +208,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     surface;
     surface = surfacePattern.exec(text)
   ) {
-    const surfaceNode = ensureNode("surface", surface[1], "surface");
+    const surfaceNode = ensureNode(
+      "surface",
+      surface[1],
+      "surface",
+      surface.index + surface[0].indexOf(surface[1]),
+    );
     const body = surface[2];
 
     const forMatch = body.match(

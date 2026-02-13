@@ -177,11 +177,12 @@ Formatting settings:
 - go to definition for local top-level symbols (including named `enum` and `default` declarations), `config.<key>`, and imported symbols via `use "... " as alias`
 - find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols
+- rename for locally declared symbols and imported symbol usages across workspace `use` boundaries
 - document links for `use "..." as alias` import paths
 - hover docs for core Allium keywords with declaration/import context
 - hover appends leading declaration comments as inline symbol docs
 - safer rename checks for ambiguous targets and name-collision rejection
-- diagram preview panel with copy/export actions from active file or workspace (`allium.generateDiagram`)
+- diagram preview panel with copy/export and node-to-source jump actions from active file or workspace (`allium.generateDiagram`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
 - semantic tokens for richer syntax-aware highlighting layers

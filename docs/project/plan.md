@@ -155,6 +155,7 @@ Current status:
 - Implemented: find references for local symbols/config keys and imported symbols.
 - Implemented: local symbol rename provider.
 - Implemented: safer rename guardrails for ambiguous symbols and naming collisions.
+- Implemented: workspace-aware rename updates across imported symbol usages.
 - Implemented: hover documentation for core Allium keywords.
 - Implemented: hover includes leading declaration comment blocks as symbol docs.
 - Implemented: cross-file imported symbol diagnostics (`allium.import.undefinedSymbol`).
@@ -166,6 +167,7 @@ Current status:
 - Implemented: named `enum` declarations in definitions/outline/folding and related editor semantics.
 - Implemented: `default` declarations in definitions/outline and related editor semantics.
 - Implemented: `Allium: Generate Diagram` command with preview panel and copy/export actions.
+- Implemented: diagram preview node jump-to-source actions.
 - Implemented: diagnostics profile presets (`custom`, `strict-authoring`, `legacy-migration`, `doc-writing`).
 
 ## Engineering Approach

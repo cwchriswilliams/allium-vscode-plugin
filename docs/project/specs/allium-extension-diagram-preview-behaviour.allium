@@ -48,3 +48,10 @@ rule DiagramPreviewExportAction {
     ensures: FileWritten(path: "allium-diagram.<ext>")
     ensures: UserInformed(message: "Allium diagram exported")
 }
+
+rule DiagramPreviewNodeJumpAction {
+    when: PreviewActionInvoked(name: reveal_node)
+
+    ensures: SourceNodeLocationResolved()
+    ensures: EditorRevealedAtNodeLocation()
+}

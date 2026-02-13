@@ -44,6 +44,7 @@ import { collectWorkspaceSymbolRecords } from "./language-tools/workspace-symbol
 import { collectUndefinedImportedSymbolFindings } from "./language-tools/imported-symbols";
 import { planRename, prepareRenameTarget } from "./language-tools/rename";
 import { resolveDiagnosticsModeForProfile } from "./language-tools/profile";
+import { planWorkspaceImportedRename } from "./language-tools/cross-file-rename";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -559,19 +560,107 @@ class AlliumRenameProvider implements vscode.RenameProvider {
   ): vscode.WorkspaceEdit | null {
     const text = document.getText();
     const offset = document.offsetAt(position);
-    const rename = planRename(text, offset, newName);
-    if (!rename.plan) {
-      if (rename.error) {
-        throw new Error(rename.error);
+    const workspaceRoot = workspaceRootForUri(document.uri);
+    const index = workspaceRoot ? buildWorkspaceIndex(workspaceRoot) : null;
+
+    const localRename = planRename(text, offset, newName);
+    if (localRename.plan) {
+      const edit = new vscode.WorkspaceEdit();
+      for (const reference of localRename.plan.references) {
+        edit.replace(
+          document.uri,
+          new vscode.Range(
+            document.positionAt(reference.startOffset),
+            document.positionAt(reference.endOffset),
+          ),
+          newName,
+        );
       }
+
+      if (index) {
+        const workspacePlan = planWorkspaceImportedRename(
+          index,
+          document.uri.fsPath,
+          localRename.plan.definition,
+          newName,
+        );
+        if (workspacePlan.error) {
+          throw new Error(workspacePlan.error);
+        }
+        for (const change of workspacePlan.edits) {
+          edit.replace(
+            vscode.Uri.file(change.filePath),
+            new vscode.Range(
+              offsetToPositionForFile(
+                change.filePath,
+                change.startOffset,
+                index,
+              ),
+              offsetToPositionForFile(change.filePath, change.endOffset, index),
+            ),
+            newName,
+          );
+        }
+      }
+
+      return edit;
+    }
+
+    if (!localRename.plan && localRename.error) {
+      const importedMatches =
+        index &&
+        resolveImportedDefinition(document.uri.fsPath, text, offset, index);
+      if (!importedMatches || importedMatches.length === 0) {
+        throw new Error(localRename.error);
+      }
+    }
+
+    if (!index) {
+      return null;
+    }
+    const importedMatches = resolveImportedDefinition(
+      document.uri.fsPath,
+      text,
+      offset,
+      index,
+    );
+    if (importedMatches.length === 0) {
       return null;
     }
 
+    const target = importedMatches[0];
+    const targetText = textForFile(target.filePath, index);
+    const localTargetRename = planRename(
+      targetText,
+      target.definition.startOffset,
+      newName,
+    );
+    if (!localTargetRename.plan) {
+      throw new Error(
+        localTargetRename.error ?? "Unable to rename imported symbol.",
+      );
+    }
+
+    const workspacePlan = planWorkspaceImportedRename(
+      index,
+      target.filePath,
+      target.definition,
+      newName,
+    );
+    if (workspacePlan.error) {
+      throw new Error(workspacePlan.error);
+    }
+
     const edit = new vscode.WorkspaceEdit();
-    for (const reference of rename.plan.references) {
-      const start = document.positionAt(reference.startOffset);
-      const end = document.positionAt(reference.endOffset);
-      edit.replace(document.uri, new vscode.Range(start, end), newName);
+    for (const change of workspacePlan.edits) {
+      edit.replace(
+        vscode.Uri.file(change.filePath),
+        new vscode.Range(
+          offsetToPositionForFile(change.filePath, change.startOffset, index),
+          offsetToPositionForFile(change.filePath, change.endOffset, index),
+        ),
+        newName,
+      );
     }
     return edit;
   }
@@ -972,6 +1061,20 @@ async function showDiagramPreview(): Promise<void> {
   const results = documents.map((document) =>
     buildDiagramResult(document.getText()),
   );
+  const sourceByNodeId = new Map<string, { uri: vscode.Uri; offset: number }>();
+  for (let i = 0; i < results.length; i += 1) {
+    const result = results[i];
+    const document = documents[i];
+    for (const node of result.model.nodes) {
+      if (node.sourceOffset === undefined || sourceByNodeId.has(node.id)) {
+        continue;
+      }
+      sourceByNodeId.set(node.id, {
+        uri: document.uri,
+        offset: node.sourceOffset,
+      });
+    }
+  }
   const mergedModel = mergeDiagramModels(results.map((result) => result.model));
   const issues = results.flatMap((result) => result.issues);
   const diagramText = renderDiagram(mergedModel, formatPick);
@@ -986,6 +1089,10 @@ async function showDiagramPreview(): Promise<void> {
     format: formatPick,
     diagramText,
     issues,
+    nodes: mergedModel.nodes.map((node) => ({
+      id: node.id,
+      label: node.label,
+    })),
   });
 
   panel.webview.onDidReceiveMessage(
@@ -1023,6 +1130,25 @@ async function showDiagramPreview(): Promise<void> {
         void vscode.window.showInformationMessage(
           `Allium diagram exported to ${uri.fsPath}.`,
         );
+        return;
+      }
+      if (typed.type === "reveal") {
+        const nodeId = (message as { nodeId?: unknown }).nodeId;
+        if (typeof nodeId !== "string") {
+          return;
+        }
+        const source = sourceByNodeId.get(nodeId);
+        if (!source) {
+          void vscode.window.showInformationMessage(
+            "No source location available for this diagram node.",
+          );
+          return;
+        }
+        const document = await vscode.workspace.openTextDocument(source.uri);
+        const editor = await vscode.window.showTextDocument(document);
+        const position = document.positionAt(source.offset);
+        editor.selection = new vscode.Selection(position, position);
+        editor.revealRange(new vscode.Range(position, position));
       }
     },
     undefined,

@@ -7,12 +7,14 @@ test("renders preview HTML with controls and escaped diagram", () => {
     format: "d2",
     diagramText: 'entity_A: "A < B"',
     issues: [],
+    nodes: [{ id: "entity_A", label: "Entity A" }],
   });
 
   assert.match(html, /Copy/);
   assert.match(html, /Export/);
   assert.match(html, /Allium Diagram Preview \(d2\)/);
   assert.match(html, /A &lt; B/);
+  assert.match(html, /Go to Entity A/);
 });
 
 test("renders issue list when warnings are present", () => {
@@ -26,6 +28,7 @@ test("renders issue list when warnings are present", () => {
         message: "Diagram extraction skipped 'config' declaration at line 7.",
       },
     ],
+    nodes: [],
   });
 
   assert.match(html, /extraction warning\(s\) detected/);

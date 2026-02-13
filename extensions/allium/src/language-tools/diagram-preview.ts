@@ -4,6 +4,7 @@ export interface DiagramPreviewModel {
   format: DiagramFormat;
   diagramText: string;
   issues: DiagramIssue[];
+  nodes: Array<{ id: string; label: string }>;
 }
 
 export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
@@ -23,6 +24,15 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
           .join("")}</ul>`;
 
   const escapedDiagram = escapeHtml(model.diagramText);
+  const nodeItems =
+    model.nodes.length === 0
+      ? "<p>No nodes found.</p>"
+      : `<ul>${model.nodes
+          .map(
+            (node) =>
+              `<li><button type="button" class="jump" data-node-id="${escapeHtml(node.id)}">Go to ${escapeHtml(node.label)}</button></li>`,
+          )
+          .join("")}</ul>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -92,6 +102,10 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
     <main>
       <section class="meta">${escapeHtml(issueSummary)}</section>
       ${issueItems}
+      <section>
+        <h3>Nodes</h3>
+        ${nodeItems}
+      </section>
       <pre><code>${escapedDiagram}</code></pre>
     </main>
     <script>
@@ -102,6 +116,15 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
       document.getElementById("export-btn")?.addEventListener("click", () => {
         vscode.postMessage({ type: "export" });
       });
+      for (const button of document.querySelectorAll("button.jump")) {
+        button.addEventListener("click", () => {
+          const nodeId = button.getAttribute("data-node-id");
+          if (!nodeId) {
+            return;
+          }
+          vscode.postMessage({ type: "reveal", nodeId });
+        });
+      }
     </script>
   </body>
 </html>`;
