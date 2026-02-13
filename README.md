@@ -302,7 +302,7 @@ node extensions/allium/dist/src/format.js --check "docs/project/specs/**/*.alliu
 node extensions/allium/dist/src/format.js --indent-width 2 --top-level-spacing 0 docs/project/specs
 node extensions/allium/dist/src/format.js --dryrun docs/project/specs
 node extensions/allium/dist/src/format.js --config allium.config.json docs/project/specs
-cat docs/project/specs/allium-check-tool-behaviour.allium | node extensions/allium/dist/src/format.js --stdin --stdout
+cat path/to/spec.allium | node extensions/allium/dist/src/format.js --stdin --stdout
 ```
 
 Current formatter behavior:
