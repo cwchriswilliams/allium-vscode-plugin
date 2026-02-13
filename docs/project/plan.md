@@ -105,6 +105,7 @@ Current status:
 - Implemented expression semantic checks for obvious type mismatches and derived cycles (`allium.expression.typeMismatch`, `allium.derived.circularDependency`).
 - Implemented unreachable-trigger informational hints for rules with no local provider/emitter (`allium.rule.unreachableTrigger`).
 - Implemented warnings for unused named value/enum/default declarations (`allium.definition.unused`).
+- Implemented duplicate/shadowed rule behavior diagnostics (`allium.rule.duplicateBehavior`, `allium.rule.potentialShadow`).
 - Added diagnostic suppression directives via `-- allium-ignore <code[,code...]>`.
 
 ### Phase 3: Snippets (Priority 3)
@@ -131,6 +132,7 @@ Current status:
 - Implemented: add temporal guard from selected `when` condition.
 - Implemented: inline enum conversion to named `enum`.
 - Implemented: command to apply all safe built-in quick fixes in one action.
+- Implemented: category-specific safe-fix commands for missing ensures and temporal guards.
 - Implemented: quick fix action to add `-- allium-ignore <code>` suppression directives.
 
 Then migrate to semantic refactors via parser AST + symbol table.
@@ -164,6 +166,7 @@ Current status:
 - Implemented: named `enum` declarations in definitions/outline/folding and related editor semantics.
 - Implemented: `default` declarations in definitions/outline and related editor semantics.
 - Implemented: `Allium: Generate Diagram` command with preview panel and copy/export actions.
+- Implemented: diagnostics profile presets (`custom`, `strict-authoring`, `legacy-migration`, `doc-writing`).
 
 ## Engineering Approach
 

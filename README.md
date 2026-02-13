@@ -114,6 +114,7 @@ Implemented checks:
 - non-terminal status enum values with no observed exit transitions
 - contradictory `requires` constraints that imply a rule may never fire
 - external trigger rules with no local provider/emitter path (informational unreachable trigger hints)
+- duplicate rule behavior and potentially shadowed stricter rules
 - obvious expression type mismatches in `requires`/`ensures` comparisons and arithmetic
 - unused named value/enum/default declarations
 - circular dependencies across derived entity values
@@ -141,6 +142,11 @@ Diagnostics setting:
 - `allium.diagnostics.mode`:
   - `strict` (default)
   - `relaxed` (suppresses temporal-guard warning and downgrades undefined config reference severity)
+- `allium.profile`:
+  - `custom` (default; uses `allium.diagnostics.mode`)
+  - `strict-authoring` (forces strict diagnostics)
+  - `legacy-migration` (forces relaxed diagnostics)
+  - `doc-writing` (forces relaxed diagnostics)
 
 Formatting settings:
 
@@ -151,6 +157,8 @@ Formatting settings:
 
 - Command: `Allium: Run Checks` (`allium.runChecks`)
 - Command: `Allium: Apply All Safe Fixes` (`allium.applySafeFixes`)
+- Command: `Allium: Apply Safe Fixes (Missing Ensures)` (`allium.applySafeFixes.missingEnsures`)
+- Command: `Allium: Apply Safe Fixes (Temporal Guards)` (`allium.applySafeFixes.temporalGuards`)
 - Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
 - Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:

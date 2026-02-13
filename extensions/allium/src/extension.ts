@@ -9,6 +9,10 @@ import {
   parseUseAliases,
 } from "./language-tools/definitions";
 import { collectUseImportPaths } from "./language-tools/document-links";
+import {
+  planSafeFixesByCategory,
+  type FixCategory,
+} from "./language-tools/fix-all";
 import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
 import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
 import { formatAlliumText } from "./format";
@@ -39,6 +43,7 @@ import {
 import { collectWorkspaceSymbolRecords } from "./language-tools/workspace-symbols";
 import { collectUndefinedImportedSymbolFindings } from "./language-tools/imported-symbols";
 import { planRename, prepareRenameTarget } from "./language-tools/rename";
+import { resolveDiagnosticsModeForProfile } from "./language-tools/profile";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -131,6 +136,36 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       await applySafeFixes(editor.document);
     }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.applySafeFixes.missingEnsures",
+      async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+          void vscode.window.showInformationMessage(
+            "Open an .allium file to apply safe fixes.",
+          );
+          return;
+        }
+        await applySafeFixes(editor.document, "missingEnsures");
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.applySafeFixes.temporalGuards",
+      async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+          void vscode.window.showInformationMessage(
+            "Open an .allium file to apply safe fixes.",
+          );
+          return;
+        }
+        await applySafeFixes(editor.document, "temporalGuards");
+      },
+    ),
   );
 
   context.subscriptions.push(
@@ -374,11 +409,20 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
 }
 
 function readDiagnosticsMode(): "strict" | "relaxed" {
+  const profile = vscode.workspace
+    .getConfiguration("allium")
+    .get<"custom" | "strict-authoring" | "legacy-migration" | "doc-writing">(
+      "profile",
+      "custom",
+    );
   const configuredMode = vscode.workspace
     .getConfiguration("allium")
     .get<"strict" | "relaxed">("diagnostics.mode", "strict");
 
-  return configuredMode === "relaxed" ? "relaxed" : "strict";
+  return resolveDiagnosticsModeForProfile(
+    profile,
+    configuredMode === "relaxed" ? "relaxed" : "strict",
+  );
 }
 
 function toDiagnosticSeverity(
@@ -804,34 +848,35 @@ class AlliumReferenceProvider implements vscode.ReferenceProvider {
   }
 }
 
-async function applySafeFixes(document: vscode.TextDocument): Promise<void> {
-  const findings = analyzeAllium(document.getText(), {
-    mode: readDiagnosticsMode(),
-  });
+async function applySafeFixes(
+  document: vscode.TextDocument,
+  category: FixCategory = "all",
+): Promise<void> {
   const edit = new vscode.WorkspaceEdit();
-
-  for (const finding of findings) {
-    if (finding.code === "allium.rule.missingEnsures") {
-      edit.insert(
-        document.uri,
-        new vscode.Position(finding.start.line, 0),
-        "    ensures: TODO()\n",
-      );
-    }
-    if (finding.code === "allium.temporal.missingGuard") {
-      const whenLine = finding.start.line;
-      const indent =
-        document.lineAt(whenLine).text.match(/^\s*/)?.[0] ?? "    ";
-      edit.insert(
-        document.uri,
-        new vscode.Position(whenLine + 1, 0),
-        `${indent}requires: /* add temporal guard */\n`,
-      );
-    }
+  const planned = planSafeFixesByCategory(
+    document.getText(),
+    readDiagnosticsMode(),
+    category,
+  );
+  for (const change of planned) {
+    edit.replace(
+      document.uri,
+      new vscode.Range(
+        document.positionAt(change.startOffset),
+        document.positionAt(change.endOffset),
+      ),
+      change.text,
+    );
   }
 
   await vscode.workspace.applyEdit(edit);
-  void vscode.window.showInformationMessage("Applied all safe Allium fixes.");
+  const suffix =
+    category === "all"
+      ? "all safe"
+      : category === "missingEnsures"
+        ? "missing ensures"
+        : "temporal guard";
+  void vscode.window.showInformationMessage(`Applied ${suffix} Allium fixes.`);
 }
 
 async function showSpecHealthSummary(): Promise<void> {

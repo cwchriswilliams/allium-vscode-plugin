@@ -642,6 +642,20 @@ test("does not warn when rule trigger is provided by a surface", () => {
   );
 });
 
+test("warns when two rules have duplicate behavior", () => {
+  const findings = analyzeAllium(
+    `rule A {\n  when: Ping(user)\n  requires: user.status = active\n  ensures: Done()\n}\n\nrule B {\n  when: Ping(user)\n  requires: user.status = active\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.duplicateBehavior"));
+});
+
+test("reports potential shadowed rule when requires are stricter", () => {
+  const findings = analyzeAllium(
+    `rule Broad {\n  when: Ping(user)\n  ensures: Done()\n}\n\nrule Narrow {\n  when: Ping(user)\n  requires: user.status = active\n  ensures: Done()\n}\n`,
+  );
+  assert.ok(findings.some((f) => f.code === "allium.rule.potentialShadow"));
+});
+
 test("reports equality type mismatches between string and numeric literals", () => {
   const findings = analyzeAllium(
     `rule A {\n  when: Ping(user)\n  requires: "old" = 1\n  ensures: Done()\n}\n`,

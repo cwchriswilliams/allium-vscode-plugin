@@ -137,6 +137,7 @@ export function analyzeAllium(
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
   findings.push(...findNeverFireRuleIssues(lineStarts, blocks));
+  findings.push(...findDuplicateRuleBehaviourIssues(lineStarts, blocks));
   findings.push(...findExpressionTypeMismatchIssues(lineStarts, blocks));
   findings.push(...findDerivedCircularDependencyIssues(text, lineStarts));
 
@@ -2512,6 +2513,147 @@ function isValidTriggerShape(trigger: string): boolean {
     return true;
   }
   return false;
+}
+
+function findDuplicateRuleBehaviourIssues(
+  lineStarts: number[],
+  blocks: ReturnType<typeof parseAlliumBlocks>,
+): Finding[] {
+  const findings: Finding[] = [];
+  const rules = blocks.filter((block) => block.kind === "rule");
+  const signatureMap = new Map<string, typeof rules>();
+
+  for (const rule of rules) {
+    const signature = canonicalRuleSignature(rule.body);
+    const existing = signatureMap.get(signature) ?? [];
+    existing.push(rule);
+    signatureMap.set(signature, existing);
+  }
+
+  for (const group of signatureMap.values()) {
+    if (group.length < 2) {
+      continue;
+    }
+    for (let i = 1; i < group.length; i += 1) {
+      const duplicate = group[i];
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          duplicate.startOffset,
+          duplicate.startOffset + duplicate.name.length,
+          "allium.rule.duplicateBehavior",
+          `Rule '${duplicate.name}' duplicates behavior already expressed by '${group[0].name}'.`,
+          "warning",
+        ),
+      );
+    }
+  }
+
+  for (let i = 0; i < rules.length; i += 1) {
+    for (let j = i + 1; j < rules.length; j += 1) {
+      const shadowed = detectShadowedPair(rules[i], rules[j]);
+      if (!shadowed) {
+        continue;
+      }
+      findings.push(
+        rangeFinding(
+          lineStarts,
+          shadowed.shadowed.startOffset,
+          shadowed.shadowed.startOffset + shadowed.shadowed.name.length,
+          "allium.rule.potentialShadow",
+          `Rule '${shadowed.shadowed.name}' may be shadowed by broader rule '${shadowed.broader.name}'.`,
+          "info",
+        ),
+      );
+    }
+  }
+
+  return findings;
+}
+
+function canonicalRuleSignature(ruleBody: string): string {
+  const when = (ruleBody.match(/^\s*when\s*:\s*(.+)$/m)?.[1] ?? "").trim();
+  const requires = collectRuleClauseLines(ruleBody)
+    .filter((line) => line.clause === "requires")
+    .map((line) => normalizeClauseText(line.text))
+    .sort();
+  const ensures = collectRuleClauseLines(ruleBody)
+    .filter((line) => line.clause === "ensures")
+    .map((line) => normalizeClauseText(line.text))
+    .sort();
+
+  return `when:${normalizeClauseText(when)}|requires:${requires.join(",")}|ensures:${ensures.join(",")}`;
+}
+
+function detectShadowedPair(
+  left: ReturnType<typeof parseAlliumBlocks>[number],
+  right: ReturnType<typeof parseAlliumBlocks>[number],
+): {
+  broader: ReturnType<typeof parseAlliumBlocks>[number];
+  shadowed: ReturnType<typeof parseAlliumBlocks>[number];
+} | null {
+  const leftWhen = (left.body.match(/^\s*when\s*:\s*(.+)$/m)?.[1] ?? "").trim();
+  const rightWhen = (
+    right.body.match(/^\s*when\s*:\s*(.+)$/m)?.[1] ?? ""
+  ).trim();
+  if (normalizeClauseText(leftWhen) !== normalizeClauseText(rightWhen)) {
+    return null;
+  }
+
+  const leftEnsures = new Set(
+    collectRuleClauseLines(left.body)
+      .filter((line) => line.clause === "ensures")
+      .map((line) => normalizeClauseText(line.text)),
+  );
+  const rightEnsures = new Set(
+    collectRuleClauseLines(right.body)
+      .filter((line) => line.clause === "ensures")
+      .map((line) => normalizeClauseText(line.text)),
+  );
+  if (
+    leftEnsures.size !== rightEnsures.size ||
+    [...leftEnsures].some((item) => !rightEnsures.has(item))
+  ) {
+    return null;
+  }
+
+  const leftRequires = new Set(
+    collectRuleClauseLines(left.body)
+      .filter((line) => line.clause === "requires")
+      .map((line) => normalizeClauseText(line.text)),
+  );
+  const rightRequires = new Set(
+    collectRuleClauseLines(right.body)
+      .filter((line) => line.clause === "requires")
+      .map((line) => normalizeClauseText(line.text)),
+  );
+
+  if (
+    isSubset(leftRequires, rightRequires) &&
+    leftRequires.size < rightRequires.size
+  ) {
+    return { broader: left, shadowed: right };
+  }
+  if (
+    isSubset(rightRequires, leftRequires) &&
+    rightRequires.size < leftRequires.size
+  ) {
+    return { broader: right, shadowed: left };
+  }
+  return null;
+}
+
+function isSubset(values: Set<string>, maybeSuperset: Set<string>): boolean {
+  for (const value of values) {
+    if (!maybeSuperset.has(value)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function normalizeClauseText(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
 }
 
 function findExpressionTypeMismatchIssues(

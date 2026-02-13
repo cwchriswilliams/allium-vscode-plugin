@@ -1,0 +1,57 @@
+module allium_extension_productivity_presets_behaviour
+
+entity DiagnosticsProfile {
+    value: custom | strict_authoring | legacy_migration | doc_writing
+}
+
+entity Finding {
+    code: String
+    severity: error | warning | info
+}
+
+rule StrictAuthoringProfileForcesStrictMode {
+    when: ProfileSelected(profile: strict_authoring)
+
+    ensures: DiagnosticsProfile.created(value: strict_authoring)
+    ensures: DiagnosticsModeApplied(value: strict)
+}
+
+rule LegacyMigrationProfileForcesRelaxedMode {
+    when: ProfileSelected(profile: legacy_migration)
+
+    ensures: DiagnosticsProfile.created(value: legacy_migration)
+    ensures: DiagnosticsModeApplied(value: relaxed)
+}
+
+rule ApplyMissingEnsuresFixesCommand {
+    when: CommandInvoked(name: "allium.applySafeFixes.missingEnsures")
+
+    ensures: SafeFixesApplied(category: missing_ensures)
+}
+
+rule ApplyTemporalGuardFixesCommand {
+    when: CommandInvoked(name: "allium.applySafeFixes.temporalGuards")
+
+    ensures: SafeFixesApplied(category: temporal_guards)
+}
+
+rule DuplicateRuleBehaviorProducesWarning {
+    when: RulePairParsed(pair)
+    requires: pair.has_same_when_requires_ensures = true
+
+    ensures: Finding.created(
+    code: "allium.rule.duplicateBehavior",
+    severity: warning
+    )
+}
+
+rule PotentiallyShadowedRuleProducesInfo {
+    when: RulePairParsed(pair)
+    requires: pair.has_same_when_and_ensures = true
+    requires: pair.rule_b_requires_strict_superset_of_rule_a = true
+
+    ensures: Finding.created(
+    code: "allium.rule.potentialShadow",
+    severity: info
+    )
+}

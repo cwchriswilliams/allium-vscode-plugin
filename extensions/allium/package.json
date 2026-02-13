@@ -54,6 +54,17 @@
           "default": "strict",
           "markdownDescription": "Controls diagnostics strictness. `strict` enables all checks. `relaxed` suppresses temporal-guard warnings and downgrades some diagnostics."
         },
+        "allium.profile": {
+          "type": "string",
+          "enum": [
+            "custom",
+            "strict-authoring",
+            "legacy-migration",
+            "doc-writing"
+          ],
+          "default": "custom",
+          "markdownDescription": "Preset profile for diagnostics behavior. `custom` uses `allium.diagnostics.mode`; `strict-authoring` forces strict diagnostics; `legacy-migration` and `doc-writing` force relaxed diagnostics."
+        },
         "allium.format.indentWidth": {
           "type": "number",
           "default": 4,
@@ -78,6 +89,14 @@
       {
         "command": "allium.applySafeFixes",
         "title": "Allium: Apply All Safe Fixes"
+      },
+      {
+        "command": "allium.applySafeFixes.missingEnsures",
+        "title": "Allium: Apply Safe Fixes (Missing Ensures)"
+      },
+      {
+        "command": "allium.applySafeFixes.temporalGuards",
+        "title": "Allium: Apply Safe Fixes (Temporal Guards)"
       },
       {
         "command": "allium.showSpecHealth",
