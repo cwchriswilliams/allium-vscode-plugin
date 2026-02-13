@@ -697,6 +697,16 @@ rule VariantDeclarationRequiresVariantKeyword {
         )
     }
 
+    rule QuickFixForUndefinedProvidesTrigger {
+        when: QuickFixRequestedForFinding(finding)
+        requires: finding.code = "allium.surface.undefinedProvidesTrigger"
+
+        ensures: EditProposed(
+        title: "Create external trigger rule scaffold",
+        insertion: "when: external_stimulus(<trigger>(event))"
+        )
+    }
+
     rule QuickFixForDiagnosticSuppression {
         when: QuickFixRequestedForFinding(finding)
         requires: finding.code starts_with "allium."

@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { collectCodeLensTargets } from "../src/language-tools/codelens";
+import {
+  collectCodeLensTargets,
+  countSymbolReferencesInTestBodies,
+} from "../src/language-tools/codelens";
 
 test("collects code lens targets for top-level declarations", () => {
   const text = `
@@ -37,4 +40,17 @@ default Recommendation Preferred = Recommendation.yes
     targets.map((target) => target.name),
     ["Recommendation", "Preferred"],
   );
+});
+
+test("counts symbol references across test bodies", () => {
+  const counts = countSymbolReferencesInTestBodies(
+    ["Invitation", "AcceptInvitation"],
+    [
+      'test("Invitation", () => Invitation.created())',
+      'test("accept", () => expect(AcceptInvitation).toBeDefined())',
+      "const x = Invitation",
+    ],
+  );
+  assert.equal(counts.get("Invitation"), 3);
+  assert.equal(counts.get("AcceptInvitation"), 1);
 });

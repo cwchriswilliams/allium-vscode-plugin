@@ -104,6 +104,14 @@
         "title": "Allium: Show Spec Health"
       },
       {
+        "command": "allium.showProblemsSummary",
+        "title": "Allium: Show Problems Summary"
+      },
+      {
+        "command": "allium.previewRename",
+        "title": "Allium: Preview Rename Plan"
+      },
+      {
         "command": "allium.generateDiagram",
         "title": "Allium: Generate Diagram"
       }

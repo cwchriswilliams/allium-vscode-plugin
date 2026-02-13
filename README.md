@@ -163,10 +163,13 @@ Formatting settings:
 - Command: `Allium: Apply Safe Fixes (Missing Ensures)` (`allium.applySafeFixes.missingEnsures`)
 - Command: `Allium: Apply Safe Fixes (Temporal Guards)` (`allium.applySafeFixes.temporalGuards`)
 - Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
+- Command: `Allium: Show Problems Summary` (`allium.showProblemsSummary`)
+- Command: `Allium: Preview Rename Plan` (`allium.previewRename`)
 - Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
   - insert temporal `requires:` guard scaffold
+  - create external trigger rule scaffold for missing surface-provided triggers
   - insert `-- allium-ignore <code>` suppression directive for diagnostics
 - Refactorings:
   - extract repeated string/integer literal to `config.<key>`
@@ -177,6 +180,7 @@ Formatting settings:
 
 - document symbols / outline for top-level blocks
 - workspace symbol search across `.allium` files
+- top-level declaration code lenses for `Find references` and `Referenced in N tests`
 - go to definition for local top-level symbols (including named `enum` and `default` declarations), `config.<key>`, and imported symbols via `use "... " as alias`
 - find references for local declarations/config keys and imported symbols
 - rename for locally declared symbols
@@ -185,7 +189,7 @@ Formatting settings:
 - hover docs for core Allium keywords with declaration/import context
 - hover appends leading declaration comments as inline symbol docs
 - safer rename checks for ambiguous targets and name-collision rejection
-- top-level declaration code lenses for `Find references`
+- rename preview command to inspect planned changes before applying
 - diagram preview panel with copy/export and node-to-source jump actions from active file or workspace (`allium.generateDiagram`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files

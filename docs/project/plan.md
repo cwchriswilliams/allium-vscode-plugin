@@ -170,6 +170,9 @@ Current status:
 - Implemented: `Allium: Generate Diagram` command with preview panel and copy/export actions.
 - Implemented: diagram preview node jump-to-source actions.
 - Implemented: diagnostics profile presets (`custom`, `strict-authoring`, `legacy-migration`, `doc-writing`).
+- Implemented: problems summary command grouped by finding code.
+- Implemented: rename preview command to inspect planned edits before applying rename.
+- Implemented: top-level symbol code lenses now include test-reference counts.
 
 ## Engineering Approach
 

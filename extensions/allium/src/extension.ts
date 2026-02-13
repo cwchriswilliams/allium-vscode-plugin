@@ -45,7 +45,14 @@ import { collectUndefinedImportedSymbolFindings } from "./language-tools/importe
 import { planRename, prepareRenameTarget } from "./language-tools/rename";
 import { resolveDiagnosticsModeForProfile } from "./language-tools/profile";
 import { planWorkspaceImportedRename } from "./language-tools/cross-file-rename";
-import { collectCodeLensTargets } from "./language-tools/codelens";
+import {
+  collectCodeLensTargets,
+  countSymbolReferencesInTestBodies,
+} from "./language-tools/codelens";
+import {
+  buildExternalTriggerRuleScaffold,
+  extractUndefinedProvidesTriggerName,
+} from "./language-tools/provides-trigger-fix";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -176,8 +183,18 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("allium.showProblemsSummary", async () => {
+      await showProblemsSummary();
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("allium.generateDiagram", async () => {
       await showDiagramPreview();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.previewRename", async () => {
+      await previewRenamePlan();
     }),
   );
 
@@ -328,6 +345,28 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         actions.push(action);
       }
 
+      if (diagnostic.code === "allium.surface.undefinedProvidesTrigger") {
+        const triggerName = extractUndefinedProvidesTriggerName(
+          diagnostic.message,
+        );
+        if (triggerName) {
+          const action = new vscode.CodeAction(
+            "Create external trigger rule scaffold",
+            vscode.CodeActionKind.QuickFix,
+          );
+          action.diagnostics = [diagnostic];
+          const edit = new vscode.WorkspaceEdit();
+          const end = document.positionAt(document.getText().length);
+          edit.insert(
+            document.uri,
+            end,
+            buildExternalTriggerRuleScaffold(triggerName),
+          );
+          action.edit = edit;
+          actions.push(action);
+        }
+      }
+
       const diagnosticCode = String(diagnostic.code ?? "");
       if (diagnosticCode.startsWith("allium.")) {
         const suppression = buildSuppressionDirectiveEdit(
@@ -473,19 +512,53 @@ class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 }
 
 class AlliumCodeLensProvider implements vscode.CodeLensProvider {
-  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+  async provideCodeLenses(
+    document: vscode.TextDocument,
+  ): Promise<vscode.CodeLens[]> {
     const text = document.getText();
-    return collectCodeLensTargets(text).map((target) => {
+    const targets = collectCodeLensTargets(text);
+    const testFiles = await vscode.workspace.findFiles(
+      "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}",
+      "**/{node_modules,dist,.git}/**",
+    );
+    const testBodies = await Promise.all(
+      testFiles.map(async (file) =>
+        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
+      ),
+    );
+    const counts = countSymbolReferencesInTestBodies(
+      targets.map((target) => target.name),
+      testBodies,
+    );
+    const lenses: vscode.CodeLens[] = [];
+    for (const target of targets) {
       const range = new vscode.Range(
         document.positionAt(target.startOffset),
         document.positionAt(target.endOffset),
       );
-      return new vscode.CodeLens(range, {
-        title: "Find references",
-        command: "editor.action.referenceSearch.trigger",
-        arguments: [document.uri, range.start],
-      });
-    });
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: "Find references",
+          command: "editor.action.referenceSearch.trigger",
+          arguments: [document.uri, range.start],
+        }),
+      );
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: `Referenced in ${counts.get(target.name) ?? 0} tests`,
+          command: "workbench.action.findInFiles",
+          arguments: [
+            {
+              query: target.name,
+              isRegex: false,
+              triggerSearch: true,
+              filesToInclude: "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}",
+            },
+          ],
+        }),
+      );
+    }
+    return lenses;
   }
 }
 
@@ -1024,6 +1097,185 @@ async function showSpecHealthSummary(): Promise<void> {
     return;
   }
   void vscode.window.showInformationMessage(pick);
+}
+
+async function showProblemsSummary(): Promise<void> {
+  const files = await vscode.workspace.findFiles(
+    "**/*.allium",
+    "**/{node_modules,dist,.git}/**",
+  );
+  if (files.length === 0) {
+    void vscode.window.showInformationMessage(
+      "No .allium files found in workspace.",
+    );
+    return;
+  }
+
+  const codeCounts = new Map<string, number>();
+  const byCodeByFile = new Map<string, Map<string, number>>();
+  for (const file of files) {
+    const text = Buffer.from(await vscode.workspace.fs.readFile(file)).toString(
+      "utf8",
+    );
+    const findings = analyzeAllium(text, { mode: "strict" });
+    for (const finding of findings) {
+      codeCounts.set(finding.code, (codeCounts.get(finding.code) ?? 0) + 1);
+      const byFile =
+        byCodeByFile.get(finding.code) ?? new Map<string, number>();
+      byFile.set(file.fsPath, (byFile.get(file.fsPath) ?? 0) + 1);
+      byCodeByFile.set(finding.code, byFile);
+    }
+  }
+
+  if (codeCounts.size === 0) {
+    void vscode.window.showInformationMessage("No Allium findings.");
+    return;
+  }
+
+  const summaryItems = [...codeCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([code, count]) => ({ label: `${code} (${count})`, code }));
+  const summaryPick = await vscode.window.showQuickPick(summaryItems, {
+    placeHolder: "Allium problems grouped by code",
+  });
+  if (!summaryPick) {
+    return;
+  }
+
+  const byFile =
+    byCodeByFile.get(summaryPick.code) ?? new Map<string, number>();
+  const fileItems = [...byFile.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([filePath, count]) => ({
+      label: `${path.basename(filePath)} (${count})`,
+      description: path.relative(
+        vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "",
+        filePath,
+      ),
+      filePath,
+    }));
+  const filePick = await vscode.window.showQuickPick(fileItems, {
+    placeHolder: summaryPick.code,
+  });
+  if (!filePick) {
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument(
+    vscode.Uri.file(filePick.filePath),
+  );
+  await vscode.window.showTextDocument(doc);
+}
+
+async function previewRenamePlan(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage("Open an .allium file first.");
+    return;
+  }
+
+  const newName = await vscode.window.showInputBox({
+    prompt: "New name for rename preview",
+    validateInput: (value) =>
+      /^[A-Za-z_][A-Za-z0-9_]*$/.test(value)
+        ? null
+        : "Use a valid identifier (letters, digits, underscore).",
+  });
+  if (!newName) {
+    return;
+  }
+
+  const document = editor.document;
+  const text = document.getText();
+  const offset = document.offsetAt(editor.selection.active);
+  const workspaceRoot = workspaceRootForUri(document.uri);
+  const index = workspaceRoot ? buildWorkspaceIndex(workspaceRoot) : null;
+  const plannedChanges: Array<{ filePath: string; startOffset: number }> = [];
+
+  const localRename = planRename(text, offset, newName);
+  if (localRename.plan) {
+    for (const reference of localRename.plan.references) {
+      plannedChanges.push({
+        filePath: document.uri.fsPath,
+        startOffset: reference.startOffset,
+      });
+    }
+    if (index) {
+      const workspacePlan = planWorkspaceImportedRename(
+        index,
+        document.uri.fsPath,
+        localRename.plan.definition,
+        newName,
+      );
+      if (workspacePlan.error) {
+        void vscode.window.showErrorMessage(workspacePlan.error);
+        return;
+      }
+      for (const change of workspacePlan.edits) {
+        plannedChanges.push({
+          filePath: change.filePath,
+          startOffset: change.startOffset,
+        });
+      }
+    }
+  } else if (index) {
+    const importedMatches = resolveImportedDefinition(
+      document.uri.fsPath,
+      text,
+      offset,
+      index,
+    );
+    if (importedMatches.length === 0) {
+      if (localRename.error) {
+        void vscode.window.showErrorMessage(localRename.error);
+      }
+      return;
+    }
+    const target = importedMatches[0];
+    const workspacePlan = planWorkspaceImportedRename(
+      index,
+      target.filePath,
+      target.definition,
+      newName,
+    );
+    if (workspacePlan.error) {
+      void vscode.window.showErrorMessage(workspacePlan.error);
+      return;
+    }
+    for (const change of workspacePlan.edits) {
+      plannedChanges.push({
+        filePath: change.filePath,
+        startOffset: change.startOffset,
+      });
+    }
+  } else if (localRename.error) {
+    void vscode.window.showErrorMessage(localRename.error);
+    return;
+  }
+
+  if (plannedChanges.length === 0) {
+    void vscode.window.showInformationMessage("No rename changes found.");
+    return;
+  }
+
+  const items = plannedChanges
+    .map((change) => {
+      const position =
+        index && index.documents.some((doc) => doc.filePath === change.filePath)
+          ? offsetToPositionForFile(change.filePath, change.startOffset, index)
+          : document.positionAt(change.startOffset);
+      return {
+        label: `${path.basename(change.filePath)}:${position.line + 1}:${position.character + 1}`,
+        description: path.relative(
+          workspaceRoot ?? path.dirname(change.filePath),
+          change.filePath,
+        ),
+      };
+    })
+    .slice(0, 200);
+
+  await vscode.window.showQuickPick(items, {
+    placeHolder: `Rename preview: ${plannedChanges.length} change(s)`,
+  });
 }
 
 async function showDiagramPreview(): Promise<void> {

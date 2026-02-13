@@ -67,3 +67,26 @@ rule TopLevelDeclarationsExposeFindReferencesCodeLens {
 
     ensures: CodeLensRendered(label: "Find references")
 }
+
+rule TopLevelDeclarationsExposeTestReferenceCountCodeLens {
+    when: CodeLensRequestedForDeclaration(symbol)
+    requires: symbol declared_at_top_level
+
+    ensures: CodeLensRendered(label: "Referenced in <n> tests")
+}
+
+rule ProblemsSummaryGroupsWorkspaceFindingsByCode {
+    when: ProblemsSummaryRequested()
+
+    ensures: FindingsGroupedByCode()
+    ensures: MostFrequentCodesShownFirst()
+}
+
+rule RenamePreviewShowsPlannedWorkspaceChanges {
+    when: RenamePreviewRequested(symbol, new_name)
+    requires: symbol resolves_to_single_definition
+    requires: new_name valid_identifier
+
+    ensures: PlannedRenameLocationsListed()
+    ensures: DocumentNotMutated()
+}
