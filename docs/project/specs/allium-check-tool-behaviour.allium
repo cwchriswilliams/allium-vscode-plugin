@@ -94,6 +94,15 @@ rule AutofixFlagAppliesSafeFixes {
     ensures: SafeFixApplied(kind: temporal_guard_scaffold)
 }
 
+rule FixCodeOptionScopesAutofixToSelectedDiagnosticCodes {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--autofix"
+    requires: options includes "--fix-code allium.rule.missingEnsures"
+
+    ensures: SafeFixApplied(kind: missing_ensures_scaffold)
+    ensures: SafeFixNotApplied(kind: temporal_guard_scaffold)
+}
+
 rule AutofixWritesUpdatedSpecs {
     when: SafeFixApplied(kind)
 
@@ -114,6 +123,13 @@ rule WorkspaceCheckCommandDelegatesToChecker {
     when: WorkspaceCommandInvoked(name: "npm run check -- <inputs>")
 
     ensures: CheckCommandInvokedWithInputs(inputs)
+}
+
+rule WatchModeReevaluatesInputsOnFileChanges {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--watch"
+
+    ensures: CheckRunRepeatedOnInputChange()
 }
 
 rule ChangedFlagChecksModifiedAlliumFiles {
@@ -142,6 +158,21 @@ rule StatsOptionPrintsCountsByCode {
     requires: options includes "--stats"
 
     ensures: FindingCountsPrintedGroupedByCode()
+}
+
+rule FailOnThresholdControlsBlockingSeverity {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--fail-on error"
+
+    ensures: FindingsWithSeverity(warning) do_not_fail_process
+    ensures: FindingsWithSeverity(error) fail_process
+}
+
+rule ReportOptionWritesRenderedOutputToPath {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--report"
+
+    ensures: ReportFileWritten(path: options.report_path)
 }
 
 rule ReleasedCliPackageExposesCheckCommand {

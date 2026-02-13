@@ -3,6 +3,12 @@ export interface SuppressionEdit {
   text: string;
 }
 
+export interface SuppressionCleanupResult {
+  text: string;
+  removedLines: number;
+  removedCodes: number;
+}
+
 export function buildSuppressionDirectiveEdit(
   text: string,
   diagnosticCode: string,
@@ -20,6 +26,43 @@ export function buildSuppressionDirectiveEdit(
   return {
     offset: lineStart,
     text: `${indent}-- allium-ignore ${diagnosticCode}\n`,
+  };
+}
+
+export function removeStaleSuppressions(
+  text: string,
+  activeCodes: Set<string>,
+): SuppressionCleanupResult {
+  const lines = text.split("\n");
+  let removedLines = 0;
+  let removedCodes = 0;
+  const updatedLines = lines.flatMap((line) => {
+    const match = line.match(/^(\s*)--\s*allium-ignore\s+(.+)$/);
+    if (!match) {
+      return [line];
+    }
+    const indent = match[1] ?? "";
+    const originalCodes = match[2]
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    const retainedCodes = originalCodes.filter(
+      (code) => code === "all" || activeCodes.has(code),
+    );
+    removedCodes += originalCodes.length - retainedCodes.length;
+    if (retainedCodes.length === 0) {
+      removedLines += 1;
+      return [];
+    }
+    if (retainedCodes.length !== originalCodes.length) {
+      return [`${indent}-- allium-ignore ${retainedCodes.join(", ")}`];
+    }
+    return [line];
+  });
+  return {
+    text: updatedLines.join("\n"),
+    removedLines,
+    removedCodes,
   };
 }
 

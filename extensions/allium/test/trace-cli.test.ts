@@ -151,3 +151,52 @@ test("trace strict mode fails with stale allowlist entries", () => {
   assert.equal(result.status, 1);
   assert.match(result.stdout, /Stale allowlist entries/);
 });
+
+test("trace CLI supports junit output", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule UncoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(path.join(dir, "tests", "spec.test.ts"), "", "utf8");
+
+  const result = runTrace(["--junit", "--tests", "tests", "specs"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /<testsuite name="allium-trace"/);
+  assert.match(
+    result.stdout,
+    /<failure message="Rule is not referenced by tests"/,
+  );
+});
+
+test("trace CLI supports by-file coverage output", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+
+  fs.writeFileSync(
+    path.join(dir, "specs", "a.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "specs", "b.allium"),
+    "rule UncoveredRule {\n  when: Pong()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "spec.test.ts"),
+    'test("CoveredRule", () => {});\n',
+    "utf8",
+  );
+
+  const result = runTrace(["--by-file", "--tests", "tests", "specs"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /Coverage by file:/);
+  assert.match(result.stdout, /a\.allium: 1\/1 covered/);
+  assert.match(result.stdout, /b\.allium: 0\/1 covered/);
+});

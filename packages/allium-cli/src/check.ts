@@ -10,11 +10,15 @@ interface ParsedArgs {
   mode: DiagnosticsMode;
   autofix: boolean;
   dryRun: boolean;
+  watch: boolean;
   changedOnly: boolean;
   showStats: boolean;
   minSeverity: Finding["severity"];
+  failOnSeverity: Finding["severity"];
+  fixCodes: Set<string>;
   ignoreCodes: Set<string>;
   format: CheckOutputFormat;
+  reportPath?: string;
   baselinePath?: string;
   writeBaselinePath?: string;
   inputs: string[];
@@ -36,17 +40,83 @@ interface BaselineFile {
   findings: Array<{ fingerprint: string }>;
 }
 
-function main(argv: string[]): number {
+function main(argv: string[]): number | null {
   const parsed = parseArgs(argv);
   if (!parsed) {
     return 2;
   }
 
+  if (parsed.watch) {
+    runWatch(parsed);
+    return null;
+  }
+
+  return runCheckOnce(parsed);
+}
+
+interface CheckCycleResult {
+  output: string;
+  hasFailing: boolean;
+  signature: string;
+  noFiles: boolean;
+}
+
+function runCheckOnce(parsed: ParsedArgs): number {
+  const cycle = evaluateCheckRun(parsed);
+  if (cycle.noFiles) {
+    process.stderr.write("No .allium files found for the provided inputs.\n");
+    return 2;
+  }
+  process.stdout.write(cycle.output);
+  if (parsed.reportPath) {
+    writeReport(parsed.reportPath, cycle.output);
+  }
+  if (parsed.format === "text" && !cycle.hasFailing) {
+    process.stdout.write("No blocking findings.\n");
+  }
+  return cycle.hasFailing ? 1 : 0;
+}
+
+function runWatch(parsed: ParsedArgs): void {
+  let previousSignature = "";
+  const runCycle = (): void => {
+    const cycle = evaluateCheckRun(parsed);
+    if (cycle.signature === previousSignature) {
+      return;
+    }
+    previousSignature = cycle.signature;
+    process.stdout.write(
+      `\n== allium-check watch (${new Date().toISOString()}) ==\n`,
+    );
+    if (cycle.noFiles) {
+      process.stderr.write("No .allium files found for the provided inputs.\n");
+      process.exitCode = 2;
+      return;
+    }
+    process.stdout.write(cycle.output);
+    if (parsed.reportPath) {
+      writeReport(parsed.reportPath, cycle.output);
+    }
+    if (parsed.format === "text" && !cycle.hasFailing) {
+      process.stdout.write("No blocking findings.\n");
+    }
+    process.exitCode = cycle.hasFailing ? 1 : 0;
+  };
+
+  runCycle();
+  setInterval(runCycle, 1000);
+}
+
+function evaluateCheckRun(parsed: ParsedArgs): CheckCycleResult {
   const changedInputs = parsed.changedOnly ? resolveChangedAlliumInputs() : [];
   const files = resolveInputs([...parsed.inputs, ...changedInputs]);
   if (files.length === 0) {
-    process.stderr.write("No .allium files found for the provided inputs.\n");
-    return 2;
+    return {
+      output: "",
+      hasFailing: true,
+      signature: "no-files",
+      noFiles: true,
+    };
   }
 
   const allFindings: FindingRecord[] = [];
@@ -54,7 +124,7 @@ function main(argv: string[]): number {
     let text = fs.readFileSync(filePath, "utf8");
 
     if (parsed.autofix) {
-      const fixed = applyAutoFixes(text, parsed.mode);
+      const fixed = applyAutoFixes(text, parsed.mode, parsed.fixCodes);
       if (fixed !== text) {
         if (!parsed.dryRun) {
           fs.writeFileSync(filePath, fixed, "utf8");
@@ -85,7 +155,16 @@ function main(argv: string[]): number {
         `Wrote baseline with ${allFindings.length} finding fingerprints to ${parsed.writeBaselinePath}\n`,
       );
     }
-    return 0;
+    const output =
+      parsed.format === "text"
+        ? `Wrote baseline with ${allFindings.length} finding fingerprints to ${parsed.writeBaselinePath}\n`
+        : "";
+    return {
+      output,
+      hasFailing: false,
+      signature: `baseline:${allFindings.length}`,
+      noFiles: false,
+    };
   }
 
   const baselineFingerprints = parsed.baselinePath
@@ -103,34 +182,51 @@ function main(argv: string[]): number {
   );
   const suppressedCount = allFindings.length - filteredByBaseline.length;
 
-  let hasNonInfo = false;
+  let hasFailing = false;
   for (const record of filtered) {
-    if (record.finding.severity !== "info") {
-      hasNonInfo = true;
+    if (
+      severityRank(record.finding.severity) >=
+      severityRank(parsed.failOnSeverity)
+    ) {
+      hasFailing = true;
       break;
     }
   }
 
-  renderOutput(parsed.format, filtered, suppressedCount, parsed.showStats);
-
-  if (parsed.format === "text" && !hasNonInfo) {
-    process.stdout.write("No blocking findings.\n");
-  }
-
-  return hasNonInfo ? 1 : 0;
+  const output = renderOutput(
+    parsed.format,
+    filtered,
+    suppressedCount,
+    parsed.showStats,
+  );
+  return {
+    output,
+    hasFailing,
+    signature: JSON.stringify({
+      filtered: filtered.map((record) => record.fingerprint),
+      suppressedCount,
+      hasFailing,
+      noFiles: false,
+    }),
+    noFiles: false,
+  };
 }
 
 function parseArgs(argv: string[]): ParsedArgs | null {
   let mode: DiagnosticsMode = "strict";
   let autofix = false;
   let dryRun = false;
+  let watch = false;
   let changedOnly = false;
   let showStats = false;
   let minSeverity: Finding["severity"] = "info";
+  let failOnSeverity: Finding["severity"] = "warning";
   let format: CheckOutputFormat = "text";
+  let reportPath: string | undefined;
   let baselinePath: string | undefined;
   let writeBaselinePath: string | undefined;
   const ignoreCodes = new Set<string>();
+  const fixCodes = new Set<string>();
   const inputs: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -152,6 +248,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
     if (arg === "--dryrun" || arg === "--dry-run") {
       dryRun = true;
+      continue;
+    }
+    if (arg === "--watch") {
+      watch = true;
       continue;
     }
     if (arg === "--changed") {
@@ -184,6 +284,41 @@ function parseArgs(argv: string[]): ParsedArgs | null {
           ignoreCodes.add(code);
         }
       }
+      i += 1;
+      continue;
+    }
+    if (arg === "--fix-code") {
+      const next = argv[i + 1];
+      if (!next) {
+        printUsage("Expected a comma-separated list after --fix-code");
+        return null;
+      }
+      for (const value of next.split(",")) {
+        const code = value.trim();
+        if (code.length > 0) {
+          fixCodes.add(code);
+        }
+      }
+      i += 1;
+      continue;
+    }
+    if (arg === "--fail-on") {
+      const next = argv[i + 1];
+      if (next !== "info" && next !== "warning" && next !== "error") {
+        printUsage("Expected --fail-on info|warning|error");
+        return null;
+      }
+      failOnSeverity = next;
+      i += 1;
+      continue;
+    }
+    if (arg === "--report") {
+      const next = argv[i + 1];
+      if (!next) {
+        printUsage("Expected a path after --report");
+        return null;
+      }
+      reportPath = next;
       i += 1;
       continue;
     }
@@ -237,6 +372,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     printUsage("--dryrun requires --autofix");
     return null;
   }
+  if (fixCodes.size > 0 && !autofix) {
+    printUsage("--fix-code requires --autofix");
+    return null;
+  }
 
   if (inputs.length === 0 && !changedOnly) {
     printUsage("Provide at least one file, directory, or glob.");
@@ -247,11 +386,15 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     mode,
     autofix,
     dryRun,
+    watch,
     changedOnly,
     showStats,
     minSeverity,
+    failOnSeverity,
+    fixCodes,
     ignoreCodes,
     format,
+    reportPath,
     baselinePath,
     writeBaselinePath,
     inputs,
@@ -263,15 +406,19 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/check.js [--mode strict|relaxed] [--autofix] [--dryrun] [--changed] [--stats] [--min-severity info|warning|error] [--ignore-code a,b] [--format text|json|sarif] [--baseline file] [--write-baseline file] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/check.js [--mode strict|relaxed] [--autofix] [--fix-code a,b] [--dryrun] [--changed] [--watch] [--stats] [--min-severity info|warning|error] [--fail-on info|warning|error] [--ignore-code a,b] [--format text|json|sarif] [--report file] [--baseline file] [--write-baseline file] <file|directory|glob> [...]\n",
   );
 }
 
-function applyAutoFixes(text: string, mode: DiagnosticsMode): string {
+function applyAutoFixes(
+  text: string,
+  mode: DiagnosticsMode,
+  fixCodes: Set<string>,
+): string {
   let current = text;
   for (let i = 0; i < 5; i += 1) {
     const findings = analyzeAllium(current, { mode });
-    const edits = buildSafeEdits(current, findings);
+    const edits = buildSafeEdits(current, findings, fixCodes);
     if (edits.length === 0) {
       break;
     }
@@ -280,18 +427,28 @@ function applyAutoFixes(text: string, mode: DiagnosticsMode): string {
   return current;
 }
 
-function buildSafeEdits(text: string, findings: Finding[]): TextEdit[] {
+function buildSafeEdits(
+  text: string,
+  findings: Finding[],
+  fixCodes: Set<string>,
+): TextEdit[] {
   const lineStarts = buildLineStarts(text);
   const edits = new Map<string, TextEdit>();
 
   for (const finding of findings) {
-    if (finding.code === "allium.rule.missingEnsures") {
+    if (
+      finding.code === "allium.rule.missingEnsures" &&
+      (fixCodes.size === 0 || fixCodes.has(finding.code))
+    ) {
       const lineStart = lineStarts[finding.start.line] ?? text.length;
       const key = `${lineStart}:ensures`;
       edits.set(key, { offset: lineStart, text: "    ensures: TODO()\n" });
     }
 
-    if (finding.code === "allium.temporal.missingGuard") {
+    if (
+      finding.code === "allium.temporal.missingGuard" &&
+      (fixCodes.size === 0 || fixCodes.has(finding.code))
+    ) {
       const whenLine = finding.start.line;
       const currentLineStart = lineStarts[whenLine] ?? 0;
       const nextLineStart = lineStarts[whenLine + 1] ?? text.length;
@@ -374,27 +531,24 @@ function renderOutput(
   findings: FindingRecord[],
   suppressedCount: number,
   showStats: boolean,
-): void {
+): string {
   if (format === "json") {
-    process.stdout.write(`${renderJson(findings, suppressedCount)}\n`);
-    return;
+    return `${renderJson(findings, suppressedCount)}\n`;
   }
   if (format === "sarif") {
-    process.stdout.write(`${renderSarif(findings)}\n`);
-    return;
+    return `${renderSarif(findings)}\n`;
   }
+  let output = "";
   for (const record of findings) {
-    process.stdout.write(formatFinding(record.filePath, record.finding));
-    process.stdout.write("\n");
+    output += `${formatFinding(record.filePath, record.finding)}\n`;
   }
   if (suppressedCount > 0) {
-    process.stdout.write(
-      `Suppressed ${suppressedCount} finding(s) from baseline.\n`,
-    );
+    output += `Suppressed ${suppressedCount} finding(s) from baseline.\n`;
   }
   if (showStats) {
-    process.stdout.write(renderCodeStats(findings));
+    output += renderCodeStats(findings);
   }
+  return output;
 }
 
 function renderJson(
@@ -639,5 +793,13 @@ function renderCodeStats(findings: FindingRecord[]): string {
   return output;
 }
 
+function writeReport(reportPath: string, content: string): void {
+  const fullPath = path.resolve(process.cwd(), reportPath);
+  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+  fs.writeFileSync(fullPath, content, "utf8");
+}
+
 const exitCode = main(process.argv.slice(2));
-process.exitCode = exitCode;
+if (typeof exitCode === "number") {
+  process.exitCode = exitCode;
+}

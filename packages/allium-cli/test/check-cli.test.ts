@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
 
 function runCheck(
   args: string[],
@@ -53,4 +55,38 @@ test("check CLI reports informational findings from spec diagnostics suite", () 
         finding.severity === "info",
     ),
   );
+});
+
+test("check CLI supports fail-on threshold", () => {
+  const repoRoot = path.resolve(__dirname, "../../../..");
+  const result = runCheck(
+    [
+      "--fail-on",
+      "info",
+      "--format",
+      "json",
+      "docs/project/specs/allium-check-tool-behaviour.allium",
+    ],
+    repoRoot,
+  );
+  assert.equal(result.status, 1);
+});
+
+test("check CLI report writes file output", () => {
+  const repoRoot = path.resolve(__dirname, "../../../..");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
+  const reportPath = path.join(tempDir, "report.json");
+  const result = runCheck(
+    [
+      "--format",
+      "json",
+      "--report",
+      reportPath,
+      "docs/project/specs/allium-check-tool-behaviour.allium",
+    ],
+    repoRoot,
+  );
+  assert.equal(result.status, 0);
+  const report = fs.readFileSync(reportPath, "utf8");
+  assert.equal(report.trim().startsWith("{"), true);
 });

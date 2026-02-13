@@ -215,10 +215,13 @@ Current implementation will proceed with defaults unless you override:
 - Standalone checker supports `--autofix` for safe automatic rule scaffolding fixes.
 - Standalone checker supports machine-readable outputs (`--format json|sarif`) and baseline files (`--baseline`, `--write-baseline`).
 - Standalone checker supports scoped execution and reporting controls (`--changed`, `--min-severity`, `--ignore-code`, `--stats`) plus autofix preview mode (`--autofix --dryrun`).
+- Standalone checker supports advanced controls: fix scoping (`--fix-code`), configurable failure threshold (`--fail-on`), report artifacts (`--report`), and watch mode (`--watch`).
 - Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 - Experimental diagram generator now supports strict extraction checks, focus/kind filtering, grouped rendering, and split-by-module output.
 - Standalone traceability checker added: `npm run trace:allium -- --tests <file|directory|glob> <spec-file|directory|glob>` for rule-name coverage checks between specs and tests.
+- Standalone traceability checker supports CI-friendly outputs and reporting detail (`--junit`, `--by-file`) in addition to allowlist/strict controls.
 - Standalone formatter supports preview/pipeline modes (`--dryrun`, `--stdin --stdout`).
+- VS Code quality-of-life commands now include apply-all quick fixes in file, stale suppression cleanup, and related spec/test navigation.
 
 ## High Priority Next Work
 

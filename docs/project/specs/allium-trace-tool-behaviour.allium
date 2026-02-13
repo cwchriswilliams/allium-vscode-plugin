@@ -73,6 +73,13 @@ rule TraceSupportsJsonOutput {
     ensures: MachineReadableCoveragePayloadPrinted()
 }
 
+rule TraceSupportsJunitOutput {
+    when: TraceCommandInvokedWithFormat(format)
+    requires: format = "junit"
+
+    ensures: JunitCoveragePayloadPrinted()
+}
+
 rule TraceAllowlistSuppressesKnownGaps {
     when: TraceCommandInvokedWithOptions(option)
     requires: option = "--allowlist"
@@ -87,6 +94,13 @@ rule StrictTraceFailsOnStaleAllowlistEntries {
 
     ensures: UserInformed(message: "Stale allowlist entries")
     ensures: ProcessExit(code: 1)
+}
+
+rule TraceCanPrintCoverageBySpecFile {
+    when: TraceCommandInvokedWithOptions(option)
+    requires: option = "--by-file"
+
+    ensures: CoverageSummaryPrintedPerSpecFile()
 }
 
 rule ReleasedCliPackageExposesTraceCommand {

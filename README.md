@@ -165,6 +165,9 @@ Formatting settings:
 - Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
 - Command: `Allium: Show Problems Summary` (`allium.showProblemsSummary`)
 - Command: `Allium: Preview Rename Plan` (`allium.previewRename`)
+- Command: `Allium: Apply All Quick Fixes In File` (`allium.applyQuickFixesInFile`)
+- Command: `Allium: Clean Stale Suppressions` (`allium.cleanStaleSuppressions`)
+- Command: `Allium: Open Related Spec/Test` (`allium.openRelatedSpecOrTest`)
 - Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
@@ -191,6 +194,9 @@ Formatting settings:
 - safer rename checks for ambiguous targets and name-collision rejection
 - rename preview command to inspect planned changes before applying
 - diagram preview panel with copy/export and node-to-source jump actions from active file or workspace (`allium.generateDiagram`)
+- one-command application of all available Allium quick fixes in the active file
+- suppression cleanup command to remove stale `-- allium-ignore ...` directives
+- related-file jump command that finds matching symbols across workspace specs/tests
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
 - semantic tokens for richer syntax-aware highlighting layers
@@ -211,9 +217,13 @@ npm run check -- docs/project/specs
 npm run check -- --mode relaxed "docs/project/specs/**/*.allium"
 npm run check -- --autofix docs/project/specs
 npm run check -- --autofix --dryrun docs/project/specs
+npm run check -- --autofix --fix-code allium.rule.missingEnsures docs/project/specs
 npm run check -- --changed
 npm run check -- --min-severity warning --ignore-code allium.rule.unreachableTrigger docs/project/specs
+npm run check -- --fail-on error docs/project/specs
+npm run check -- --format json --report reports/allium-check.json docs/project/specs
 npm run check -- --stats docs/project/specs
+npm run check -- --watch docs/project/specs
 npm run check -- --format json docs/project/specs
 npm run check -- --write-baseline .allium-baseline.json docs/project/specs
 npm run check -- --baseline .allium-baseline.json docs/project/specs
@@ -238,9 +248,13 @@ Behavior summary:
 - `--autofix --dryrun` previews safe automatic edits without writing files
 - `--changed` checks only `.allium` files currently changed in git working tree
 - `--min-severity <info|warning|error>` filters reported findings to a severity floor
+- `--fail-on <info|warning|error>` sets the severity threshold that causes non-zero exit (default: `warning`)
 - `--ignore-code <code[,code...]>` suppresses matching finding codes for the run
 - `--stats` prints grouped finding counts by code
+- `--report <file>` writes emitted output to a report file in the selected output format
+- `--watch` continuously reruns checks when input file content changes
 - `--format json|sarif` emits machine-readable findings for CI/code-scanning integrations
+- `--fix-code <code[,code...]>` limits `--autofix` edits to selected diagnostic codes
 - `--write-baseline <file>` records current findings as suppression fingerprints and exits successfully
 - `--baseline <file>` suppresses matching known findings to support ratcheting in legacy specs
 
@@ -334,7 +348,9 @@ Direct built script:
 ```bash
 node extensions/allium/dist/src/trace.js --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --format json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --junit --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --by-file --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --strict --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 ```
 
@@ -342,8 +358,10 @@ Behavior summary:
 
 - extracts rule names from `.allium` specs
 - resolves test files from explicit `--tests` inputs (file, directory, glob)
+- supports `--format text|json|junit` output (or `--junit` shorthand)
 - optional `--allowlist <file>` suppresses known uncovered rule names
 - optional `--strict` fails when allowlist contains stale rule names not present in specs
+- optional `--by-file` includes per-spec-file coverage breakdown
 - prints coverage summary and uncovered rule names
 - exits `0` when all extracted rules are referenced by tests
 - exits `1` when uncovered rules exist

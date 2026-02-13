@@ -112,6 +112,18 @@
         "title": "Allium: Preview Rename Plan"
       },
       {
+        "command": "allium.applyQuickFixesInFile",
+        "title": "Allium: Apply All Quick Fixes In File"
+      },
+      {
+        "command": "allium.cleanStaleSuppressions",
+        "title": "Allium: Clean Stale Suppressions"
+      },
+      {
+        "command": "allium.openRelatedSpecOrTest",
+        "title": "Allium: Open Related Spec/Test"
+      },
+      {
         "command": "allium.generateDiagram",
         "title": "Allium: Generate Diagram"
       }

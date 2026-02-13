@@ -35,7 +35,10 @@ import {
   ALLIUM_SEMANTIC_TOKEN_TYPES,
   collectSemanticTokenEntries,
 } from "./language-tools/semantic-tokens";
-import { buildSuppressionDirectiveEdit } from "./language-tools/suppression";
+import {
+  buildSuppressionDirectiveEdit,
+  removeStaleSuppressions,
+} from "./language-tools/suppression";
 import {
   buildWorkspaceIndex,
   resolveImportedDefinition,
@@ -196,6 +199,30 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("allium.previewRename", async () => {
       await previewRenamePlan();
     }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.applyQuickFixesInFile",
+      async () => {
+        await applyAllQuickFixesInActiveFile();
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.cleanStaleSuppressions",
+      async () => {
+        await cleanStaleSuppressions();
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.openRelatedSpecOrTest",
+      async () => {
+        await openRelatedSpecOrTest();
+      },
+    ),
   );
 
   context.subscriptions.push(
@@ -1066,6 +1093,132 @@ async function applySafeFixes(
   void vscode.window.showInformationMessage(`Applied ${suffix} Allium fixes.`);
 }
 
+async function applyAllQuickFixesInActiveFile(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage(
+      "Open an .allium file to apply quick fixes.",
+    );
+    return;
+  }
+  const document = editor.document;
+  const wholeRange = new vscode.Range(
+    document.positionAt(0),
+    document.positionAt(document.getText().length),
+  );
+  const actions =
+    (await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      "vscode.executeCodeActionProvider",
+      document.uri,
+      wholeRange,
+      vscode.CodeActionKind.QuickFix.value,
+    )) ?? [];
+  const quickFixEdits = actions
+    .filter(
+      (action) =>
+        !!action.edit &&
+        action.diagnostics?.some((diag) =>
+          String(diag.code ?? "").startsWith("allium."),
+        ),
+    )
+    .map((action) => action.edit as vscode.WorkspaceEdit);
+
+  if (quickFixEdits.length === 0) {
+    void vscode.window.showInformationMessage(
+      "No Allium quick fixes available in this file.",
+    );
+    return;
+  }
+
+  let applied = 0;
+  for (const edit of quickFixEdits) {
+    const ok = await vscode.workspace.applyEdit(edit);
+    if (ok) {
+      applied += 1;
+    }
+  }
+  void vscode.window.showInformationMessage(
+    `Applied ${applied} Allium quick fix(es).`,
+  );
+}
+
+async function cleanStaleSuppressions(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage(
+      "Open an .allium file to clean suppressions.",
+    );
+    return;
+  }
+  const document = editor.document;
+  const original = document.getText();
+  const findings = analyzeAllium(original, { mode: readDiagnosticsMode() });
+  const activeCodes = new Set(findings.map((finding) => finding.code));
+  const cleanup = removeStaleSuppressions(original, activeCodes);
+  if (cleanup.text === original) {
+    void vscode.window.showInformationMessage("No stale suppressions found.");
+    return;
+  }
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(
+    document.uri,
+    new vscode.Range(
+      document.positionAt(0),
+      document.positionAt(document.getText().length),
+    ),
+    cleanup.text,
+  );
+  await vscode.workspace.applyEdit(edit);
+  void vscode.window.showInformationMessage(
+    `Removed ${cleanup.removedLines} stale suppression line(s) and ${cleanup.removedCodes} stale code reference(s).`,
+  );
+}
+
+async function openRelatedSpecOrTest(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage("Open an .allium file first.");
+    return;
+  }
+  const symbolRange = editor.document.getWordRangeAtPosition(
+    editor.selection.active,
+    /[A-Za-z_][A-Za-z0-9_]*/,
+  );
+  if (!symbolRange) {
+    void vscode.window.showInformationMessage(
+      "Place cursor on a symbol name first.",
+    );
+    return;
+  }
+  const symbol = editor.document.getText(symbolRange);
+  const matches = await findRelatedSpecOrTestFiles(symbol, editor.document.uri);
+  if (matches.length === 0) {
+    void vscode.window.showInformationMessage(
+      `No related spec/test files found for '${symbol}'.`,
+    );
+    return;
+  }
+  if (matches.length === 1) {
+    const doc = await vscode.workspace.openTextDocument(matches[0]);
+    await vscode.window.showTextDocument(doc);
+    return;
+  }
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+  const item = await vscode.window.showQuickPick(
+    matches.map((uri) => ({
+      label: path.basename(uri.fsPath),
+      description: path.relative(root, uri.fsPath),
+      uri,
+    })),
+    { placeHolder: `Related files for '${symbol}'` },
+  );
+  if (!item) {
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument(item.uri);
+  await vscode.window.showTextDocument(doc);
+}
+
 async function showSpecHealthSummary(): Promise<void> {
   const files = await vscode.workspace.findFiles(
     "**/*.allium",
@@ -1431,6 +1584,35 @@ async function showDiagramPreview(): Promise<void> {
     undefined,
     [],
   );
+}
+
+async function findRelatedSpecOrTestFiles(
+  symbol: string,
+  currentUri: vscode.Uri,
+): Promise<vscode.Uri[]> {
+  const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matcher = new RegExp(`\\b${escaped}\\b`, "m");
+  const matches = new Map<string, vscode.Uri>();
+  const searchIn = async (include: string): Promise<void> => {
+    const files = await vscode.workspace.findFiles(
+      include,
+      "**/{node_modules,dist,.git}/**",
+    );
+    for (const file of files) {
+      if (file.fsPath === currentUri.fsPath) {
+        continue;
+      }
+      const text = Buffer.from(
+        await vscode.workspace.fs.readFile(file),
+      ).toString("utf8");
+      if (matcher.test(text)) {
+        matches.set(file.fsPath, file);
+      }
+    }
+  };
+  await searchIn("**/*.allium");
+  await searchIn("**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}");
+  return [...matches.values()].sort((a, b) => a.fsPath.localeCompare(b.fsPath));
 }
 
 function offsetToPosition(text: string, offset: number): vscode.Position {

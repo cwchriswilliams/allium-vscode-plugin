@@ -2,10 +2,11 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-type TraceOutputFormat = "text" | "json";
+type TraceOutputFormat = "text" | "json" | "junit";
 
 interface ParsedArgs {
   format: TraceOutputFormat;
+  byFile: boolean;
   strict: boolean;
   allowlistPath?: string;
   testInputs: string[];
@@ -22,6 +23,14 @@ interface TraceResult {
   coveredRules: number;
   uncovered: RuleReference[];
   staleAllowlistEntries: string[];
+  byFile: FileCoverage[];
+}
+
+interface FileCoverage {
+  filePath: string;
+  totalRules: number;
+  coveredRules: number;
+  uncoveredRules: RuleReference[];
 }
 
 function main(argv: string[]): number {
@@ -62,12 +71,14 @@ function main(argv: string[]): number {
   const staleAllowlistEntries = [...allowlist].filter(
     (name) => !ruleNames.has(name),
   );
+  const byFile = parsed.byFile ? buildFileCoverage(rules, uncovered) : [];
 
   const result: TraceResult = {
     totalRules: rules.length,
     coveredRules: rules.length - uncovered.length,
     uncovered,
     staleAllowlistEntries,
+    byFile,
   };
 
   renderOutput(parsed.format, result);
@@ -81,6 +92,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   const specInputs: string[] = [];
   const testInputs: string[] = [];
   let format: TraceOutputFormat = "text";
+  let byFile = false;
   let strict = false;
   let allowlistPath: string | undefined;
 
@@ -98,12 +110,20 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
     if (arg === "--format") {
       const value = argv[i + 1];
-      if (value !== "text" && value !== "json") {
-        printUsage("Expected --format text|json");
+      if (value !== "text" && value !== "json" && value !== "junit") {
+        printUsage("Expected --format text|json|junit");
         return null;
       }
       format = value;
       i += 1;
+      continue;
+    }
+    if (arg === "--junit") {
+      format = "junit";
+      continue;
+    }
+    if (arg === "--by-file") {
+      byFile = true;
       continue;
     }
     if (arg === "--strict") {
@@ -136,7 +156,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { format, strict, allowlistPath, testInputs, specInputs };
+  return { format, byFile, strict, allowlistPath, testInputs, specInputs };
 }
 
 function printUsage(error?: string): void {
@@ -144,7 +164,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-trace [--format text|json] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+    "Usage: allium-trace [--format text|json|junit] [--junit] [--by-file] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
   );
 }
 
@@ -170,6 +190,42 @@ function collectRules(specFiles: string[]): RuleReference[] {
   return rules;
 }
 
+function buildFileCoverage(
+  rules: RuleReference[],
+  uncovered: RuleReference[],
+): FileCoverage[] {
+  const uncoveredByFile = new Map<string, RuleReference[]>();
+  for (const entry of uncovered) {
+    const bucket = uncoveredByFile.get(entry.filePath);
+    if (bucket) {
+      bucket.push(entry);
+    } else {
+      uncoveredByFile.set(entry.filePath, [entry]);
+    }
+  }
+  const rulesByFile = new Map<string, RuleReference[]>();
+  for (const rule of rules) {
+    const bucket = rulesByFile.get(rule.filePath);
+    if (bucket) {
+      bucket.push(rule);
+    } else {
+      rulesByFile.set(rule.filePath, [rule]);
+    }
+  }
+
+  const out: FileCoverage[] = [];
+  for (const [filePath, fileRules] of rulesByFile) {
+    const fileUncovered = uncoveredByFile.get(filePath) ?? [];
+    out.push({
+      filePath,
+      totalRules: fileRules.length,
+      coveredRules: fileRules.length - fileUncovered.length,
+      uncoveredRules: fileUncovered,
+    });
+  }
+  return out.sort((a, b) => a.filePath.localeCompare(b.filePath));
+}
+
 function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
   if (format === "json") {
     process.stdout.write(
@@ -182,11 +238,21 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
             filePath: entry.filePath,
           })),
           staleAllowlistEntries: result.staleAllowlistEntries,
+          byFile: result.byFile.map((entry) => ({
+            filePath: entry.filePath,
+            totalRules: entry.totalRules,
+            coveredRules: entry.coveredRules,
+            uncoveredRules: entry.uncoveredRules.map((rule) => rule.name),
+          })),
         },
         null,
         2,
       )}\n`,
     );
+    return;
+  }
+  if (format === "junit") {
+    process.stdout.write(`${renderJunit(result)}\n`);
     return;
   }
 
@@ -213,6 +279,45 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
       process.stdout.write(`- ${name}\n`);
     }
   }
+  if (result.byFile.length > 0) {
+    process.stdout.write("Coverage by file:\n");
+    for (const entry of result.byFile) {
+      process.stdout.write(
+        `- ${path.relative(process.cwd(), entry.filePath) || entry.filePath}: ${entry.coveredRules}/${entry.totalRules} covered\n`,
+      );
+    }
+  }
+}
+
+function renderJunit(result: TraceResult): string {
+  const testcases: string[] = [];
+  for (const rule of result.uncovered) {
+    const relPath =
+      path.relative(process.cwd(), rule.filePath) || rule.filePath;
+    testcases.push(
+      `    <testcase name="${escapeXml(rule.name)}" classname="allium-trace.${escapeXml(relPath)}"><failure message="Rule is not referenced by tests"/></testcase>`,
+    );
+  }
+  if (testcases.length === 0) {
+    testcases.push(
+      '    <testcase name="allium-trace-coverage" classname="allium-trace"/>',
+    );
+  }
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<testsuite name="allium-trace" tests="${result.totalRules}" failures="${result.uncovered.length}">`,
+    ...testcases,
+    "</testsuite>",
+  ].join("\n");
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
 }
 
 function readAllowlist(filePath: string): Set<string> {
