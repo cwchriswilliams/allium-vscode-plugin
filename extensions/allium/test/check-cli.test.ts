@@ -115,3 +115,34 @@ test("supports wildcard inputs and checks matched files", () => {
   assert.match(result.stdout, /specs\/a\.allium/);
   assert.doesNotMatch(result.stdout, /specs\/c\.txt/);
 });
+
+test("autofix adds missing ensures and returns success", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const filePath = writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n}\n`,
+  );
+
+  const result = runCheck(["--autofix", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /autofixed/);
+
+  const updated = fs.readFileSync(filePath, "utf8");
+  assert.match(updated, /ensures: TODO\(\)/);
+});
+
+test("autofix adds temporal guard scaffold", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const filePath = writeAllium(
+    dir,
+    "spec.allium",
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
+  );
+
+  const result = runCheck(["--autofix", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+
+  const updated = fs.readFileSync(filePath, "utf8");
+  assert.match(updated, /requires: \/\* add temporal guard \*\//);
+});

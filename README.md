@@ -192,6 +192,7 @@ Repo-level command:
 ```bash
 npm run check -- docs/project/specs
 npm run check -- --mode relaxed "docs/project/specs/**/*.allium"
+npm run check -- --autofix docs/project/specs
 ```
 
 Direct built script:
@@ -199,6 +200,7 @@ Direct built script:
 ```bash
 node extensions/allium/dist/src/check.js docs/project/specs
 node extensions/allium/dist/src/check.js --mode strict path/to/file.allium
+node extensions/allium/dist/src/check.js --autofix docs/project/specs
 ```
 
 Behavior summary:
@@ -206,6 +208,7 @@ Behavior summary:
 - exits `0` when only informational findings (or no findings) are present
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files
+- `--autofix` applies safe automatic edits (`missing ensures` scaffold and temporal `requires` guard scaffold)
 
 ### `allium-format`
 
@@ -339,7 +342,7 @@ Pre-commit runs:
 1. `lint-staged`:
    - Biome formatting
    - ESLint autofix
-2. `allium-check` on `docs/project/specs`
+2. `allium-check --autofix` on `docs/project/specs` (and restages updated specs)
 3. `allium-format` on `docs/project/specs`
 4. unit tests
 4. full unit test suite (`npm run test`)

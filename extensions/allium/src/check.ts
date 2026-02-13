@@ -9,7 +9,13 @@ import {
 
 interface ParsedArgs {
   mode: DiagnosticsMode;
+  autofix: boolean;
   inputs: string[];
+}
+
+interface TextEdit {
+  offset: number;
+  text: string;
 }
 
 function main(argv: string[]): number {
@@ -26,7 +32,19 @@ function main(argv: string[]): number {
 
   let hasNonInfo = false;
   for (const filePath of files) {
-    const text = fs.readFileSync(filePath, "utf8");
+    let text = fs.readFileSync(filePath, "utf8");
+
+    if (parsed.autofix) {
+      const fixed = applyAutoFixes(text, parsed.mode);
+      if (fixed !== text) {
+        fs.writeFileSync(filePath, fixed, "utf8");
+        text = fixed;
+        process.stdout.write(
+          `${path.relative(process.cwd(), filePath) || filePath}: autofixed\n`,
+        );
+      }
+    }
+
     const findings = analyzeAllium(text, { mode: parsed.mode });
     if (findings.length === 0) {
       continue;
@@ -50,6 +68,7 @@ function main(argv: string[]): number {
 
 function parseArgs(argv: string[]): ParsedArgs | null {
   let mode: DiagnosticsMode = "strict";
+  let autofix = false;
   const inputs: string[] = [];
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -62,6 +81,11 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       }
       mode = modeArg;
       i += 1;
+      continue;
+    }
+
+    if (arg === "--autofix") {
+      autofix = true;
       continue;
     }
 
@@ -78,7 +102,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { mode, inputs };
+  return { mode, autofix, inputs };
 }
 
 function printUsage(error?: string): void {
@@ -86,8 +110,72 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/check.js [--mode strict|relaxed] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/check.js [--mode strict|relaxed] [--autofix] <file|directory|glob> [...]\n",
   );
+}
+
+function applyAutoFixes(text: string, mode: DiagnosticsMode): string {
+  let current = text;
+  for (let i = 0; i < 5; i += 1) {
+    const findings = analyzeAllium(current, { mode });
+    const edits = buildSafeEdits(current, findings);
+    if (edits.length === 0) {
+      break;
+    }
+    current = applyEdits(current, edits);
+  }
+  return current;
+}
+
+function buildSafeEdits(text: string, findings: Finding[]): TextEdit[] {
+  const lineStarts = buildLineStarts(text);
+  const edits = new Map<string, TextEdit>();
+
+  for (const finding of findings) {
+    if (finding.code === "allium.rule.missingEnsures") {
+      const lineStart = lineStarts[finding.start.line] ?? text.length;
+      const key = `${lineStart}:ensures`;
+      edits.set(key, { offset: lineStart, text: "    ensures: TODO()\n" });
+    }
+
+    if (finding.code === "allium.temporal.missingGuard") {
+      const whenLine = finding.start.line;
+      const currentLineStart = lineStarts[whenLine] ?? 0;
+      const nextLineStart = lineStarts[whenLine + 1] ?? text.length;
+      const lineText = text.slice(
+        currentLineStart,
+        text.indexOf("\n", currentLineStart) >= 0
+          ? text.indexOf("\n", currentLineStart)
+          : text.length,
+      );
+      const indent = lineText.match(/^\s*/)?.[0] ?? "    ";
+      const key = `${nextLineStart}:guard`;
+      edits.set(key, {
+        offset: nextLineStart,
+        text: `${indent}requires: /* add temporal guard */\n`,
+      });
+    }
+  }
+
+  return [...edits.values()].sort((a, b) => b.offset - a.offset);
+}
+
+function applyEdits(text: string, edits: TextEdit[]): string {
+  let out = text;
+  for (const edit of edits) {
+    out = `${out.slice(0, edit.offset)}${edit.text}${out.slice(edit.offset)}`;
+  }
+  return out;
+}
+
+function buildLineStarts(text: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < text.length; i += 1) {
+    if (text[i] === "\n") {
+      starts.push(i + 1);
+    }
+  }
+  return starts;
 }
 
 function resolveInputs(inputs: string[]): string[] {
