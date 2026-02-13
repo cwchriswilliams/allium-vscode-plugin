@@ -90,3 +90,11 @@ rule FormatterSupportsStdinStdoutPipeline {
     ensures: ReadsFromStandardInput()
     ensures: WritesFormattedOutputToStandardOutput()
 }
+
+rule FormatterConfigDefaultsCanBeLoadedFromWorkspaceFile {
+    when: FormatCommandInvokedWithInputs(inputs)
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+
+    ensures: ConfigDefaultsLoaded(section: format)
+}

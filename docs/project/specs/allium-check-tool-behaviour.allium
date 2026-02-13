@@ -175,6 +175,31 @@ rule ReportOptionWritesRenderedOutputToPath {
     ensures: ReportFileWritten(path: options.report_path)
 }
 
+rule FixInteractivePromptsBeforeApplyingEachSafeFix {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--autofix"
+    requires: options includes "--fix-interactive"
+
+    ensures: SafeFixPromptPrintedPerFix()
+    ensures: SafeFixAppliedOnlyWhenAccepted()
+}
+
+rule CacheOptionStoresAndReusesFindingsForUnchangedFiles {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--cache"
+
+    ensures: CacheFileWritten(path: ".allium-check-cache.json")
+    ensures: UnchangedFilesReuseCachedFindings()
+}
+
+rule ConfigFileCanProvideCheckDefaults {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: FileExists(path: "allium-config-file")
+    requires: options excludes "--no-config"
+
+    ensures: ConfigDefaultsLoaded(section: check)
+}
+
 rule ReleasedCliPackageExposesCheckCommand {
     when: CliPackageInstalledFromReleaseNpmArtifact()
 

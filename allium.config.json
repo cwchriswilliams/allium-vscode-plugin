@@ -1,0 +1,18 @@
+{
+  "check": {
+    "mode": "strict",
+    "minSeverity": "info",
+    "failOn": "warning",
+    "ignoreCodes": [],
+    "fixCodes": []
+  },
+  "format": {
+    "indentWidth": 4,
+    "topLevelSpacing": 1
+  },
+  "trace": {
+    "format": "text",
+    "byFile": false,
+    "strict": false
+  }
+}

@@ -155,3 +155,20 @@ test("format CLI supports stdin stdout mode", () => {
   assert.equal(result.status, 0);
   assert.match(result.stdout, / {4}when: Ping\(\)/);
 });
+
+test("format CLI reads defaults from allium.config.json", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ format: { indentWidth: 2, topLevelSpacing: 0 } }),
+    "utf8",
+  );
+  const target = path.join(dir, "spec.allium");
+  fs.writeFileSync(target, "rule A {\nwhen: Ping()\n}\n", "utf8");
+  const result = runFormat(["spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.equal(
+    fs.readFileSync(target, "utf8"),
+    "rule A {\n  when: Ping()\n}\n",
+  );
+});

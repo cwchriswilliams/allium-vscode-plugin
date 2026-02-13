@@ -8,6 +8,7 @@ import * as os from "node:os";
 function runCheck(
   args: string[],
   cwd: string,
+  input?: string,
 ): {
   status: number | null;
   stdout: string;
@@ -18,6 +19,7 @@ function runCheck(
   const result = spawnSync(process.execPath, [checkScript, ...args], {
     cwd,
     encoding: "utf8",
+    input,
   });
   return {
     status: result.status,
@@ -89,4 +91,37 @@ test("check CLI report writes file output", () => {
   assert.equal(result.status, 0);
   const report = fs.readFileSync(reportPath, "utf8");
   assert.equal(report.trim().startsWith("{"), true);
+});
+
+test("check CLI supports fix-interactive mode", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
+  fs.writeFileSync(
+    path.join(dir, "spec.allium"),
+    `rule A {\n  when: Ping()\n}\n`,
+    "utf8",
+  );
+  const result = runCheck(
+    ["--autofix", "--fix-interactive", "spec.allium"],
+    dir,
+    "y\n",
+  );
+  assert.equal(result.status, 0);
+  const updated = fs.readFileSync(path.join(dir, "spec.allium"), "utf8");
+  assert.match(updated, /ensures: TODO\(\)/);
+});
+
+test("check CLI reads mode from allium.config.json", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ check: { mode: "relaxed" } }),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "spec.allium"),
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
+    "utf8",
+  );
+  const result = runCheck(["spec.allium"], dir);
+  assert.equal(result.status, 0);
 });

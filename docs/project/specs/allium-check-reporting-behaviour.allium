@@ -37,3 +37,11 @@ rule JsonOutputFormatIsSupported {
 
             ensures: MatchingBaselineFindingsSuppressed()
         }
+
+        rule SarifIncludesRuleHelpMetadata {
+            when: CheckCommandInvokedWithOptions(options)
+            requires: options.format = sarif
+
+            ensures: OutputContains(key: "helpUri")
+            ensures: OutputContains(key: "fullDescription")
+        }

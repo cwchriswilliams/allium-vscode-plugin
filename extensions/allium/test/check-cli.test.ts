@@ -20,11 +20,12 @@ function runCheck(
   args: string[],
   cwd: string,
   timeoutMs?: number,
+  input?: string,
 ): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(
     process.execPath,
     [path.resolve("dist/src/check.js"), ...args],
-    { cwd, encoding: "utf8", timeout: timeoutMs },
+    { cwd, encoding: "utf8", timeout: timeoutMs, input },
   );
   return {
     status: result.status,
@@ -372,4 +373,63 @@ test("fix-code requires autofix", () => {
   );
   assert.equal(result.status, 2);
   assert.match(result.stderr, /--fix-code requires --autofix/);
+});
+
+test("fix-interactive applies selected fixes only", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const filePath = writeAllium(
+    dir,
+    "spec.allium",
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n}\n`,
+  );
+  const result = runCheck(
+    ["--autofix", "--fix-interactive", "spec.allium"],
+    dir,
+    undefined,
+    "y\nn\n",
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /Apply fix allium\.rule\.missingEnsures/);
+  const updated = fs.readFileSync(filePath, "utf8");
+  assert.match(updated, /ensures: TODO\(\)/);
+  assert.doesNotMatch(updated, /requires: \/\* add temporal guard \*\//);
+});
+
+test("sarif includes rule metadata and help uri", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+  const result = runCheck(["--format", "sarif", "spec.allium"], dir);
+  assert.equal(result.status, 1);
+  const payload = JSON.parse(result.stdout) as {
+    runs: Array<{ tool: { driver: { rules: Array<{ helpUri: string }> } } }>;
+  };
+  assert.equal(payload.runs[0].tool.driver.rules.length > 0, true);
+  assert.match(
+    payload.runs[0].tool.driver.rules[0].helpUri,
+    /allium\/language/,
+  );
+});
+
+test("check loads defaults from allium.config.json", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `entity Invitation {\n  expires_at: Timestamp\n  status: String\n}\n\nrule Expires {\n  when: invitation: Invitation.expires_at <= now\n  ensures: invitation.status = expired\n}\n`,
+  );
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ check: { mode: "relaxed" } }),
+    "utf8",
+  );
+  const result = runCheck(["spec.allium"], dir);
+  assert.equal(result.status, 0);
+});
+
+test("cache mode writes cache file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+  const result = runCheck(["--cache", "spec.allium"], dir);
+  assert.equal(result.status, 1);
+  assert.equal(fs.existsSync(path.join(dir, ".allium-check-cache.json")), true);
 });

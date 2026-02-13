@@ -18,12 +18,19 @@ interface RuleReference {
   filePath: string;
 }
 
+interface RuleHit {
+  ruleName: string;
+  testFilePath: string;
+  line: number;
+}
+
 interface TraceResult {
   totalRules: number;
   coveredRules: number;
   uncovered: RuleReference[];
   staleAllowlistEntries: string[];
   byFile: FileCoverage[];
+  hitsByRule: Map<string, RuleHit[]>;
 }
 
 interface FileCoverage {
@@ -31,6 +38,15 @@ interface FileCoverage {
   totalRules: number;
   coveredRules: number;
   uncoveredRules: RuleReference[];
+}
+
+interface AlliumConfig {
+  trace?: {
+    format?: TraceOutputFormat;
+    byFile?: boolean;
+    strict?: boolean;
+    allowlistPath?: string;
+  };
 }
 
 function main(argv: string[]): number {
@@ -59,13 +75,15 @@ function main(argv: string[]): number {
   const allowlist = parsed.allowlistPath
     ? readAllowlist(parsed.allowlistPath)
     : new Set<string>();
-  const testBodies = testFiles.map((filePath) =>
-    fs.readFileSync(filePath, "utf8"),
-  );
+  const testBodies = testFiles.map((filePath) => ({
+    filePath,
+    text: fs.readFileSync(filePath, "utf8"),
+  }));
+  const hitsByRule = collectRuleHits(rules, testBodies);
   const uncovered = rules.filter(
     (rule) =>
       !allowlist.has(rule.name) &&
-      !testBodies.some((content) => content.includes(rule.name)),
+      (hitsByRule.get(rule.name)?.length ?? 0) === 0,
   );
   const ruleNames = new Set(rules.map((rule) => rule.name));
   const staleAllowlistEntries = [...allowlist].filter(
@@ -79,6 +97,7 @@ function main(argv: string[]): number {
     uncovered,
     staleAllowlistEntries,
     byFile,
+    hitsByRule,
   };
 
   renderOutput(parsed.format, result);
@@ -89,12 +108,25 @@ function main(argv: string[]): number {
 }
 
 function parseArgs(argv: string[]): ParsedArgs | null {
+  let configPath = "allium.config.json";
+  let useConfig = true;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--config" && argv[i + 1]) {
+      configPath = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (argv[i] === "--no-config") {
+      useConfig = false;
+    }
+  }
+  const config = useConfig ? readAlliumConfig(configPath) : {};
   const specInputs: string[] = [];
   const testInputs: string[] = [];
-  let format: TraceOutputFormat = "text";
-  let byFile = false;
-  let strict = false;
-  let allowlistPath: string | undefined;
+  let format: TraceOutputFormat = config.trace?.format ?? "text";
+  let byFile = config.trace?.byFile ?? false;
+  let strict = config.trace?.strict ?? false;
+  let allowlistPath: string | undefined = config.trace?.allowlistPath;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -144,6 +176,13 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       printUsage();
       return null;
     }
+    if (arg === "--config") {
+      i += 1;
+      continue;
+    }
+    if (arg === "--no-config") {
+      continue;
+    }
     specInputs.push(arg);
   }
 
@@ -164,7 +203,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-trace [--format text|json|junit] [--junit] [--by-file] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+    "Usage: allium-trace [--config file|--no-config] [--format text|json|junit] [--junit] [--by-file] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
   );
 }
 
@@ -244,6 +283,15 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
             coveredRules: entry.coveredRules,
             uncoveredRules: entry.uncoveredRules.map((rule) => rule.name),
           })),
+          hitsByRule: [...result.hitsByRule.entries()].map(
+            ([ruleName, hits]) => ({
+              ruleName,
+              hits: hits.map((hit) => ({
+                filePath: hit.testFilePath,
+                line: hit.line,
+              })),
+            }),
+          ),
         },
         null,
         2,
@@ -279,6 +327,22 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
       process.stdout.write(`- ${name}\n`);
     }
   }
+  if (result.hitsByRule.size > 0) {
+    process.stdout.write("Rule test references:\n");
+    for (const [ruleName, hits] of [...result.hitsByRule.entries()].sort(
+      (a, b) => a[0].localeCompare(b[0]),
+    )) {
+      if (hits.length === 0) {
+        continue;
+      }
+      process.stdout.write(`- ${ruleName}:\n`);
+      for (const hit of hits) {
+        const relPath =
+          path.relative(process.cwd(), hit.testFilePath) || hit.testFilePath;
+        process.stdout.write(`  - ${relPath}:${hit.line}\n`);
+      }
+    }
+  }
   if (result.byFile.length > 0) {
     process.stdout.write("Coverage by file:\n");
     for (const entry of result.byFile) {
@@ -311,6 +375,31 @@ function renderJunit(result: TraceResult): string {
   ].join("\n");
 }
 
+function collectRuleHits(
+  rules: RuleReference[],
+  testFiles: Array<{ filePath: string; text: string }>,
+): Map<string, RuleHit[]> {
+  const out = new Map<string, RuleHit[]>();
+  for (const rule of rules) {
+    const matcher = new RegExp(`\\b${escapeRegex(rule.name)}\\b`);
+    const hits: RuleHit[] = [];
+    for (const testFile of testFiles) {
+      const lines = testFile.text.split("\n");
+      for (let i = 0; i < lines.length; i += 1) {
+        if (matcher.test(lines[i])) {
+          hits.push({
+            ruleName: rule.name,
+            testFilePath: testFile.filePath,
+            line: i + 1,
+          });
+        }
+      }
+    }
+    out.set(rule.name, hits);
+  }
+  return out;
+}
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -318,6 +407,10 @@ function escapeXml(value: string): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&apos;");
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readAllowlist(filePath: string): Set<string> {
@@ -332,6 +425,18 @@ function readAllowlist(filePath: string): Set<string> {
       .map((line) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#")),
   );
+}
+
+function readAlliumConfig(configPath: string): AlliumConfig {
+  const fullPath = path.resolve(process.cwd(), configPath);
+  if (!fs.existsSync(fullPath)) {
+    return {};
+  }
+  try {
+    return JSON.parse(fs.readFileSync(fullPath, "utf8")) as AlliumConfig;
+  } catch {
+    return {};
+  }
 }
 
 function isTestFilePath(filePath: string): boolean {

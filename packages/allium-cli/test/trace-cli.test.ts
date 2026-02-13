@@ -66,3 +66,57 @@ test("trace CLI supports by-file output", () => {
   assert.match(result.stdout, /a\.allium: 1\/1 covered/);
   assert.match(result.stdout, /b\.allium: 0\/1 covered/);
 });
+
+test("trace CLI json includes rule hit line numbers", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "spec.test.ts"),
+    'test("CoveredRule", () => {});\n',
+    "utf8",
+  );
+  const result = runTrace(
+    ["--format", "json", "--tests", "tests", "specs"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout) as {
+    hitsByRule: Array<{ ruleName: string; hits: Array<{ line: number }> }>;
+  };
+  const covered = payload.hitsByRule.find(
+    (entry) => entry.ruleName === "CoveredRule",
+  );
+  assert.ok(covered);
+  assert.equal(covered.hits[0]?.line, 1);
+});
+
+test("trace CLI reads config defaults", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ trace: { format: "json" } }),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "spec.test.ts"),
+    'test("CoveredRule", () => {});\n',
+    "utf8",
+  );
+  const result = runTrace(["--tests", "tests", "specs"], dir);
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout) as { coveredRules: number };
+  assert.equal(parsed.coveredRules, 1);
+});

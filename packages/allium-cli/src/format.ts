@@ -12,6 +12,13 @@ interface ParsedArgs {
   inputs: string[];
 }
 
+interface AlliumConfig {
+  format?: {
+    indentWidth?: number;
+    topLevelSpacing?: number;
+  };
+}
+
 function main(argv: string[]): number {
   const parsed = parseArgs(argv);
   if (!parsed) {
@@ -168,13 +175,26 @@ function countLeadingClosers(text: string): number {
 }
 
 function parseArgs(argv: string[]): ParsedArgs | null {
+  let configPath = "allium.config.json";
+  let useConfig = true;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--config" && argv[i + 1]) {
+      configPath = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (argv[i] === "--no-config") {
+      useConfig = false;
+    }
+  }
+  const config = useConfig ? readAlliumConfig(configPath) : {};
   const inputs: string[] = [];
   let checkOnly = false;
   let dryRun = false;
   let readFromStdin = false;
   let writeToStdout = false;
-  let indentWidth = 4;
-  let topLevelSpacing = 1;
+  let indentWidth = config.format?.indentWidth ?? 4;
+  let topLevelSpacing = config.format?.topLevelSpacing ?? 1;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -218,6 +238,13 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       printUsage();
       return null;
     }
+    if (arg === "--config") {
+      i += 1;
+      continue;
+    }
+    if (arg === "--no-config") {
+      continue;
+    }
     inputs.push(arg);
   }
 
@@ -253,8 +280,20 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/format.js [--check] [--dryrun] [--stdin --stdout] [--stdout] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/format.js [--config file|--no-config] [--check] [--dryrun] [--stdin --stdout] [--stdout] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
   );
+}
+
+function readAlliumConfig(configPath: string): AlliumConfig {
+  const fullPath = path.resolve(process.cwd(), configPath);
+  if (!fs.existsSync(fullPath)) {
+    return {};
+  }
+  try {
+    return JSON.parse(fs.readFileSync(fullPath, "utf8")) as AlliumConfig;
+  } catch {
+    return {};
+  }
 }
 
 function resolveInputs(inputs: string[]): string[] {

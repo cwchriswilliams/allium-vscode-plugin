@@ -103,6 +103,21 @@ rule TraceCanPrintCoverageBySpecFile {
     ensures: CoverageSummaryPrintedPerSpecFile()
 }
 
+rule TraceIncludesExactTestReferenceLocations {
+    when: TraceRunCompleted(summary)
+    requires: summary.covered_rules > 0
+
+    ensures: RuleCoverageReferencesInclude(file_path, line_number)
+}
+
+rule TraceConfigDefaultsCanBeLoadedFromWorkspaceFile {
+    when: TraceCommandInvoked(inputs, tests)
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+
+    ensures: ConfigDefaultsLoaded(section: trace)
+}
+
 rule ReleasedCliPackageExposesTraceCommand {
     when: CliPackageInstalledFromReleaseNpmArtifact()
 
