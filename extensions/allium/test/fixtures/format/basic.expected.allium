@@ -1,4 +1,4 @@
-rule A{
+rule A {
     when: Ping()
     ensures: Done()
 }

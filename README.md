@@ -252,6 +252,7 @@ Current formatter behavior:
 - enforce a single trailing newline
 - normalize block indentation
 - normalize spacing between top-level blocks
+- normalize declaration header spacing before `{` for official top-level declarations
 - normalize spacing around pipe-delimited literals (for example enum literal sets)
 
 ### `allium-diagram` (experimental)

@@ -97,10 +97,7 @@ export function formatAlliumText(
     indentLevel = Math.max(indentLevel - leadingClosers, 0);
 
     const isTopLevelDeclaration =
-      indentLevel === 0 &&
-      /^(entity|external\s+entity|value|variant|rule|surface|actor|config)\b/.test(
-        trimmed,
-      );
+      indentLevel === 0 && isTopLevelDeclarationLine(trimmed);
     if (
       isTopLevelDeclaration &&
       formattedLines.length > 0 &&
@@ -112,7 +109,9 @@ export function formatAlliumText(
     }
 
     const indent = " ".repeat(indentLevel * indentWidth);
-    formattedLines.push(`${indent}${normalizePipeSpacing(trimmed)}`);
+    formattedLines.push(
+      `${indent}${normalizePipeSpacing(normalizeDeclarationHeaderSpacing(trimmed))}`,
+    );
 
     const openCount = countOccurrences(trimmed, "{");
     const closeCount = countOccurrences(trimmed, "}");
@@ -285,6 +284,22 @@ function blankLinesAtEnd(lines: string[]): number {
 
 function clampInteger(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function isTopLevelDeclarationLine(line: string): boolean {
+  return /^(entity|external\s+entity|value|variant|rule|surface|actor|config|enum|default|module|context|deferred|open_question)\b/.test(
+    line,
+  );
+}
+
+function normalizeDeclarationHeaderSpacing(line: string): string {
+  if (line.startsWith("--")) {
+    return line;
+  }
+  return line.replace(
+    /^((?:entity|external\s+entity|value|variant|rule|surface|actor|config|enum|default|module|context|deferred|open_question)\b[^{]*?)\s*\{$/,
+    "$1 {",
+  );
 }
 
 function normalizePipeSpacing(line: string): string {

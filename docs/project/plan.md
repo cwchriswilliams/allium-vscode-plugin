@@ -222,4 +222,4 @@ Current implementation will proceed with defaults unless you override:
 - Improve Allium formatter depth:
   - In progress: structure-aware indentation and top-level block spacing implemented.
   - Implemented: spacing normalization for pipe-delimited literal sets.
-  - Remaining: richer syntax-aware formatting for additional constructs.
+  - Implemented: declaration-header spacing normalization before `{` across official top-level declarations.

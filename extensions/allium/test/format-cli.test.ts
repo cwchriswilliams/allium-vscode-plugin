@@ -34,7 +34,7 @@ test("formatAlliumText applies structural indentation and top-level spacing", ()
   const output = formatAlliumText(input);
   assert.equal(
     output,
-    "rule A{\n    when: Ping()\n    ensures: Done()\n}\n\nrule B {\n    when: Pong()\n    ensures: Done()\n}\n",
+    "rule A {\n    when: Ping()\n    ensures: Done()\n}\n\nrule B {\n    when: Pong()\n    ensures: Done()\n}\n",
   );
 });
 
@@ -56,6 +56,16 @@ test("formatAlliumText normalizes pipe spacing in enum literals", () => {
   assert.equal(
     output,
     "enum Recommendation {\n    strong_yes | yes | no | strong_no\n}\n",
+  );
+});
+
+test("formatAlliumText normalizes declaration header brace spacing", () => {
+  const input =
+    'enum Recommendation{\nstrong_yes|yes\n}\nrule A{\nwhen: Ping()\n}\nopen_question SpecGap{\nwhy: "x"\n}\n';
+  const output = formatAlliumText(input);
+  assert.equal(
+    output,
+    'enum Recommendation {\n    strong_yes | yes\n}\n\nrule A {\n    when: Ping()\n}\n\nopen_question SpecGap {\n    why: "x"\n}\n',
   );
 });
 
