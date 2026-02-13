@@ -60,6 +60,18 @@ interface ParsedArgs {
   inputs: string[];
 }
 
+interface AlliumConfig {
+  project?: {
+    specPaths?: string[];
+  };
+  diagram?: {
+    format?: DiagramFormat;
+    reverseLinks?: boolean;
+    constraintLabels?: boolean;
+    strict?: boolean;
+  };
+}
+
 function main(argv: string[]): number {
   const parsed = parseArgs(argv);
   if (!parsed) {
@@ -117,15 +129,30 @@ function main(argv: string[]): number {
 }
 
 function parseArgs(argv: string[]): ParsedArgs | null {
-  let format: DiagramFormat = "d2";
+  let configPath = "allium.config.json";
+  let useConfig = true;
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--config" && argv[i + 1]) {
+      configPath = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (argv[i] === "--no-config") {
+      useConfig = false;
+    }
+  }
+  const config = useConfig ? readAlliumConfig(configPath) : {};
+
+  let format: DiagramFormat = config.diagram?.format ?? "d2";
   let outputPath: string | undefined;
-  let strict = false;
-  let reverseLinks = false;
-  let constraintLabels = false;
+  let strict = config.diagram?.strict ?? false;
+  let reverseLinks = config.diagram?.reverseLinks ?? false;
+  let constraintLabels = config.diagram?.constraintLabels ?? false;
   let split: SplitMode | undefined;
   const focusNames: string[] = [];
   const kinds: DiagramNodeKind[] = [];
-  const inputs: string[] = [];
+  const inputs: string[] = [...(config.project?.specPaths ?? [])];
+  let resetInputs = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -201,6 +228,17 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       printUsage();
       return null;
     }
+    if (arg === "--config") {
+      i += 1;
+      continue;
+    }
+    if (arg === "--no-config") {
+      continue;
+    }
+    if (!resetInputs) {
+      inputs.length = 0;
+      resetInputs = true;
+    }
     inputs.push(arg);
   }
 
@@ -229,8 +267,20 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-diagram [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--reverse-links] [--constraint-labels] [--strict] <file|directory|glob> [...]\n",
+    "Usage: allium-diagram [--config file|--no-config] [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--reverse-links] [--constraint-labels] [--strict] <file|directory|glob> [...]\n",
   );
+}
+
+function readAlliumConfig(configPath: string): AlliumConfig {
+  const fullPath = path.resolve(process.cwd(), configPath);
+  if (!fs.existsSync(fullPath)) {
+    return {};
+  }
+  try {
+    return JSON.parse(fs.readFileSync(fullPath, "utf8")) as AlliumConfig;
+  } catch {
+    return {};
+  }
 }
 
 function writeIssues(

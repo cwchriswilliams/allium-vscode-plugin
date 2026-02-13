@@ -126,6 +126,23 @@ test("check CLI reads mode from allium.config.json", () => {
   assert.equal(result.status, 0);
 });
 
+test("check CLI uses project.specPaths from config when no inputs are passed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ project: { specPaths: ["specs"] } }),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule A {\n  when: Ping()\n}\n",
+  );
+  const result = runCheck([], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /specs\/spec\.allium/);
+});
+
 test("check CLI autofix inserts missing when scaffold", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
   fs.writeFileSync(

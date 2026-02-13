@@ -93,6 +93,19 @@ test("returns exit code 2 when no inputs are provided", () => {
   assert.match(result.stderr, /Provide at least one file, directory, or glob/);
 });
 
+test("uses project.specPaths from config when no inputs are passed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "specs/spec.allium", `rule A {\n  when: Ping()\n}\n`);
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ project: { specPaths: ["specs"] } }),
+    "utf8",
+  );
+  const result = runCheck([], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /specs\/spec\.allium/);
+});
+
 test("returns exit code 2 when inputs resolve to no .allium files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
   fs.writeFileSync(path.join(dir, "readme.txt"), "no spec files", "utf8");

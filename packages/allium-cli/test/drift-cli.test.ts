@@ -30,6 +30,7 @@ function writeFixtureFiles(root: string): {
   sourceDir: string;
   specsDir: string;
   commandsPath: string;
+  diagnosticsPath: string;
 } {
   const sourceDir = path.join(root, "src");
   const specsDir = path.join(root, "specs");
@@ -55,7 +56,9 @@ function writeFixtureFiles(root: string): {
     }),
     "utf8",
   );
-  return { sourceDir, specsDir, commandsPath };
+  const diagnosticsPath = path.join(root, "diagnostics.json");
+  fs.writeFileSync(diagnosticsPath, JSON.stringify(["allium.example.rule"]));
+  return { sourceDir, specsDir, commandsPath, diagnosticsPath };
 }
 
 test("drift CLI exits 0 when diagnostics and commands are covered", () => {
@@ -109,4 +112,40 @@ test("drift CLI reports mismatch in json mode", () => {
   assert.equal(payload.hasDrift, true);
   assert.ok(payload.commands.missingInSpecs.includes("allium.otherCommand"));
   assert.ok(payload.commands.staleInSpecs.includes("allium.runChecks"));
+});
+
+test("drift CLI supports diagnostics manifest without source scanning", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-drift-"));
+  const fixture = writeFixtureFiles(dir);
+  const result = runDrift(
+    [
+      "--diagnostics-from",
+      fixture.diagnosticsPath,
+      "--specs",
+      fixture.specsDir,
+      "--commands-from",
+      fixture.commandsPath,
+    ],
+    dir,
+  );
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("drift CLI loads defaults from allium.config.json", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-drift-"));
+  const fixture = writeFixtureFiles(dir);
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({
+      drift: {
+        sources: [fixture.sourceDir],
+        sourceExtensions: [".ts"],
+        specs: [fixture.specsDir],
+        commandsFrom: fixture.commandsPath,
+      },
+    }),
+    "utf8",
+  );
+  const result = runDrift([], dir);
+  assert.equal(result.status, 0, result.stderr);
 });

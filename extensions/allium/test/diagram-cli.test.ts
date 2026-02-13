@@ -142,3 +142,21 @@ test("constraint-labels appends requires expression to when edge labels", () => 
   assert.equal(result.status, 0);
   assert.match(result.stdout, /when \[ticket.status = open\]/);
 });
+
+test("diagram CLI uses project.specPaths from config when no inputs are passed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ project: { specPaths: ["specs"] } }),
+    "utf8",
+  );
+  writeAllium(
+    dir,
+    "specs/spec.allium",
+    `entity Ticket {\n  status: open | closed\n}\n`,
+  );
+  const result = runDiagram([], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /entity_Ticket/);
+});

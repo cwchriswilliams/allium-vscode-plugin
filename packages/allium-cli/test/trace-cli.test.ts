@@ -149,3 +149,63 @@ test("trace CLI semantic mode supports coverage helper calls", () => {
   assert.ok(hit);
   assert.equal(hit.hits[0]?.line, 1);
 });
+
+test("trace CLI supports language-agnostic test matching via test patterns and extensions", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "rules_test.py"),
+    'assert "CoveredRule"\n',
+    "utf8",
+  );
+  const result = runTrace(
+    [
+      "--format",
+      "json",
+      "--test-ext",
+      ".py",
+      "--test-pattern",
+      "_test\\.py$",
+      "--tests",
+      "tests",
+      "specs",
+    ],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout) as { coveredRules: number };
+  assert.equal(payload.coveredRules, 1);
+});
+
+test("trace CLI can load test/spec path defaults from config", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({
+      trace: { format: "json", tests: ["tests"], specs: ["specs"] },
+    }),
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "spec.test.ts"),
+    'test("CoveredRule", () => {});\n',
+    "utf8",
+  );
+  const result = runTrace([], dir);
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout) as { coveredRules: number };
+  assert.equal(payload.coveredRules, 1);
+});

@@ -1,4 +1,8 @@
 {
+  "project": {
+    "specPaths": ["docs/project/specs"],
+    "testPaths": ["extensions/allium/test"]
+  },
   "check": {
     "mode": "strict",
     "minSeverity": "info",
@@ -13,6 +17,18 @@
   "trace": {
     "format": "text",
     "byFile": false,
-    "strict": false
+    "strict": false,
+    "tests": ["extensions/allium/test"],
+    "specs": ["docs/project/specs"],
+    "testExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+    "testNamePatterns": ["\\\\.test\\\\.", "\\\\.spec\\."]
+  },
+  "drift": {
+    "sources": ["extensions/allium/src/language-tools"],
+    "sourceExtensions": [".ts"],
+    "specs": ["docs/project/specs"],
+    "commandsFrom": "extensions/allium/package.json",
+    "skipCommands": false,
+    "format": "text"
   }
 }

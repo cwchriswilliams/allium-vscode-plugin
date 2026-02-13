@@ -10,6 +10,8 @@ interface ParsedArgs {
   semantic: boolean;
   strict: boolean;
   allowlistPath?: string;
+  testExtensions: string[];
+  testNamePatterns: string[];
   testInputs: string[];
   specInputs: string[];
 }
@@ -42,12 +44,20 @@ interface FileCoverage {
 }
 
 interface AlliumConfig {
+  project?: {
+    specPaths?: string[];
+    testPaths?: string[];
+  };
   trace?: {
     format?: TraceOutputFormat;
     byFile?: boolean;
     semantic?: boolean;
     strict?: boolean;
     allowlistPath?: string;
+    testExtensions?: string[];
+    testNamePatterns?: string[];
+    tests?: string[];
+    specs?: string[];
   };
 }
 
@@ -67,7 +77,10 @@ function main(argv: string[]): number {
     return 2;
   }
 
-  const testFiles = resolveInputs(parsed.testInputs, isTestFilePath);
+  const testFiles = resolveInputs(
+    parsed.testInputs,
+    buildTestFileMatcher(parsed.testExtensions, parsed.testNamePatterns),
+  );
   if (testFiles.length === 0) {
     process.stderr.write("No test files found for the provided test inputs.\n");
     return 2;
@@ -132,6 +145,24 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   let semantic = config.trace?.semantic ?? false;
   let strict = config.trace?.strict ?? false;
   let allowlistPath: string | undefined = config.trace?.allowlistPath;
+  let testExtensions = config.trace?.testExtensions ?? [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+  ];
+  let testNamePatterns = config.trace?.testNamePatterns ?? [
+    "\\.test\\.",
+    "\\.spec\\.",
+  ];
+  testInputs.push(...(config.trace?.tests ?? config.project?.testPaths ?? []));
+  specInputs.push(...(config.trace?.specs ?? config.project?.specPaths ?? []));
+  let resetTests = false;
+  let resetSpecs = false;
+  let resetTestPatterns = false;
+  let resetTestExtensions = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -141,7 +172,25 @@ function parseArgs(argv: string[]): ParsedArgs | null {
         printUsage("Expected a file, directory, or glob after --tests");
         return null;
       }
+      if (!resetTests) {
+        testInputs.length = 0;
+        resetTests = true;
+      }
       testInputs.push(value);
+      i += 1;
+      continue;
+    }
+    if (arg === "--specs") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        printUsage("Expected a file, directory, or glob after --specs");
+        return null;
+      }
+      if (!resetSpecs) {
+        specInputs.length = 0;
+        resetSpecs = true;
+      }
+      specInputs.push(value);
       i += 1;
       continue;
     }
@@ -181,6 +230,44 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       i += 1;
       continue;
     }
+    if (arg === "--test-pattern") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        printUsage("Expected a regex pattern after --test-pattern");
+        return null;
+      }
+      if (!resetTestPatterns) {
+        testNamePatterns = [];
+        resetTestPatterns = true;
+      }
+      testNamePatterns.push(value);
+      i += 1;
+      continue;
+    }
+    if (arg === "--test-ext") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        printUsage("Expected extension list after --test-ext");
+        return null;
+      }
+      if (!resetTestExtensions) {
+        testExtensions = [];
+        resetTestExtensions = true;
+      }
+      for (const ext of value.split(",")) {
+        const trimmed = ext.trim();
+        if (trimmed.length === 0) {
+          continue;
+        }
+        testExtensions.push(
+          trimmed.startsWith(".")
+            ? trimmed.toLowerCase()
+            : `.${trimmed.toLowerCase()}`,
+        );
+      }
+      i += 1;
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       printUsage();
       return null;
@@ -191,6 +278,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
     if (arg === "--no-config") {
       continue;
+    }
+    if (!resetSpecs) {
+      specInputs.length = 0;
+      resetSpecs = true;
     }
     specInputs.push(arg);
   }
@@ -210,6 +301,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     semantic,
     strict,
     allowlistPath,
+    testExtensions,
+    testNamePatterns,
     testInputs,
     specInputs,
   };
@@ -220,7 +313,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-trace [--config file|--no-config] [--format text|json|junit] [--junit] [--by-file] [--semantic] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+    "Usage: allium-trace [--config file|--no-config] [--format text|json|junit] [--junit] [--by-file] [--semantic] [--strict] [--allowlist file] [--test-pattern regex] [--test-ext ext[,ext...]] --tests <file|directory|glob> [--tests ...] [--specs <file|directory|glob>] [<spec-file|directory|glob> ...]\n",
   );
 }
 
@@ -512,12 +605,22 @@ function readAlliumConfig(configPath: string): AlliumConfig {
   }
 }
 
-function isTestFilePath(filePath: string): boolean {
-  const base = path.basename(filePath);
-  if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(base)) {
-    return false;
-  }
-  return base.includes(".test.") || base.includes(".spec.");
+function buildTestFileMatcher(
+  extensions: string[],
+  namePatterns: string[],
+): (filePath: string) => boolean {
+  const allowed = new Set(extensions.map((ext) => ext.toLowerCase()));
+  const matchers = namePatterns.map((pattern) => new RegExp(pattern));
+  return (filePath: string): boolean => {
+    const base = path.basename(filePath);
+    if (!allowed.has(path.extname(base).toLowerCase())) {
+      return false;
+    }
+    if (matchers.length === 0) {
+      return true;
+    }
+    return matchers.some((matcher) => matcher.test(base));
+  };
 }
 
 function resolveInputs(

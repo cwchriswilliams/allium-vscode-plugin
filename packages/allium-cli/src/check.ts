@@ -63,6 +63,9 @@ interface CacheFile {
 }
 
 interface AlliumConfig {
+  project?: {
+    specPaths?: string[];
+  };
   check?: {
     mode?: DiagnosticsMode;
     minSeverity?: Finding["severity"];
@@ -318,7 +321,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   let writeBaselinePath: string | undefined;
   const ignoreCodes = new Set(config.check?.ignoreCodes ?? []);
   const fixCodes = new Set(config.check?.fixCodes ?? []);
-  const inputs: string[] = [];
+  const inputs: string[] = [...(config.project?.specPaths ?? [])];
+  let resetInputs = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -481,6 +485,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       continue;
     }
 
+    if (!resetInputs) {
+      inputs.length = 0;
+      resetInputs = true;
+    }
     inputs.push(arg);
   }
 

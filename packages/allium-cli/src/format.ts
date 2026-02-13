@@ -13,6 +13,9 @@ interface ParsedArgs {
 }
 
 interface AlliumConfig {
+  project?: {
+    specPaths?: string[];
+  };
   format?: {
     indentWidth?: number;
     topLevelSpacing?: number;
@@ -188,7 +191,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
   }
   const config = useConfig ? readAlliumConfig(configPath) : {};
-  const inputs: string[] = [];
+  const inputs: string[] = [...(config.project?.specPaths ?? [])];
+  let resetInputs = false;
   let checkOnly = false;
   let dryRun = false;
   let readFromStdin = false;
@@ -244,6 +248,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
     if (arg === "--no-config") {
       continue;
+    }
+    if (!resetInputs) {
+      inputs.length = 0;
+      resetInputs = true;
     }
     inputs.push(arg);
   }

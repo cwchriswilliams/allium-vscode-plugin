@@ -111,6 +111,24 @@ test("format CLI fails with exit code 2 when no inputs are provided", () => {
   assert.match(result.stderr, /Provide at least one file, directory, or glob/);
 });
 
+test("format CLI uses project.specPaths from config when no inputs are passed", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({ project: { specPaths: ["specs"] } }),
+    "utf8",
+  );
+  const target = path.join(dir, "specs", "spec.allium");
+  fs.writeFileSync(target, "rule A {\nwhen: Ping()\n}\n", "utf8");
+  const result = runFormat([], dir);
+  assert.equal(result.status, 0);
+  assert.equal(
+    fs.readFileSync(target, "utf8"),
+    "rule A {\n    when: Ping()\n}\n",
+  );
+});
+
 test("format CLI fails with exit code 2 when input has no .allium files", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
   fs.writeFileSync(path.join(dir, "notes.txt"), "no allium", "utf8");
