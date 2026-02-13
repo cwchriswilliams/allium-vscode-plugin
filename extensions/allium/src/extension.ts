@@ -45,6 +45,7 @@ import { collectUndefinedImportedSymbolFindings } from "./language-tools/importe
 import { planRename, prepareRenameTarget } from "./language-tools/rename";
 import { resolveDiagnosticsModeForProfile } from "./language-tools/profile";
 import { planWorkspaceImportedRename } from "./language-tools/cross-file-rename";
+import { collectCodeLensTargets } from "./language-tools/codelens";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -191,6 +192,13 @@ export function activate(context: vscode.ExtensionContext): void {
           vscode.CodeActionKind.RefactorRewrite,
         ],
       },
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      { language: ALLIUM_LANGUAGE_ID },
+      new AlliumCodeLensProvider(),
     ),
   );
 
@@ -460,6 +468,23 @@ class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
         range,
         selectionRange,
       );
+    });
+  }
+}
+
+class AlliumCodeLensProvider implements vscode.CodeLensProvider {
+  provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const text = document.getText();
+    return collectCodeLensTargets(text).map((target) => {
+      const range = new vscode.Range(
+        document.positionAt(target.startOffset),
+        document.positionAt(target.endOffset),
+      );
+      return new vscode.CodeLens(range, {
+        title: "Find references",
+        command: "editor.action.referenceSearch.trigger",
+        arguments: [document.uri, range.start],
+      });
     });
   }
 }

@@ -185,6 +185,7 @@ Formatting settings:
 - hover docs for core Allium keywords with declaration/import context
 - hover appends leading declaration comments as inline symbol docs
 - safer rename checks for ambiguous targets and name-collision rejection
+- top-level declaration code lenses for `Find references`
 - diagram preview panel with copy/export and node-to-source jump actions from active file or workspace (`allium.generateDiagram`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files

@@ -153,6 +153,7 @@ Current status:
 - Implemented: go to definition across local `use "... " as alias` imports.
 - Implemented: clickable document links for `use "... " as alias` import paths.
 - Implemented: find references for local symbols/config keys and imported symbols.
+- Implemented: code lenses for top-level declarations (`Find references`).
 - Implemented: local symbol rename provider.
 - Implemented: safer rename guardrails for ambiguous symbols and naming collisions.
 - Implemented: workspace-aware rename updates across imported symbol usages.
