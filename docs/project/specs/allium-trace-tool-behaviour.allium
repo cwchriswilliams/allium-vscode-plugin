@@ -1,0 +1,80 @@
+-- allium-trace-tool-behaviour.allium
+-- Scope: Standalone CLI behavior for tracing rule coverage from specs to tests.
+-- Includes:
+--   - Rule extraction from .allium specifications
+--   - Test file resolution and rule-name matching
+--   - Exit code semantics and reporting formats
+-- Excludes:
+--   - Semantic interpretation of test assertions
+--   - Enforcing one-to-one mapping between rules and tests
+
+entity RuleCoverageSummary {
+    total_rules: Integer
+    covered_rules: Integer
+    uncovered_rules: Integer
+}
+
+rule TraceCommandRequiresSpecInputs {
+    when: TraceCommandInvokedWithoutSpecInputs()
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule TraceCommandRequiresTestInputs {
+    when: TraceCommandInvokedWithoutTestInputs()
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule TraceCommandRejectsMissingSpecFiles {
+    when: TraceCommandInvoked(inputs, tests)
+    requires: ResolveAlliumFiles(inputs).is_empty = true
+
+    ensures: UserInformed(message: "No .allium files found for the provided spec inputs.")
+    ensures: ProcessExit(code: 2)
+}
+
+rule TraceCommandRejectsMissingTestFiles {
+    when: TraceCommandInvoked(inputs, tests)
+    requires: ResolveTestFiles(tests).is_empty = true
+
+    ensures: UserInformed(message: "No test files found for the provided test inputs.")
+    ensures: ProcessExit(code: 2)
+}
+
+rule UncoveredRulesCauseFailure {
+    when: TraceRunCompleted(summary)
+    requires: summary.uncovered_rules > 0
+    requires: summary.total_rules >= summary.covered_rules
+
+    ensures: CoverageSummaryPrinted(summary)
+    ensures: EntityTypeObserved(kind: RuleCoverageSummary)
+    ensures: UncoveredRuleListPrinted()
+    ensures: ProcessExit(code: 1)
+}
+
+rule FullyCoveredRulesSucceed {
+    when: TraceRunCompleted(summary)
+    requires: summary.uncovered_rules = 0
+    requires: summary.total_rules = summary.covered_rules
+
+    ensures: CoverageSummaryPrinted(summary)
+    ensures: EntityTypeObserved(kind: RuleCoverageSummary)
+    ensures: UserInformed(message: "All spec rules are referenced by tests.")
+    ensures: ProcessExit(code: 0)
+}
+
+rule TraceSupportsJsonOutput {
+    when: TraceCommandInvokedWithFormat(format)
+    requires: format = "json"
+
+    ensures: MachineReadableCoveragePayloadPrinted()
+}
+
+rule ReleasedCliPackageExposesTraceCommand {
+    when: CliPackageInstalledFromReleaseNpmArtifact()
+
+    ensures: CommandAvailable(name: "allium-trace")
+}

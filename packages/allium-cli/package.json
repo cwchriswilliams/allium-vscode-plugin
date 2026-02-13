@@ -1,12 +1,13 @@
 {
   "name": "allium-cli",
   "version": "0.1.0",
-  "description": "Standalone allium-check and allium-format CLI tools.",
+  "description": "Standalone allium-check, allium-format, allium-diagram, and allium-trace CLI tools.",
   "license": "MIT",
   "bin": {
     "allium-check": "./dist/src/check.js",
     "allium-format": "./dist/src/format.js",
-    "allium-diagram": "./dist/src/diagram.js"
+    "allium-diagram": "./dist/src/diagram.js",
+    "allium-trace": "./dist/src/trace.js"
   },
   "files": ["dist/**", "README.md", "package.json", "LICENSE"],
   "scripts": {

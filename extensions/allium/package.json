@@ -21,7 +21,8 @@
   "bin": {
     "allium-check": "./dist/src/check.js",
     "allium-format": "./dist/src/format.js",
-    "allium-diagram": "./dist/src/diagram.js"
+    "allium-diagram": "./dist/src/diagram.js",
+    "allium-trace": "./dist/src/trace.js"
   },
   "contributes": {
     "languages": [
@@ -114,7 +115,8 @@
     "lint": "tsc -p ./tsconfig.json --noEmit",
     "check": "npm run build && node ./dist/src/check.js",
     "format:allium": "npm run build && node ./dist/src/format.js",
-    "diagram:allium": "npm run build && node ./dist/src/diagram.js"
+    "diagram:allium": "npm run build && node ./dist/src/diagram.js",
+    "trace:allium": "npm run build && node ./dist/src/trace.js"
   },
   "devDependencies": {
     "@types/node": "^22.13.5",

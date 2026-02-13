@@ -6,6 +6,7 @@ This project provides:
 2. A standalone `allium-check` CLI for validation.
 3. A standalone `allium-format` CLI for formatting.
 4. A standalone `allium-diagram` CLI for text-first diagram generation from specs.
+5. A standalone `allium-trace` CLI for spec-to-test traceability checks.
 
 The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
 
@@ -22,7 +23,7 @@ The extension is not yet published on the VS Code Marketplace. Consumers should 
 Each tagged release publishes:
 
 - `allium-vscode-<version>.vsix` (VS Code extension package)
-- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, and `allium-diagram`)
+- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, `allium-diagram`, and `allium-trace`)
 - `SHA256SUMS.txt` (artifact checksums)
 
 Install extension from VSIX:
@@ -39,6 +40,7 @@ npm install -g ./allium-cli-<version>.tgz
 allium-check --help
 allium-format --help
 allium-diagram --help
+allium-trace --help
 ```
 
 Optional checksum verification:
@@ -68,6 +70,7 @@ npm install -g ./artifacts/allium-cli-<version>.tgz
 allium-check --help
 allium-format --help
 allium-diagram --help
+allium-trace --help
 ```
 
 ## VS Code Features
@@ -297,6 +300,32 @@ Current diagram model captures:
 - rule trigger and creation edges
 - surface `for`, `context`, and `provides` links
 
+### `allium-trace`
+
+Check whether spec rule names are referenced by tests.
+
+Repo-level command:
+
+```bash
+npm run trace:allium -- --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+```
+
+Direct built script:
+
+```bash
+node extensions/allium/dist/src/trace.js --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --format json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+```
+
+Behavior summary:
+
+- extracts rule names from `.allium` specs
+- resolves test files from explicit `--tests` inputs (file, directory, glob)
+- prints coverage summary and uncovered rule names
+- exits `0` when all extracted rules are referenced by tests
+- exits `1` when uncovered rules exist
+- exits `2` on invalid arguments / unresolved spec or test inputs
+
 ## Using CLI Tools Outside This Repo
 
 Supported paths:
@@ -329,6 +358,7 @@ npm run test
 npm run check -- docs/project/specs
 npm run format:allium -- docs/project/specs
 npm run diagram:allium -- docs/project/specs
+npm run trace:allium -- --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 npm run release:artifacts
 ```
 

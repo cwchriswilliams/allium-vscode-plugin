@@ -211,6 +211,7 @@ Current implementation will proceed with defaults unless you override:
 - Standalone checker supports machine-readable outputs (`--format json|sarif`) and baseline files (`--baseline`, `--write-baseline`).
 - Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 - Experimental diagram generator now supports strict extraction checks, focus/kind filtering, grouped rendering, and split-by-module output.
+- Standalone traceability checker added: `npm run trace:allium -- --tests <file|directory|glob> <spec-file|directory|glob>` for rule-name coverage checks between specs and tests.
 
 ## High Priority Next Work
 
@@ -218,7 +219,7 @@ Current implementation will proceed with defaults unless you override:
   - Completed: repeatable VSIX + standalone CLI archive artifacts via local script and GitHub Actions release workflow.
   - Completed: release checksum manifest generation (`artifacts/SHA256SUMS.txt`).
 - Publish standalone CLI tooling:
-  - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check`, `allium-format`, and experimental `allium-diagram`.
+  - Completed: dedicated `allium-cli` package with stable install name, released as `allium-cli-<version>.tgz` artifact including `allium-check`, `allium-format`, experimental `allium-diagram`, and `allium-trace`.
 - Improve Allium formatter depth:
   - In progress: structure-aware indentation and top-level block spacing implemented.
   - Implemented: spacing normalization for pipe-delimited literal sets.

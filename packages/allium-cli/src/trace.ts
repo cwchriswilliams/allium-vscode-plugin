@@ -1,0 +1,265 @@
+#!/usr/bin/env node
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+type TraceOutputFormat = "text" | "json";
+
+interface ParsedArgs {
+  format: TraceOutputFormat;
+  testInputs: string[];
+  specInputs: string[];
+}
+
+interface RuleReference {
+  name: string;
+  filePath: string;
+}
+
+interface TraceResult {
+  totalRules: number;
+  coveredRules: number;
+  uncovered: RuleReference[];
+}
+
+function main(argv: string[]): number {
+  const parsed = parseArgs(argv);
+  if (!parsed) {
+    return 2;
+  }
+
+  const specFiles = resolveInputs(parsed.specInputs, (filePath) =>
+    filePath.endsWith(".allium"),
+  );
+  if (specFiles.length === 0) {
+    process.stderr.write(
+      "No .allium files found for the provided spec inputs.\n",
+    );
+    return 2;
+  }
+
+  const testFiles = resolveInputs(parsed.testInputs, isTestFilePath);
+  if (testFiles.length === 0) {
+    process.stderr.write("No test files found for the provided test inputs.\n");
+    return 2;
+  }
+
+  const rules = collectRules(specFiles);
+  const testBodies = testFiles.map((filePath) =>
+    fs.readFileSync(filePath, "utf8"),
+  );
+  const uncovered = rules.filter(
+    (rule) => !testBodies.some((content) => content.includes(rule.name)),
+  );
+
+  const result: TraceResult = {
+    totalRules: rules.length,
+    coveredRules: rules.length - uncovered.length,
+    uncovered,
+  };
+
+  renderOutput(parsed.format, result);
+  return uncovered.length > 0 ? 1 : 0;
+}
+
+function parseArgs(argv: string[]): ParsedArgs | null {
+  const specInputs: string[] = [];
+  const testInputs: string[] = [];
+  let format: TraceOutputFormat = "text";
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--tests") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        printUsage("Expected a file, directory, or glob after --tests");
+        return null;
+      }
+      testInputs.push(value);
+      i += 1;
+      continue;
+    }
+    if (arg === "--format") {
+      const value = argv[i + 1];
+      if (value !== "text" && value !== "json") {
+        printUsage("Expected --format text|json");
+        return null;
+      }
+      format = value;
+      i += 1;
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") {
+      printUsage();
+      return null;
+    }
+    specInputs.push(arg);
+  }
+
+  if (testInputs.length === 0) {
+    printUsage("Provide at least one test input via --tests.");
+    return null;
+  }
+  if (specInputs.length === 0) {
+    printUsage("Provide at least one spec file, directory, or glob.");
+    return null;
+  }
+
+  return { format, testInputs, specInputs };
+}
+
+function printUsage(error?: string): void {
+  if (error) {
+    process.stderr.write(`${error}\n`);
+  }
+  process.stderr.write(
+    "Usage: allium-trace [--format text|json] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+  );
+}
+
+function collectRules(specFiles: string[]): RuleReference[] {
+  const dedupe = new Set<string>();
+  const rules: RuleReference[] = [];
+  const rulePattern = /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\b/gm;
+  for (const filePath of specFiles) {
+    const text = fs.readFileSync(filePath, "utf8");
+    for (
+      let match = rulePattern.exec(text);
+      match;
+      match = rulePattern.exec(text)
+    ) {
+      const name = match[1];
+      if (dedupe.has(name)) {
+        continue;
+      }
+      dedupe.add(name);
+      rules.push({ name, filePath });
+    }
+  }
+  return rules;
+}
+
+function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
+  if (format === "json") {
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          totalRules: result.totalRules,
+          coveredRules: result.coveredRules,
+          uncoveredRules: result.uncovered.map((entry) => ({
+            name: entry.name,
+            filePath: entry.filePath,
+          })),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+
+  const coverage =
+    result.totalRules === 0
+      ? 100
+      : (result.coveredRules / result.totalRules) * 100;
+  process.stdout.write(
+    `Rules: ${result.totalRules} total, ${result.coveredRules} covered, ${result.uncovered.length} uncovered (${coverage.toFixed(1)}%).\n`,
+  );
+  if (result.uncovered.length === 0) {
+    process.stdout.write("All spec rules are referenced by tests.\n");
+    return;
+  }
+  process.stdout.write("Uncovered rules:\n");
+  for (const entry of result.uncovered) {
+    const relPath =
+      path.relative(process.cwd(), entry.filePath) || entry.filePath;
+    process.stdout.write(`- ${entry.name} (${relPath})\n`);
+  }
+}
+
+function isTestFilePath(filePath: string): boolean {
+  const base = path.basename(filePath);
+  if (!/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(base)) {
+    return false;
+  }
+  return base.includes(".test.") || base.includes(".spec.");
+}
+
+function resolveInputs(
+  inputs: string[],
+  includeFile: (filePath: string) => boolean,
+): string[] {
+  const files = new Set<string>();
+  const cwd = process.cwd();
+  let recursiveCache: string[] | null = null;
+
+  for (const input of inputs) {
+    const resolved = path.resolve(cwd, input);
+    if (fs.existsSync(resolved)) {
+      const stat = fs.statSync(resolved);
+      if (stat.isDirectory()) {
+        for (const filePath of walkAllFiles(resolved)) {
+          if (includeFile(filePath)) {
+            files.add(filePath);
+          }
+        }
+      } else if (stat.isFile() && includeFile(resolved)) {
+        files.add(resolved);
+      }
+      continue;
+    }
+
+    if (recursiveCache === null) {
+      recursiveCache = walkAllFiles(cwd);
+    }
+
+    const matcher = wildcardToRegex(input);
+    for (const candidate of recursiveCache) {
+      const relative = path.relative(cwd, candidate).split(path.sep).join("/");
+      if (matcher.test(relative) && includeFile(candidate)) {
+        files.add(candidate);
+      }
+    }
+  }
+
+  return [...files].sort();
+}
+
+function walkAllFiles(root: string): string[] {
+  const out: string[] = [];
+  const stack = [root];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    const entries = fs.readdirSync(current, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (entry.isFile()) {
+        out.push(fullPath);
+      }
+    }
+  }
+
+  return out;
+}
+
+function wildcardToRegex(pattern: string): RegExp {
+  const escaped = pattern
+    .split(path.sep)
+    .join("/")
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*/g, ".*")
+    .replace(/\?/g, ".");
+
+  return new RegExp(`^${escaped}$`);
+}
+
+if (require.main === module) {
+  const exitCode = main(process.argv.slice(2));
+  process.exitCode = exitCode;
+}
