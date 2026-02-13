@@ -6,6 +6,7 @@ export interface WorkspaceAlliumConfig {
   drift?: {
     sources?: string[];
     sourceExtensions?: string[];
+    excludeDirs?: string[];
     diagnosticsFrom?: string;
     specs?: string[];
     commandsFrom?: string;
@@ -34,9 +35,11 @@ export function collectWorkspaceFiles(
   workspaceRoot: string,
   inputs: string[],
   extensions: string[],
+  excludeDirs: string[],
 ): string[] {
   const out = new Set<string>();
   const allowed = new Set(extensions.map((ext) => ext.toLowerCase()));
+  const excluded = new Set(excludeDirs.filter((name) => name.length > 0));
   for (const input of inputs) {
     const resolved = path.isAbsolute(input)
       ? input
@@ -52,7 +55,7 @@ export function collectWorkspaceFiles(
       continue;
     }
     if (stat.isDirectory()) {
-      for (const filePath of walkFiles(resolved)) {
+      for (const filePath of walkFiles(resolved, excluded)) {
         if (allowed.has(path.extname(filePath).toLowerCase())) {
           out.add(filePath);
         }
@@ -62,7 +65,7 @@ export function collectWorkspaceFiles(
   return [...out].sort();
 }
 
-function walkFiles(root: string): string[] {
+function walkFiles(root: string, excludeDirs: ReadonlySet<string>): string[] {
   const out: string[] = [];
   const stack = [root];
   while (stack.length > 0) {
@@ -73,6 +76,9 @@ function walkFiles(root: string): string[] {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
+        if (excludeDirs.has(entry.name)) {
+          continue;
+        }
         stack.push(fullPath);
       } else if (entry.isFile()) {
         out.push(fullPath);

@@ -225,7 +225,7 @@ rule ReleasedCliPackageExposesCheckCommand {
 
 rule StandaloneCheckerMatchesExtensionRuleSet {
     when: CheckCommandInvokedWithInputs(inputs)
-    requires: input includes "docs/project/specs/allium-check-tool-behaviour.allium"
+    requires: inputs includes spec_file_with_known_informational_findings
 
     ensures: FindingObserved(code: "allium.field.unused", severity: info)
     ensures: FindingObserved(code: "allium.rule.unreachableTrigger", severity: info)

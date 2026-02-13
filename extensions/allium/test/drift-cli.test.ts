@@ -144,3 +144,30 @@ test("drift CLI loads defaults from allium.config.json", () => {
   const result = runDrift([], dir);
   assert.equal(result.status, 0, result.stderr);
 });
+
+test("drift CLI excludes configured directories from recursive scans", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-drift-"));
+  const fixture = writeFixtureFiles(dir);
+  const ignoredDir = path.join(dir, "node_modules", "fake");
+  fs.mkdirSync(ignoredDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(ignoredDir, "noise.ts"),
+    `const ignored = "allium.noise.from.dependency";\n`,
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "allium.config.json"),
+    JSON.stringify({
+      drift: {
+        sources: [dir],
+        sourceExtensions: [".ts"],
+        excludeDirs: ["node_modules"],
+        specs: [fixture.specsDir],
+        commandsFrom: fixture.commandsPath,
+      },
+    }),
+    "utf8",
+  );
+  const result = runDrift([], dir);
+  assert.equal(result.status, 0, result.stderr);
+});

@@ -61,6 +61,13 @@ rule DriftSourceExtensionsCanBeConfigured {
     ensures: SourceFilesFilteredByConfiguredExtensions()
 }
 
+rule DriftCanExcludeConfiguredDirectoriesFromSourceAndSpecScans {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--exclude-dir"
+
+    ensures: RecursiveScanSkipsDirectoriesByName()
+}
+
 rule DriftSupportsGenericCommandManifestShapes {
     when: DriftCommandInvokedWithOptions(option)
     requires: option = "--commands-from"

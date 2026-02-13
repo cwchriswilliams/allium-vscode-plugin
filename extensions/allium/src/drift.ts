@@ -14,6 +14,7 @@ type DriftOutputFormat = "text" | "json";
 interface ParsedArgs {
   sources: string[];
   sourceExtensions: string[];
+  excludeDirs: string[];
   diagnosticsManifestPath?: string;
   specs: string[];
   commandsFrom?: string;
@@ -31,6 +32,7 @@ interface AlliumConfig {
   drift?: {
     sources?: string[];
     sourceExtensions?: string[];
+    excludeDirs?: string[];
     diagnosticsFrom?: string;
     specs?: string[];
     commandsFrom?: string;
@@ -39,13 +41,26 @@ interface AlliumConfig {
   };
 }
 
+const DEFAULT_DRIFT_EXCLUDE_DIRS = [
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "target",
+  "out",
+  ".next",
+  ".venv",
+  "venv",
+  "__pycache__",
+];
+
 function main(argv: string[]): number {
   const parsed = parseArgs(argv);
   if (!parsed) {
     return 2;
   }
 
-  const specFiles = collectFiles(parsed.specs, [".allium"]);
+  const specFiles = collectFiles(parsed.specs, [".allium"], parsed.excludeDirs);
   if (specFiles.length === 0) {
     process.stderr.write("No .allium files found for --specs.\n");
     return 2;
@@ -121,6 +136,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   const parsed: ParsedArgs = {
     sources: [...(config.drift?.sources ?? [])],
     sourceExtensions: [...(config.drift?.sourceExtensions ?? [".ts"])],
+    excludeDirs: [...(config.drift?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS)],
     diagnosticsManifestPath: config.drift?.diagnosticsFrom,
     specs: [...(config.drift?.specs ?? [])],
     commandsFrom: config.drift?.commandsFrom,
@@ -131,6 +147,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   let resetSources = false;
   let resetSpecs = false;
   let resetSourceExts = false;
+  let resetExcludeDirs = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--source") {
@@ -178,6 +195,20 @@ function parseArgs(argv: string[]): ParsedArgs | null {
         return null;
       }
       parsed.diagnosticsManifestPath = next;
+      i += 1;
+      continue;
+    }
+    if (arg === "--exclude-dir") {
+      const next = argv[i + 1];
+      if (!next || next.startsWith("--")) {
+        printUsage("Expected a directory name after --exclude-dir");
+        return null;
+      }
+      if (!resetExcludeDirs) {
+        parsed.excludeDirs = [];
+        resetExcludeDirs = true;
+      }
+      parsed.excludeDirs.push(next.trim());
       i += 1;
       continue;
     }
@@ -256,6 +287,7 @@ function printUsage(error?: string): void {
       "  --source <path>           Implementation source file or directory (repeatable).",
       "  --source-ext <exts>       Source extensions to scan (repeatable, comma-delimited).",
       "  --diagnostics-from <path> JSON manifest listing implemented diagnostics.",
+      "  --exclude-dir <name>      Directory name to exclude from recursive scans (repeatable).",
       "  --specs <path>            Allium spec file or directory (repeatable).",
       "  --commands-from <path>    JSON file containing implemented command IDs.",
       "  --skip-commands           Compare diagnostics only.",
@@ -272,9 +304,14 @@ function printUsage(error?: string): void {
   );
 }
 
-function collectFiles(inputs: string[], extensions: string[]): string[] {
+function collectFiles(
+  inputs: string[],
+  extensions: string[],
+  excludeDirs: string[],
+): string[] {
   const out = new Set<string>();
   const allowed = new Set(extensions.map((ext) => ext.toLowerCase()));
+  const excluded = new Set(excludeDirs.filter((name) => name.length > 0));
   for (const input of inputs) {
     const resolved = path.resolve(input);
     if (!fs.existsSync(resolved)) {
@@ -288,7 +325,7 @@ function collectFiles(inputs: string[], extensions: string[]): string[] {
       continue;
     }
     if (stat.isDirectory()) {
-      for (const filePath of walk(resolved)) {
+      for (const filePath of walk(resolved, excluded)) {
         if (allowed.has(path.extname(filePath).toLowerCase())) {
           out.add(filePath);
         }
@@ -298,7 +335,7 @@ function collectFiles(inputs: string[], extensions: string[]): string[] {
   return [...out].sort();
 }
 
-function walk(root: string): string[] {
+function walk(root: string, excludeDirs: ReadonlySet<string>): string[] {
   const out: string[] = [];
   const stack = [root];
   while (stack.length > 0) {
@@ -309,6 +346,9 @@ function walk(root: string): string[] {
     for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
       const fullPath = path.join(current, entry.name);
       if (entry.isDirectory()) {
+        if (excludeDirs.has(entry.name)) {
+          continue;
+        }
         stack.push(fullPath);
       } else if (entry.isFile()) {
         out.push(fullPath);
@@ -325,6 +365,7 @@ function readImplementedDiagnostics(parsed: ParsedArgs): Set<string> {
   const source = extractDiagnosticsFromSources(
     parsed.sources,
     parsed.sourceExtensions,
+    parsed.excludeDirs,
   );
   return new Set([...manifest, ...source]);
 }
@@ -348,8 +389,9 @@ function readDiagnosticsManifest(filePath: string): Set<string> {
 function extractDiagnosticsFromSources(
   sourcePaths: string[],
   sourceExtensions: string[],
+  excludeDirs: string[],
 ): Set<string> {
-  const sourceFiles = collectFiles(sourcePaths, sourceExtensions);
+  const sourceFiles = collectFiles(sourcePaths, sourceExtensions, excludeDirs);
   if (sourceFiles.length === 0) {
     return new Set();
   }

@@ -420,6 +420,7 @@ npm run drift:allium
 npm run drift:allium -- --format json
 npm run drift:allium -- --skip-commands
 npm run drift:allium -- --source src --source-ext .ts,.py,.clj,.c --specs specs --commands-from .allium/commands.json
+npm run drift:allium -- --source . --source-ext .ts,.py,.clj,.c --exclude-dir node_modules --exclude-dir .git --specs specs --skip-commands
 npm run drift:allium -- --diagnostics-from .allium/diagnostics.json --specs specs --skip-commands
 ```
 
@@ -430,13 +431,15 @@ node extensions/allium/dist/src/drift.js
 node extensions/allium/dist/src/drift.js --format json
 node extensions/allium/dist/src/drift.js --skip-commands
 node extensions/allium/dist/src/drift.js --source src --source-ext .ts,.py,.clj,.c --specs specs --commands-from .allium/commands.json
+node extensions/allium/dist/src/drift.js --source . --source-ext .ts,.py,.clj,.c --exclude-dir node_modules --exclude-dir .git --specs specs --skip-commands
 node extensions/allium/dist/src/drift.js --diagnostics-from .allium/diagnostics.json --specs specs --skip-commands
 ```
 
 Behavior summary:
 
-- compares implemented `allium.*` diagnostics from TypeScript source against `code: "allium.*"` entries in specs
+- compares implemented `allium.*` diagnostics from source scans and/or manifests against `code: "allium.*"` entries in specs
 - can read implemented diagnostics from source scanning (`--source` + `--source-ext`) or a manifest (`--diagnostics-from`)
+- supports `--exclude-dir <name>` (repeatable) to skip repository/vendor/build directories during recursive scans
 - compares implemented command IDs from command manifest against `CommandInvoked`/`WorkspaceCommandInvoked`/`CommandAvailable` entries in specs
 - exits `0` when no drift is present
 - exits `1` when coverage drift exists
@@ -459,7 +462,48 @@ Planned improvements:
 
 ### Shared CLI Defaults (`allium.config.json`)
 
-CLI commands can load defaults from a workspace-local config file:
+CLI commands can load defaults from a workspace-local config file.
+
+Portable template:
+
+```json
+{
+  "project": {
+    "specPaths": ["specs"],
+    "testPaths": ["tests"]
+  },
+  "check": {
+    "mode": "strict",
+    "minSeverity": "info",
+    "failOn": "warning",
+    "ignoreCodes": []
+  },
+  "format": {
+    "indentWidth": 4,
+    "topLevelSpacing": 1
+  },
+  "trace": {
+    "format": "text",
+    "byFile": false,
+    "strict": false,
+    "tests": ["tests"],
+    "specs": ["specs"],
+    "testExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".clj", ".c", ".h"],
+    "testNamePatterns": ["\\\\.test\\\\.", "\\\\.spec\\\\.", "_test\\\\.py$", "-test\\\\.clj$", "test_.*\\\\.py$"]
+  },
+  "drift": {
+    "sources": ["src"],
+    "sourceExtensions": [".ts", ".tsx", ".js", ".jsx", ".py", ".clj", ".c", ".h"],
+    "excludeDirs": ["node_modules", ".git", "dist", "build", "target", "__pycache__", ".venv", "venv"],
+    "specs": ["specs"],
+    "commandsFrom": ".allium/commands.json",
+    "skipCommands": false,
+    "format": "text"
+  }
+}
+```
+
+Current repository example:
 
 ```json
 {
@@ -489,6 +533,7 @@ CLI commands can load defaults from a workspace-local config file:
   "drift": {
     "sources": ["extensions/allium/src/language-tools"],
     "sourceExtensions": [".ts"],
+    "excludeDirs": ["node_modules", "dist", ".git"],
     "specs": ["docs/project/specs"],
     "commandsFrom": "extensions/allium/package.json",
     "skipCommands": false,
@@ -508,7 +553,7 @@ Use `--config <file>` to point at a custom location or `--no-config` to disable 
   - `src/language-tools/`: analyzer, refactors, definitions, hover, folding, CLI tooling
 - `docs/project/specs/`: Allium specs describing expected system behavior
 - `docs/project/plan.md`: project roadmap and priorities
-- `allium.config.json`: shared defaults for `allium-check`, `allium-format`, and `allium-trace`
+- `allium.config.json`: shared defaults for `allium-check`, `allium-format`, `allium-trace`, and `allium-drift`
 - `AGENTS.md`: development rules for humans and AI agents
 
 ### Development workflow

@@ -81,6 +81,18 @@ const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
   ...ALLIUM_SEMANTIC_TOKEN_TYPES,
 ]);
+const DEFAULT_DRIFT_EXCLUDE_DIRS = [
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "target",
+  "out",
+  ".next",
+  ".venv",
+  "venv",
+  "__pycache__",
+];
 
 export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("allium");
@@ -1484,15 +1496,20 @@ async function checkSpecDriftReport(): Promise<void> {
   const driftConfig = alliumConfig?.drift;
   const sourceInputs = driftConfig?.sources ?? ["."];
   const sourceExtensions = driftConfig?.sourceExtensions ?? [".ts"];
+  const excludeDirs = driftConfig?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS;
   const specInputs = driftConfig?.specs ?? ["."];
   const sourceFiles = collectWorkspaceFiles(
     workspaceRoot,
     sourceInputs,
     sourceExtensions,
+    excludeDirs,
   );
-  const specFiles = collectWorkspaceFiles(workspaceRoot, specInputs, [
-    ".allium",
-  ]);
+  const specFiles = collectWorkspaceFiles(
+    workspaceRoot,
+    specInputs,
+    [".allium"],
+    excludeDirs,
+  );
   if (specFiles.length === 0) {
     void vscode.window.showErrorMessage(
       "No .allium files found for drift check. Configure drift.specs in allium.config.json or pass explicit paths to CLI.",

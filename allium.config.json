@@ -26,6 +26,7 @@
   "drift": {
     "sources": ["extensions/allium/src/language-tools"],
     "sourceExtensions": [".ts"],
+    "excludeDirs": ["node_modules", "dist", ".git"],
     "specs": ["docs/project/specs"],
     "commandsFrom": "extensions/allium/package.json",
     "skipCommands": false,

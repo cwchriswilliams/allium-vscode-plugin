@@ -923,3 +923,10 @@ rule VariantDeclarationRequiresVariantKeyword {
         ensures: DriftInputsResolvedFromConfig()
         ensures: DriftReportRendered()
     }
+
+    rule SpecDriftCommandHonorsConfiguredExcludeDirectories {
+        when: CommandInvoked(name: "allium.checkSpecDrift")
+        requires: ConfigContainsDriftExcludeDirectories()
+
+        ensures: DriftScanSkipsConfiguredDirectoryNames()
+    }

@@ -62,11 +62,43 @@ test("collectWorkspaceFiles resolves relative inputs and extension filters", () 
       "utf8",
     );
 
-    const files = collectWorkspaceFiles(workspaceRoot, ["specs"], [".allium"]);
+    const files = collectWorkspaceFiles(
+      workspaceRoot,
+      ["specs"],
+      [".allium"],
+      [],
+    );
     assert.deepEqual(files, [
       path.join(workspaceRoot, "specs", "a.allium"),
       path.join(workspaceRoot, "specs", "nested", "b.allium"),
     ]);
+  });
+});
+
+test("collectWorkspaceFiles skips configured excluded directories", () => {
+  withTempWorkspace((workspaceRoot) => {
+    mkdirSync(path.join(workspaceRoot, "specs"), { recursive: true });
+    mkdirSync(path.join(workspaceRoot, "node_modules", "pkg"), {
+      recursive: true,
+    });
+    writeFileSync(
+      path.join(workspaceRoot, "specs", "main.allium"),
+      "entity A {}",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(workspaceRoot, "node_modules", "pkg", "ignored.allium"),
+      "entity B {}",
+      "utf8",
+    );
+
+    const files = collectWorkspaceFiles(
+      workspaceRoot,
+      ["."],
+      [".allium"],
+      ["node_modules"],
+    );
+    assert.deepEqual(files, [path.join(workspaceRoot, "specs", "main.allium")]);
   });
 });
 
