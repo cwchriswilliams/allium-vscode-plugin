@@ -32,8 +32,8 @@ export function analyzeAllium(
       findings.push(
         rangeFinding(
           lineStarts,
-          block.startOffset,
-          block.startOffset + block.name.length,
+          block.nameStartOffset,
+          block.nameStartOffset + block.name.length,
           "allium.rule.missingWhen",
           `Rule '${block.name}' must define a 'when:' trigger.`,
           "error",
@@ -58,7 +58,7 @@ export function analyzeAllium(
     const hasRequires = /^\s*requires\s*:/m.test(block.body);
     if (whenMatch && isTemporalWhenClause(whenMatch[1]) && !hasRequires) {
       const lineOffset =
-        block.startOffset + 1 + block.body.indexOf(whenMatch[0]);
+        block.bodyStartOffset + block.body.indexOf(whenMatch[0]);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -80,7 +80,7 @@ export function analyzeAllium(
     ) {
       const name = match[1];
       if (letNames.has(name)) {
-        const offset = block.startOffset + 1 + match.index;
+        const offset = block.bodyStartOffset + match.index;
         findings.push(
           rangeFinding(
             lineStarts,
@@ -132,7 +132,7 @@ export function analyzeAllium(
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findUnusedNamedDefinitionIssues(text, lineStarts));
   findings.push(...findUnusedFieldIssues(text, lineStarts));
-  findings.push(...findUnreachableRuleTriggerIssues(lineStarts, blocks, text));
+  findings.push(...findUnreachableRuleTriggerIssues(lineStarts, blocks));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
@@ -309,7 +309,7 @@ function findUndefinedStatusAssignments(
         continue;
       }
       const statusOffset =
-        rule.startOffset + 1 + match.index + match[0].lastIndexOf(status);
+        rule.bodyStartOffset + match.index + match[0].lastIndexOf(status);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -387,7 +387,7 @@ function findStatusStateMachineIssues(
       if (!assignmentLocations.has(`${entityName}:${target}`)) {
         assignmentLocations.set(
           `${entityName}:${target}`,
-          rule.startOffset + 1 + line.startOffset + line.text.indexOf(target),
+          rule.bodyStartOffset + line.startOffset + line.text.indexOf(target),
         );
       }
 
@@ -472,7 +472,7 @@ function findDuplicateConfigKeys(
     ) {
       const key = match[1];
       if (seen.has(key)) {
-        const offset = block.startOffset + 1 + match.index;
+        const offset = block.bodyStartOffset + match.index;
         findings.push(
           rangeFinding(
             lineStarts,
@@ -513,7 +513,7 @@ function findConfigParameterShapeIssues(
         const keyMatch = line.match(keyLinePattern);
         if (keyMatch && !validPattern.test(line)) {
           const keyOffset =
-            block.startOffset + 1 + cursor + line.indexOf(keyMatch[1]);
+            block.bodyStartOffset + cursor + line.indexOf(keyMatch[1]);
           findings.push(
             rangeFinding(
               lineStarts,
@@ -625,7 +625,7 @@ function findEnumDeclarationIssues(
       foundAny = true;
       const value = literal[1];
       if (literals.has(value)) {
-        const offset = block.startOffset + 1 + literal.index;
+        const offset = block.bodyStartOffset + literal.index;
         findings.push(
           rangeFinding(
             lineStarts,
@@ -644,8 +644,8 @@ function findEnumDeclarationIssues(
       findings.push(
         rangeFinding(
           lineStarts,
-          block.startOffset,
-          block.startOffset + block.name.length,
+          block.nameStartOffset,
+          block.nameStartOffset + block.name.length,
           "allium.enum.empty",
           `Enum '${block.name}' should declare at least one literal.`,
           "warning",
@@ -857,7 +857,7 @@ function findUnguardedVariantFieldAccessIssues(
       if (guards && guards.has(variantField.variant)) {
         continue;
       }
-      const absoluteOffset = rule.startOffset + 1 + access.index;
+      const absoluteOffset = rule.bodyStartOffset + access.index;
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1020,7 +1020,7 @@ function findRuleTypeReferenceIssues(
       ) {
         const typeName = match[1];
         const offset =
-          rule.startOffset + 1 + match.index + match[0].indexOf(typeName);
+          rule.bodyStartOffset + match.index + match[0].indexOf(typeName);
         findings.push(
           ...validateTypeNameReference(
             typeName,
@@ -1079,7 +1079,7 @@ function findRuleUndefinedBindingIssues(
       }
       seenUnknown.add(root);
       const absoluteOffset =
-        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+        rule.bodyStartOffset + match.index + match[0].indexOf(root);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1110,7 +1110,7 @@ function findRuleUndefinedBindingIssues(
       }
       seenUnknown.add(root);
       const absoluteOffset =
-        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+        rule.bodyStartOffset + match.index + match[0].indexOf(root);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1139,7 +1139,7 @@ function findRuleUndefinedBindingIssues(
       }
       seenUnknown.add(root);
       const absoluteOffset =
-        rule.startOffset + 1 + match.index + match[0].indexOf(root);
+        rule.bodyStartOffset + match.index + match[0].indexOf(root);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1200,7 +1200,7 @@ function findContextBindingIssues(
       const bindingName = match[1];
       const bindingType = match[2];
       const bindingOffset =
-        block.startOffset + 1 + match.index + match[0].indexOf(bindingName);
+        block.bodyStartOffset + match.index + match[0].indexOf(bindingName);
 
       if (seenBindings.has(bindingName)) {
         findings.push(
@@ -1220,7 +1220,7 @@ function findContextBindingIssues(
         const alias = bindingType.split("/")[0];
         if (!importAliases.has(alias)) {
           const typeOffset =
-            block.startOffset + 1 + match.index + match[0].indexOf(bindingType);
+            block.bodyStartOffset + match.index + match[0].indexOf(bindingType);
           findings.push(
             rangeFinding(
               lineStarts,
@@ -1237,7 +1237,7 @@ function findContextBindingIssues(
 
       if (!localEntityTypes.has(bindingType)) {
         const typeOffset =
-          block.startOffset + 1 + match.index + match[0].indexOf(bindingType);
+          block.bodyStartOffset + match.index + match[0].indexOf(bindingType);
         findings.push(
           rangeFinding(
             lineStarts,
@@ -1569,7 +1569,7 @@ function findSurfaceActorLinkIssues(
     referencedActors.add(actorName);
     if (!actorNames.has(actorName)) {
       const lineOffset =
-        surface.startOffset + 1 + surface.body.indexOf(match[0]);
+        surface.bodyStartOffset + surface.body.indexOf(match[0]);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1590,8 +1590,8 @@ function findSurfaceActorLinkIssues(
     findings.push(
       rangeFinding(
         lineStarts,
-        actor.startOffset,
-        actor.startOffset + actor.name.length,
+        actor.nameStartOffset,
+        actor.nameStartOffset + actor.name.length,
         "allium.actor.unused",
         `Actor '${actor.name}' is not referenced by any local surface.`,
         "info",
@@ -1618,7 +1618,7 @@ function findSurfaceRelatedIssues(
       if (knownSurfaceNames.has(ref.name)) {
         continue;
       }
-      const offset = surface.startOffset + 1 + ref.offsetInBody;
+      const offset = surface.bodyStartOffset + ref.offsetInBody;
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1679,8 +1679,7 @@ function findSurfaceBindingUsageIssues(
       }
       const offsetInBody = body.indexOf(lineMatch[0]);
       const absoluteOffset =
-        surface.startOffset +
-        1 +
+        surface.bodyStartOffset +
         offsetInBody +
         lineMatch[0].indexOf(binding.name);
       findings.push(
@@ -1730,7 +1729,7 @@ function findSurfacePathAndIterationIssues(
         continue;
       }
       if (!isReachablePath(parts, rootType, schemas)) {
-        const offset = surface.startOffset + 1 + path.index;
+        const offset = surface.bodyStartOffset + path.index;
         findings.push(
           rangeFinding(
             lineStarts,
@@ -1762,7 +1761,7 @@ function findSurfacePathAndIterationIssues(
         continue;
       }
       const offset =
-        surface.startOffset + 1 + iter.index + iter[0].indexOf(collectionExpr);
+        surface.bodyStartOffset + iter.index + iter[0].indexOf(collectionExpr);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1817,7 +1816,7 @@ function findSurfaceRuleCoverageIssues(
       if (covered) {
         continue;
       }
-      const offset = surface.startOffset + 1 + path.index;
+      const offset = surface.bodyStartOffset + path.index;
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1876,7 +1875,7 @@ function findSurfaceImpossibleWhenIssues(
       );
       if (contradictory) {
         const offset =
-          surface.startOffset + 1 + cursor + line.indexOf(whenMatch[0]);
+          surface.bodyStartOffset + cursor + line.indexOf(whenMatch[0]);
         findings.push(
           rangeFinding(
             lineStarts,
@@ -1954,7 +1953,7 @@ function findSurfaceRequiresDeferredHintIssues(
         continue;
       }
       const offset =
-        surface.startOffset + 1 + match.index + match[0].indexOf(requiresName);
+        surface.bodyStartOffset + match.index + match[0].indexOf(requiresName);
       findings.push(
         rangeFinding(
           lineStarts,
@@ -1985,7 +1984,7 @@ function findSurfaceProvidesTriggerIssues(
       if (knownExternalTriggers.has(call.name)) {
         continue;
       }
-      const offset = surface.startOffset + 1 + call.offsetInBody;
+      const offset = surface.bodyStartOffset + call.offsetInBody;
       findings.push(
         rangeFinding(
           lineStarts,
@@ -2230,7 +2229,6 @@ function findUnusedFieldIssues(text: string, lineStarts: number[]): Finding[] {
 function findUnreachableRuleTriggerIssues(
   lineStarts: number[],
   blocks: ReturnType<typeof parseAlliumBlocks>,
-  text: string,
 ): Finding[] {
   const findings: Finding[] = [];
   const surfaces = blocks.filter((block) => block.kind === "surface");
@@ -2277,15 +2275,8 @@ function findUnreachableRuleTriggerIssues(
       if (provided.has(callName) || produced.has(callName)) {
         continue;
       }
-      const ruleStart = rule.startOffset;
-      const ruleText = text.slice(ruleStart, rule.endOffset + 1);
-      const openBraceIndex = ruleText.indexOf("{");
-      if (openBraceIndex < 0) {
-        continue;
-      }
-      const bodyStartOffset = ruleStart + openBraceIndex + 1;
       const callOffset =
-        bodyStartOffset +
+        rule.bodyStartOffset +
         rule.body.indexOf(whenLine[0]) +
         whenLine[0].indexOf(callName);
       findings.push(
@@ -2443,8 +2434,8 @@ function findNeverFireRuleIssues(
     findings.push(
       rangeFinding(
         lineStarts,
-        rule.startOffset,
-        rule.startOffset + rule.name.length,
+        rule.nameStartOffset,
+        rule.nameStartOffset + rule.name.length,
         "allium.rule.neverFires",
         `Rule '${rule.name}' has contradictory requires constraints and may never fire.`,
         "warning",
@@ -2469,7 +2460,7 @@ function findInvalidTriggerIssues(
     if (isValidTriggerShape(trigger)) {
       continue;
     }
-    const lineOffset = rule.startOffset + 1 + rule.body.indexOf(whenMatch[0]);
+    const lineOffset = rule.bodyStartOffset + rule.body.indexOf(whenMatch[0]);
     findings.push(
       rangeFinding(
         lineStarts,
@@ -2687,8 +2678,7 @@ function findExpressionTypeMismatchIssues(
         const rhs = comparison[3];
         if (lhs.startsWith('"') || rhs.startsWith('"')) {
           const mismatchOffset =
-            rule.startOffset +
-            1 +
+            rule.bodyStartOffset +
             line.startOffset +
             line.text.indexOf(comparison[0]);
           findings.push(
@@ -2713,8 +2703,7 @@ function findExpressionTypeMismatchIssues(
         const rhs = arithmetic[3];
         if (lhs.startsWith('"') || rhs.startsWith('"')) {
           const mismatchOffset =
-            rule.startOffset +
-            1 +
+            rule.bodyStartOffset +
             line.startOffset +
             line.text.indexOf(arithmetic[0]);
           findings.push(
@@ -2740,8 +2729,7 @@ function findExpressionTypeMismatchIssues(
         const rhsString = rhs.startsWith('"');
         if (lhsString !== rhsString) {
           const mismatchOffset =
-            rule.startOffset +
-            1 +
+            rule.bodyStartOffset +
             line.startOffset +
             line.text.indexOf(equality[0]);
           findings.push(
@@ -2867,7 +2855,7 @@ function findDuplicateNamedSurfaceBlocks(
       continue;
     }
     const offset =
-      surface.startOffset + 1 + match.index + match[0].indexOf(name);
+      surface.bodyStartOffset + match.index + match[0].indexOf(name);
     findings.push(
       rangeFinding(
         lineStarts,

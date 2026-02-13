@@ -1,7 +1,9 @@
 export interface ParsedBlock {
   kind: "rule" | "context" | "config" | "surface" | "actor" | "enum" | "use";
   name: string;
+  nameStartOffset: number;
   startOffset: number;
+  bodyStartOffset: number;
   endOffset: number;
   body: string;
   sourcePath?: string;
@@ -87,7 +89,10 @@ function findNamedBraceBlocks(
     blocks.push({
       kind,
       name: match[1] ?? defaultName,
+      nameStartOffset:
+        match.index + (match[1] ? match[0].indexOf(match[1]) : 0),
       startOffset: match.index,
+      bodyStartOffset: braceOffset + 1,
       endOffset,
       body: text.slice(braceOffset + 1, endOffset),
     });
@@ -102,9 +107,11 @@ function findUseStatements(text: string): ParsedBlock[] {
     uses.push({
       kind: "use",
       name: match[2],
+      nameStartOffset: match.index + match[0].indexOf(match[2]),
       alias: match[2],
       sourcePath: match[1],
       startOffset: match.index,
+      bodyStartOffset: match.index,
       endOffset: match.index + match[0].length,
       body: "",
     });

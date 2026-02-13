@@ -9,7 +9,12 @@ test("reports missing ensures", () => {
 
 test("reports missing when trigger", () => {
   const findings = analyzeAllium(`rule A {\n  ensures: Done()\n}`);
-  assert.ok(findings.some((f) => f.code === "allium.rule.missingWhen"));
+  const finding = findings.find((f) => f.code === "allium.rule.missingWhen");
+  assert.ok(finding);
+  assert.equal(finding?.start.line, 0);
+  assert.equal(finding?.start.character, 5);
+  assert.equal(finding?.end.line, 0);
+  assert.equal(finding?.end.character, 6);
 });
 
 test("reports invalid trigger shape in when clause", () => {

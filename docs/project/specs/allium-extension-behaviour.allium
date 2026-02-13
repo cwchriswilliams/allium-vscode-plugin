@@ -112,6 +112,7 @@ rule RuleMustHaveWhenTrigger {
     code: "allium.rule.missingWhen",
     severity: error
     )
+    ensures: FindingRangeAnchoredTo(rule.declaration_name)
 }
 
 rule InvalidRuleTriggerIsError {
@@ -269,6 +270,7 @@ rule RuleTriggerWithoutProducerOrProviderIsWarning {
     code: "allium.rule.unreachableTrigger",
     severity: info
     )
+    ensures: FindingRangeAnchoredTo(rule.when_trigger_call)
 }
 
 rule EqualityLiteralTypeMismatchIsError {
