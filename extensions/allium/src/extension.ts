@@ -70,6 +70,12 @@ import {
   extractSpecDiagnosticCodes,
   renderDriftMarkdown,
 } from "./language-tools/spec-drift";
+import {
+  collectWorkspaceFiles,
+  readCommandManifest,
+  readDiagnosticsManifest,
+  readWorkspaceAlliumConfig,
+} from "./language-tools/drift-workspace";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -613,18 +619,7 @@ function readAlliumConfigDiagnosticsMode(): "strict" | "relaxed" | undefined {
   if (!root) {
     return undefined;
   }
-  const configPath = path.join(root, "allium.config.json");
-  if (!fs.existsSync(configPath)) {
-    return undefined;
-  }
-  try {
-    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
-      check?: { mode?: "strict" | "relaxed" };
-    };
-    return parsed.check?.mode;
-  } catch {
-    return undefined;
-  }
+  return readWorkspaceAlliumConfig(root)?.check?.mode;
 }
 
 function toDiagnosticSeverity(
@@ -1485,51 +1480,84 @@ async function checkSpecDriftReport(): Promise<void> {
     void vscode.window.showInformationMessage("Open a workspace first.");
     return;
   }
-  const sourceFiles = await vscode.workspace.findFiles(
-    "extensions/allium/src/language-tools/**/*.ts",
-    "**/{node_modules,dist,.git}/**",
-  );
-  const specFiles = await vscode.workspace.findFiles(
-    "docs/project/specs/**/*.allium",
-    "**/{node_modules,dist,.git}/**",
-  );
-  const sourceText = (
-    await Promise.all(
-      sourceFiles.map(async (file) =>
-        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
-      ),
-    )
-  ).join("\n");
-  const specText = (
-    await Promise.all(
-      specFiles.map(async (file) =>
-        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
-      ),
-    )
-  ).join("\n");
-
-  const implementedDiagnostics = extractAlliumDiagnosticCodes(sourceText);
-  const specifiedDiagnostics = extractSpecDiagnosticCodes(specText);
-
-  const packageJsonPath = path.join(
+  const alliumConfig = readWorkspaceAlliumConfig(workspaceRoot);
+  const driftConfig = alliumConfig?.drift;
+  const sourceInputs = driftConfig?.sources ?? ["."];
+  const sourceExtensions = driftConfig?.sourceExtensions ?? [".ts"];
+  const specInputs = driftConfig?.specs ?? ["."];
+  const sourceFiles = collectWorkspaceFiles(
     workspaceRoot,
-    "extensions/allium/package.json",
+    sourceInputs,
+    sourceExtensions,
   );
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
-    contributes?: { commands?: Array<{ command?: string }> };
-  };
-  const implementedCommands = new Set(
-    (packageJson.contributes?.commands ?? [])
-      .map((entry) => entry.command)
-      .filter((entry): entry is string => typeof entry === "string"),
+  const specFiles = collectWorkspaceFiles(workspaceRoot, specInputs, [
+    ".allium",
+  ]);
+  if (specFiles.length === 0) {
+    void vscode.window.showErrorMessage(
+      "No .allium files found for drift check. Configure drift.specs in allium.config.json or pass explicit paths to CLI.",
+    );
+    return;
+  }
+
+  const sourceText = sourceFiles
+    .map((filePath) => fs.readFileSync(filePath, "utf8"))
+    .join("\n");
+  const specText = specFiles
+    .map((filePath) => fs.readFileSync(filePath, "utf8"))
+    .join("\n");
+
+  const implementedDiagnostics = new Set(
+    extractAlliumDiagnosticCodes(sourceText),
   );
+  try {
+    if (driftConfig?.diagnosticsFrom) {
+      for (const code of readDiagnosticsManifest(
+        workspaceRoot,
+        driftConfig.diagnosticsFrom,
+      )) {
+        implementedDiagnostics.add(code);
+      }
+    }
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `Failed to read diagnostics manifest: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+    return;
+  }
+  if (implementedDiagnostics.size === 0) {
+    void vscode.window.showErrorMessage(
+      "No implemented diagnostics discovered. Configure drift.sources/drift.sourceExtensions or drift.diagnosticsFrom.",
+    );
+    return;
+  }
+
+  const specifiedDiagnostics = extractSpecDiagnosticCodes(specText);
+  let implementedCommands = new Set<string>();
+  try {
+    if (!driftConfig?.skipCommands && driftConfig?.commandsFrom) {
+      implementedCommands = readCommandManifest(
+        workspaceRoot,
+        driftConfig.commandsFrom,
+      );
+    }
+  } catch (error) {
+    void vscode.window.showErrorMessage(
+      `Failed to read commands manifest: ${
+        error instanceof Error ? error.message : "unknown error"
+      }`,
+    );
+    return;
+  }
   const specifiedCommands = extractSpecCommands(specText);
   const diagnosticsDrift = buildDriftReport(
     implementedDiagnostics,
     specifiedDiagnostics,
   );
   const commandsDrift = buildDriftReport(
-    implementedCommands,
+    driftConfig?.skipCommands ? new Set<string>() : implementedCommands,
     specifiedCommands,
   );
   const markdown = renderDriftMarkdown(diagnosticsDrift, commandsDrift);

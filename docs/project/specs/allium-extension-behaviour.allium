@@ -907,3 +907,19 @@ rule VariantDeclarationRequiresVariantKeyword {
         ensures: CompletionItemAvailable(label: identified_by)
         ensures: CompletionAfter("config.") includes_declared_config_keys = true
     }
+
+    rule SpecDriftCommandLoadsWorkspaceDriftConfig {
+        when: CommandInvoked(name: "allium.checkSpecDrift")
+        requires: FileExists(path: "allium-config-file")
+        requires: command_args excludes "--no-config"
+
+        ensures: ConfigDefaultsLoaded(section: drift)
+    }
+
+    rule SpecDriftCommandUsesConfiguredWorkspaceInputs {
+        when: CommandInvoked(name: "allium.checkSpecDrift")
+        requires: ConfigContainsDriftSourceAndSpecInputs()
+
+        ensures: DriftInputsResolvedFromConfig()
+        ensures: DriftReportRendered()
+    }

@@ -211,6 +211,7 @@ Formatting settings:
 - rule simulation preview with JSON bindings for `requires`/`ensures` (`allium.previewRuleSimulation`)
 - rule-test scaffold generation from parsed rule declarations (`allium.generateRuleTestScaffold`)
 - spec drift report command for diagnostics/commands vs project specs (`allium.checkSpecDrift`)
+- VS Code drift report command reads `drift` defaults from `allium.config.json` so it works across arbitrary repository layouts
 - baseline manager command to preview/write fingerprint baselines (`allium.manageBaseline`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
