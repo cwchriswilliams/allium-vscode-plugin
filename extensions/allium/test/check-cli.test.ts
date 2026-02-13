@@ -146,3 +146,54 @@ test("autofix adds temporal guard scaffold", () => {
   const updated = fs.readFileSync(filePath, "utf8");
   assert.match(updated, /requires: \/\* add temporal guard \*\//);
 });
+
+test("json format prints machine-readable payload", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+
+  const result = runCheck(["--format", "json", "spec.allium"], dir);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout) as {
+    summary: { findings: number; errors: number };
+    findings: Array<{ code: string }>;
+  };
+  assert.equal(parsed.summary.findings > 0, true);
+  assert.equal(parsed.summary.errors > 0, true);
+  assert.ok(
+    parsed.findings.some(
+      (entry) => entry.code === "allium.rule.missingEnsures",
+    ),
+  );
+});
+
+test("write-baseline creates baseline file and exits successfully", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+
+  const result = runCheck(
+    ["--write-baseline", ".allium-baseline.json", "spec.allium"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Wrote baseline/);
+
+  const baseline = JSON.parse(
+    fs.readFileSync(path.join(dir, ".allium-baseline.json"), "utf8"),
+  ) as { version: number; findings: unknown[] };
+  assert.equal(baseline.version, 1);
+  assert.equal(baseline.findings.length > 0, true);
+});
+
+test("baseline suppresses known findings", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+  runCheck(["--write-baseline", ".allium-baseline.json", "spec.allium"], dir);
+
+  const result = runCheck(
+    ["--baseline", ".allium-baseline.json", "spec.allium"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /Suppressed/);
+  assert.match(result.stdout, /No blocking findings\./);
+});

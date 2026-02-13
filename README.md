@@ -193,6 +193,9 @@ Repo-level command:
 npm run check -- docs/project/specs
 npm run check -- --mode relaxed "docs/project/specs/**/*.allium"
 npm run check -- --autofix docs/project/specs
+npm run check -- --format json docs/project/specs
+npm run check -- --write-baseline .allium-baseline.json docs/project/specs
+npm run check -- --baseline .allium-baseline.json docs/project/specs
 ```
 
 Direct built script:
@@ -201,6 +204,7 @@ Direct built script:
 node extensions/allium/dist/src/check.js docs/project/specs
 node extensions/allium/dist/src/check.js --mode strict path/to/file.allium
 node extensions/allium/dist/src/check.js --autofix docs/project/specs
+node extensions/allium/dist/src/check.js --format sarif docs/project/specs
 ```
 
 Behavior summary:
@@ -209,6 +213,9 @@ Behavior summary:
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files
 - `--autofix` applies safe automatic edits (`missing ensures` scaffold and temporal `requires` guard scaffold)
+- `--format json|sarif` emits machine-readable findings for CI/code-scanning integrations
+- `--write-baseline <file>` records current findings as suppression fingerprints and exits successfully
+- `--baseline <file>` suppresses matching known findings to support ratcheting in legacy specs
 
 ### `allium-format`
 

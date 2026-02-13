@@ -203,6 +203,7 @@ Current implementation will proceed with defaults unless you override:
 - Workspace command added: `npm run check -- <file|directory|glob>` delegates to the standalone checker.
 - Standalone formatter added: `npm run format:allium -- <file|directory|glob>` for project-local `.allium` formatting.
 - Standalone checker supports `--autofix` for safe automatic rule scaffolding fixes.
+- Standalone checker supports machine-readable outputs (`--format json|sarif`) and baseline files (`--baseline`, `--write-baseline`).
 - Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 - Experimental diagram generator now supports strict extraction checks, focus/kind filtering, grouped rendering, and split-by-module output.
 
