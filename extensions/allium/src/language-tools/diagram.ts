@@ -24,6 +24,7 @@ export interface DiagramEdge {
   from: string;
   to: string;
   label: string;
+  sourceOffset?: number;
 }
 
 export interface DiagramModel {
@@ -81,8 +82,13 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     return node;
   };
 
-  const addEdge = (from: DiagramNode, to: DiagramNode, label: string): void => {
-    edges.push({ from: from.id, to: to.id, label });
+  const addEdge = (
+    from: DiagramNode,
+    to: DiagramNode,
+    label: string,
+    sourceOffset?: number,
+  ): void => {
+    edges.push({ from: from.id, to: to.id, label, sourceOffset });
   };
 
   const blocks = parseAlliumBlocks(text);
@@ -173,7 +179,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
           ? typed[1].split("/")[1]
           : typed[1];
         const entity = ensureNode("entity", typeName, "entity");
-        addEdge(entity, ruleNode, "when");
+        addEdge(
+          entity,
+          ruleNode,
+          "when",
+          rule.index + rule[0].indexOf(when[0]),
+        );
       }
 
       const callPattern = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
@@ -183,7 +194,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
         call = callPattern.exec(trigger)
       ) {
         const triggerNode = ensureNode("trigger", call[1], "trigger");
-        addEdge(triggerNode, ruleNode, "when");
+        addEdge(
+          triggerNode,
+          ruleNode,
+          "when",
+          rule.index + rule[0].indexOf(when[0]),
+        );
       }
     }
 
@@ -197,7 +213,7 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
       const raw = create[1];
       const typeName = raw.includes("/") ? raw.split("/")[1] : raw;
       const target = ensureNode("entity", typeName, "entity");
-      addEdge(ruleNode, target, "ensures");
+      addEdge(ruleNode, target, "ensures", rule.index + 1 + create.index);
     }
   }
 
@@ -221,7 +237,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     );
     if (forMatch) {
       const actor = ensureNode("actor", forMatch[1], "actor");
-      addEdge(actor, surfaceNode, "for");
+      addEdge(
+        actor,
+        surfaceNode,
+        "for",
+        surface.index + surface[0].indexOf(forMatch[0]),
+      );
     }
 
     const contextMatch = body.match(
@@ -229,7 +250,12 @@ export function buildDiagramResult(text: string): DiagramBuildResult {
     );
     if (contextMatch) {
       const contextEntity = ensureNode("entity", contextMatch[1], "entity");
-      addEdge(contextEntity, surfaceNode, "context");
+      addEdge(
+        contextEntity,
+        surfaceNode,
+        "context",
+        surface.index + surface[0].indexOf(contextMatch[0]),
+      );
     }
 
     for (const callName of parseSurfaceProvidesCalls(body)) {

@@ -24,3 +24,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: spec-drift
+        name: spec-drift
+        entry: env PRE_COMMIT_HOME=.pre-commit-cache npm run drift:check
+        language: system
+        pass_filenames: false
+        always_run: true

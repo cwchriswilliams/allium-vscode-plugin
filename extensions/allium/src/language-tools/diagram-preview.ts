@@ -5,6 +5,7 @@ export interface DiagramPreviewModel {
   diagramText: string;
   issues: DiagramIssue[];
   nodes: Array<{ id: string; label: string }>;
+  edges: Array<{ id: string; label: string }>;
 }
 
 export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
@@ -31,6 +32,15 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
           .map(
             (node) =>
               `<li><button type="button" class="jump" data-node-id="${escapeHtml(node.id)}">Go to ${escapeHtml(node.label)}</button></li>`,
+          )
+          .join("")}</ul>`;
+  const edgeItems =
+    model.edges.length === 0
+      ? "<p>No edges found.</p>"
+      : `<ul>${model.edges
+          .map(
+            (edge) =>
+              `<li><button type="button" class="jump-edge" data-edge-id="${escapeHtml(edge.id)}">Go to edge ${escapeHtml(edge.label)}</button></li>`,
           )
           .join("")}</ul>`;
 
@@ -106,6 +116,10 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
         <h3>Nodes</h3>
         ${nodeItems}
       </section>
+      <section>
+        <h3>Edges</h3>
+        ${edgeItems}
+      </section>
       <pre><code>${escapedDiagram}</code></pre>
     </main>
     <script>
@@ -123,6 +137,15 @@ export function buildDiagramPreviewHtml(model: DiagramPreviewModel): string {
             return;
           }
           vscode.postMessage({ type: "reveal", nodeId });
+        });
+      }
+      for (const button of document.querySelectorAll("button.jump-edge")) {
+        button.addEventListener("click", () => {
+          const edgeId = button.getAttribute("data-edge-id");
+          if (!edgeId) {
+            return;
+          }
+          vscode.postMessage({ type: "revealEdge", edgeId });
         });
       }
     </script>

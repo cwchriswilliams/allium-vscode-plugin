@@ -186,6 +186,17 @@ rule UndefinedDefaultTypeIsError {
     )
 }
 
+rule UndefinedDefaultImportedAliasIsError {
+    when: DefaultDeclarationParsed(default_instance)
+    requires: default_instance.type_reference matches "<alias>/<TypeName>"
+    requires: alias not declared in use_imports
+
+    ensures: Finding.created(
+    code: "allium.default.undefinedImportedAlias",
+    severity: error
+    )
+}
+
 rule ConfigParameterNeedsTypeAndDefault {
     when: ConfigBlockParsed(config_block)
     requires: config_block.parameter_missing_type_or_default = true
@@ -300,6 +311,16 @@ rule DiscriminatorMustResolveToVariants {
     )
 }
 
+rule InvalidDiscriminatorLiteralShapeIsError {
+    when: EntityDiscriminatorParsed(entity, discriminator)
+    requires: discriminator contains_non_literal_or_unsupported_item = true
+
+    ensures: Finding.created(
+    code: "allium.sum.invalidDiscriminator",
+    severity: error
+    )
+}
+
 rule VariantMustAppearInBaseDiscriminator {
     when: VariantParsed(variant, base_entity)
     requires: variant.name missing_from base_entity.discriminator_names
@@ -358,6 +379,17 @@ rule VariantDeclarationRequiresVariantKeyword {
 
         ensures: Finding.created(
         code: "allium.relationship.undefinedTarget",
+        severity: error
+        )
+    }
+
+    rule UndefinedRelationshipImportedAliasIsError {
+        when: RelationshipFieldParsed(relationship)
+        requires: relationship.target_type_reference matches "<alias>/<TypeName>"
+        requires: alias not declared in use_imports
+
+        ensures: Finding.created(
+        code: "allium.relationship.undefinedImportedAlias",
         severity: error
         )
     }

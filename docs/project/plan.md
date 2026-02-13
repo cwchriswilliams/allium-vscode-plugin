@@ -226,7 +226,10 @@ Current implementation will proceed with defaults unless you override:
 - Standalone formatter now supports config-backed defaults (`--config`, `--no-config`).
 - VS Code quality-of-life commands now include apply-all quick fixes in file, stale suppression cleanup, and related spec/test navigation.
 - Additional VS Code quality-of-life: diagnostic explanation command, imported-symbol stub quick fix, rule simulation preview, and spec drift report.
+- Additional VS Code quality-of-life: rule-test scaffold generation, baseline manager workflow, and quick-fix safety previews before apply.
 - Diagram tooling now supports reverse edge links and constraint-aware edge labels.
+- Added typed declaration AST foundation for rule/entity/enum parsing and reuse across editor tooling.
+- Added drift gate in pre-commit to fail when implementation/spec command or diagnostic coverage diverges.
 
 ## High Priority Next Work
 

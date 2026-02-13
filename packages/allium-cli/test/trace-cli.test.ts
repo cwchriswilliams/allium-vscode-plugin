@@ -120,3 +120,32 @@ test("trace CLI reads config defaults", () => {
   const parsed = JSON.parse(result.stdout) as { coveredRules: number };
   assert.equal(parsed.coveredRules, 1);
 });
+
+test("trace CLI semantic mode supports coverage helper calls", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-trace-"));
+  fs.mkdirSync(path.join(dir, "specs"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "specs", "spec.allium"),
+    "rule CoveredRule {\n  when: Ping()\n  ensures: Done()\n}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(dir, "tests", "spec.test.ts"),
+    'coversRule("CoveredRule");\n',
+    "utf8",
+  );
+  const result = runTrace(
+    ["--semantic", "--format", "json", "--tests", "tests", "specs"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  const payload = JSON.parse(result.stdout) as {
+    hitsByRule: Array<{ ruleName: string; hits: Array<{ line: number }> }>;
+  };
+  const hit = payload.hitsByRule.find(
+    (entry) => entry.ruleName === "CoveredRule",
+  );
+  assert.ok(hit);
+  assert.equal(hit.hits[0]?.line, 1);
+});

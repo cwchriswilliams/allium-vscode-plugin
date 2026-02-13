@@ -22,8 +22,11 @@ test("extracts diagnostic codes from source and specs", () => {
 });
 
 test("extracts command names from specs", () => {
-  const spec = `when: CommandInvoked(name: "allium.runChecks")`;
+  const spec =
+    `when: CommandInvoked(name: "allium.runChecks")\n` +
+    `when: WorkspaceCommandInvoked(name: "npm run check -- docs")`;
   assert.equal(extractSpecCommands(spec).has("allium.runChecks"), true);
+  assert.equal(extractSpecCommands(spec).has("npm run check -- docs"), false);
 });
 
 test("builds drift report and markdown", () => {

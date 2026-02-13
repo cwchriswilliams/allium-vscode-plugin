@@ -125,3 +125,15 @@ test("check CLI reads mode from allium.config.json", () => {
   const result = runCheck(["spec.allium"], dir);
   assert.equal(result.status, 0);
 });
+
+test("check CLI autofix inserts missing when scaffold", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-cli-check-"));
+  fs.writeFileSync(
+    path.join(dir, "spec.allium"),
+    "rule A {\n  ensures: Done()\n}\n",
+  );
+  const result = runCheck(["--autofix", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  const updated = fs.readFileSync(path.join(dir, "spec.allium"), "utf8");
+  assert.match(updated, /when: TODO\(\)/);
+});

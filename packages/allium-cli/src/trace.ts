@@ -7,6 +7,7 @@ type TraceOutputFormat = "text" | "json" | "junit";
 interface ParsedArgs {
   format: TraceOutputFormat;
   byFile: boolean;
+  semantic: boolean;
   strict: boolean;
   allowlistPath?: string;
   testInputs: string[];
@@ -44,6 +45,7 @@ interface AlliumConfig {
   trace?: {
     format?: TraceOutputFormat;
     byFile?: boolean;
+    semantic?: boolean;
     strict?: boolean;
     allowlistPath?: string;
   };
@@ -79,7 +81,9 @@ function main(argv: string[]): number {
     filePath,
     text: fs.readFileSync(filePath, "utf8"),
   }));
-  const hitsByRule = collectRuleHits(rules, testBodies);
+  const hitsByRule = parsed.semantic
+    ? collectSemanticRuleHits(rules, testBodies)
+    : collectRuleHits(rules, testBodies);
   const uncovered = rules.filter(
     (rule) =>
       !allowlist.has(rule.name) &&
@@ -125,6 +129,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   const testInputs: string[] = [];
   let format: TraceOutputFormat = config.trace?.format ?? "text";
   let byFile = config.trace?.byFile ?? false;
+  let semantic = config.trace?.semantic ?? false;
   let strict = config.trace?.strict ?? false;
   let allowlistPath: string | undefined = config.trace?.allowlistPath;
 
@@ -156,6 +161,10 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     }
     if (arg === "--by-file") {
       byFile = true;
+      continue;
+    }
+    if (arg === "--semantic") {
+      semantic = true;
       continue;
     }
     if (arg === "--strict") {
@@ -195,7 +204,15 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { format, byFile, strict, allowlistPath, testInputs, specInputs };
+  return {
+    format,
+    byFile,
+    semantic,
+    strict,
+    allowlistPath,
+    testInputs,
+    specInputs,
+  };
 }
 
 function printUsage(error?: string): void {
@@ -203,7 +220,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-trace [--config file|--no-config] [--format text|json|junit] [--junit] [--by-file] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+    "Usage: allium-trace [--config file|--no-config] [--format text|json|junit] [--junit] [--by-file] [--semantic] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
   );
 }
 
@@ -400,6 +417,42 @@ function collectRuleHits(
   return out;
 }
 
+function collectSemanticRuleHits(
+  rules: RuleReference[],
+  testFiles: Array<{ filePath: string; text: string }>,
+): Map<string, RuleHit[]> {
+  const ruleSet = new Set(rules.map((rule) => rule.name));
+  const ruleTokens = new Map<string, RuleHit[]>();
+  for (const rule of rules) {
+    ruleTokens.set(rule.name, []);
+  }
+  for (const testFile of testFiles) {
+    const lines = testFile.text.split("\n");
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      for (const literal of extractQuotedLiterals(line)) {
+        if (ruleSet.has(literal)) {
+          ruleTokens.get(literal)?.push({
+            ruleName: literal,
+            testFilePath: testFile.filePath,
+            line: i + 1,
+          });
+        }
+      }
+      for (const covered of extractCoverageCalls(line)) {
+        if (ruleSet.has(covered)) {
+          ruleTokens.get(covered)?.push({
+            ruleName: covered,
+            testFilePath: testFile.filePath,
+            line: i + 1,
+          });
+        }
+      }
+    }
+  }
+  return ruleTokens;
+}
+
 function escapeXml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -411,6 +464,26 @@ function escapeXml(value: string): string {
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractQuotedLiterals(line: string): string[] {
+  const out: string[] = [];
+  const pattern = /"([^"\\]|\\.)*"|'([^'\\]|\\.)*'/g;
+  for (let match = pattern.exec(line); match; match = pattern.exec(line)) {
+    const raw = match[0].slice(1, -1);
+    out.push(raw.replace(/\\(["'])/g, "$1"));
+  }
+  return out;
+}
+
+function extractCoverageCalls(line: string): string[] {
+  const out: string[] = [];
+  const pattern =
+    /\b(?:coversRule|covers|ruleCovered)\s*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\)/g;
+  for (let match = pattern.exec(line); match; match = pattern.exec(line)) {
+    out.push(match[1]);
+  }
+  return out;
 }
 
 function readAllowlist(filePath: string): Set<string> {

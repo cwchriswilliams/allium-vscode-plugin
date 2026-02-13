@@ -8,6 +8,7 @@ test("renders preview HTML with controls and escaped diagram", () => {
     diagramText: 'entity_A: "A < B"',
     issues: [],
     nodes: [{ id: "entity_A", label: "Entity A" }],
+    edges: [{ id: "edge-1", label: "entity_A -> rule_B (when)" }],
   });
 
   assert.match(html, /Copy/);
@@ -15,6 +16,7 @@ test("renders preview HTML with controls and escaped diagram", () => {
   assert.match(html, /Allium Diagram Preview \(d2\)/);
   assert.match(html, /A &lt; B/);
   assert.match(html, /Go to Entity A/);
+  assert.match(html, /Go to edge entity_A -&gt; rule_B \(when\)/);
 });
 
 test("renders issue list when warnings are present", () => {
@@ -29,6 +31,7 @@ test("renders issue list when warnings are present", () => {
       },
     ],
     nodes: [],
+    edges: [],
   });
 
   assert.match(html, /extraction warning\(s\) detected/);

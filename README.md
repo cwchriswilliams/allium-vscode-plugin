@@ -166,13 +166,16 @@ Formatting settings:
 - Command: `Allium: Show Problems Summary` (`allium.showProblemsSummary`)
 - Command: `Allium: Preview Rename Plan` (`allium.previewRename`)
 - Command: `Allium: Preview Rule Simulation` (`allium.previewRuleSimulation`)
+- Command: `Allium: Generate Rule Test Scaffold` (`allium.generateRuleTestScaffold`)
 - Command: `Allium: Apply All Quick Fixes In File` (`allium.applyQuickFixesInFile`)
 - Command: `Allium: Clean Stale Suppressions` (`allium.cleanStaleSuppressions`)
 - Command: `Allium: Open Related Spec/Test` (`allium.openRelatedSpecOrTest`)
 - Command: `Allium: Explain Finding At Cursor` (`allium.explainFinding`)
 - Command: `Allium: Check Spec Drift` (`allium.checkSpecDrift`)
+- Command: `Allium: Manage Baseline` (`allium.manageBaseline`)
 - Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:
+  - insert `when: TODO()` scaffold for missing trigger
   - insert `ensures: TODO()` scaffold for missing ensures
   - insert temporal `requires:` guard scaffold
   - create external trigger rule scaffold for missing surface-provided triggers
@@ -197,12 +200,15 @@ Formatting settings:
 - safer rename checks for ambiguous targets and name-collision rejection
 - rename preview command to inspect planned changes before applying
 - diagram preview panel with copy/export and node-to-source jump actions from active file or workspace (`allium.generateDiagram`)
+- diagram preview now also supports edge-to-source jumps for richer navigation
 - one-command application of all available Allium quick fixes in the active file
 - suppression cleanup command to remove stale `-- allium-ignore ...` directives
 - related-file jump command that finds matching symbols across workspace specs/tests
 - finding explanation command with remediation guidance (`allium.explainFinding`)
 - rule simulation preview with JSON bindings for `requires`/`ensures` (`allium.previewRuleSimulation`)
+- rule-test scaffold generation from parsed rule declarations (`allium.generateRuleTestScaffold`)
 - spec drift report command for diagnostics/commands vs project specs (`allium.checkSpecDrift`)
+- baseline manager command to preview/write fingerprint baselines (`allium.manageBaseline`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
 - semantic tokens for richer syntax-aware highlighting layers
@@ -253,6 +259,7 @@ Behavior summary:
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files
 - `--autofix` applies safe automatic edits (`missing ensures` scaffold and temporal `requires` guard scaffold)
+- `--autofix` also applies missing `when:` scaffolds when safe
 - `--autofix --fix-interactive` prompts before each safe fix so you can accept/reject edits
 - `--autofix --dryrun` previews safe automatic edits without writing files
 - `--changed` checks only `.allium` files currently changed in git working tree
@@ -369,6 +376,7 @@ node extensions/allium/dist/src/trace.js --format json --tests "extensions/alliu
 node extensions/allium/dist/src/trace.js --junit --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --by-file --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --semantic --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --strict --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --config allium.config.json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 ```
@@ -381,6 +389,7 @@ Behavior summary:
 - optional `--allowlist <file>` suppresses known uncovered rule names
 - optional `--strict` fails when allowlist contains stale rule names not present in specs
 - optional `--by-file` includes per-spec-file coverage breakdown
+- optional `--semantic` derives hits from structured test signals (quoted literals + coverage helper calls)
 - JSON output includes exact test-reference locations (file + line) for covered rules
 - `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
 - prints coverage summary and uncovered rule names
@@ -480,8 +489,8 @@ Pre-commit runs:
    - ESLint autofix
 2. `allium-check --autofix` on `docs/project/specs` (and restages updated specs)
 3. `allium-format` on `docs/project/specs`
-4. unit tests
 4. full unit test suite (`npm run test`)
+5. spec drift gate (`npm run drift:check`)
 
 ### Testing expectations
 

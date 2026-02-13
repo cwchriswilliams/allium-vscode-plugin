@@ -91,6 +91,7 @@ rule AutofixFlagAppliesSafeFixes {
     requires: command_args includes "--autofix"
 
     ensures: SafeFixApplied(kind: missing_ensures_scaffold)
+    ensures: SafeFixApplied(kind: missing_when_scaffold)
     ensures: SafeFixApplied(kind: temporal_guard_scaffold)
 }
 
@@ -198,6 +199,13 @@ rule ConfigFileCanProvideCheckDefaults {
     requires: options excludes "--no-config"
 
     ensures: ConfigDefaultsLoaded(section: check)
+}
+
+rule SpecDriftGateRunsInPreCommitWorkflow {
+    when: PreCommitWorkflowInvoked()
+
+    ensures: CommandInvoked(name: "npm run drift:check")
+    ensures: CommitBlockedWhenDriftDetected()
 }
 
 rule ReleasedCliPackageExposesCheckCommand {

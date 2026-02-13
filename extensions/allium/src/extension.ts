@@ -25,6 +25,8 @@ import {
   renderSimulationMarkdown,
   simulateRuleAtOffset,
 } from "./language-tools/rule-sim";
+import { parseDeclarationAst } from "./language-tools/typed-ast";
+import { buildRuleTestScaffold } from "./language-tools/test-scaffold";
 import { collectAlliumSymbols } from "./language-tools/outline";
 import { collectCompletionCandidates } from "./language-tools/completion";
 import {
@@ -222,6 +224,14 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand(
+      "allium.generateRuleTestScaffold",
+      async () => {
+        await generateRuleTestScaffold();
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
       "allium.applyQuickFixesInFile",
       async () => {
         await applyAllQuickFixesInActiveFile();
@@ -269,6 +279,11 @@ export function activate(context: vscode.ExtensionContext): void {
         await createImportedSymbolStub(uri, alias, symbol);
       },
     ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.manageBaseline", async () => {
+      await manageWorkspaceBaseline();
+    }),
   );
 
   context.subscriptions.push(
@@ -378,6 +393,22 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
     const actions: vscode.CodeAction[] = [];
 
     for (const diagnostic of context.diagnostics) {
+      if (diagnostic.code === "allium.rule.missingWhen") {
+        const action = new vscode.CodeAction(
+          "Insert when scaffold",
+          vscode.CodeActionKind.QuickFix,
+        );
+        action.diagnostics = [diagnostic];
+        const edit = new vscode.WorkspaceEdit();
+        const insertPosition = new vscode.Position(
+          diagnostic.range.start.line + 1,
+          0,
+        );
+        edit.insert(document.uri, insertPosition, "    when: TODO()\n");
+        action.edit = edit;
+        actions.push(action);
+      }
+
       if (diagnostic.code === "allium.rule.missingEnsures") {
         const action = new vscode.CodeAction(
           "Insert ensures scaffold",
@@ -1226,6 +1257,39 @@ async function applyAllQuickFixesInActiveFile(): Promise<void> {
     return;
   }
 
+  const previewLines = actions
+    .filter(
+      (action) =>
+        !!action.edit &&
+        action.diagnostics?.some((diag) =>
+          String(diag.code ?? "").startsWith("allium."),
+        ),
+    )
+    .map(
+      (action) =>
+        `- ${action.title}${action.diagnostics?.[0]?.code ? ` (\`${String(action.diagnostics[0].code)}\`)` : ""}`,
+    );
+  const previewDoc = await vscode.workspace.openTextDocument({
+    content: [
+      "# Allium Quick Fix Preview",
+      "",
+      `File: \`${path.basename(document.uri.fsPath)}\``,
+      `Planned fixes: ${previewLines.length}`,
+      "",
+      ...previewLines,
+      "",
+    ].join("\n"),
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(previewDoc, { preview: true });
+  const decision = await vscode.window.showQuickPick(
+    ["Apply fixes", "Cancel"],
+    { placeHolder: "Apply these quick fixes?" },
+  );
+  if (decision !== "Apply fixes") {
+    return;
+  }
+
   let applied = 0;
   for (const edit of quickFixEdits) {
     const ok = await vscode.workspace.applyEdit(edit);
@@ -1634,6 +1698,90 @@ async function previewRuleSimulation(): Promise<void> {
   await vscode.window.showTextDocument(doc, { preview: true });
 }
 
+async function generateRuleTestScaffold(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage("Open an .allium file first.");
+    return;
+  }
+  const declarations = parseDeclarationAst(editor.document.getText());
+  if (!declarations.some((entry) => entry.kind === "rule")) {
+    void vscode.window.showInformationMessage(
+      "No rules found in current spec.",
+    );
+    return;
+  }
+  const moduleName = path.basename(editor.document.uri.fsPath, ".allium");
+  const scaffold = buildRuleTestScaffold(editor.document.getText(), moduleName);
+  const doc = await vscode.workspace.openTextDocument({
+    content: scaffold,
+    language: "typescript",
+  });
+  await vscode.window.showTextDocument(doc);
+}
+
+async function manageWorkspaceBaseline(): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) {
+    void vscode.window.showInformationMessage("Open a workspace first.");
+    return;
+  }
+  const action = await vscode.window.showQuickPick(
+    ["Write baseline", "Preview baseline findings", "Cancel"],
+    { placeHolder: "Allium baseline manager" },
+  );
+  if (!action || action === "Cancel") {
+    return;
+  }
+  const baselinePath = await vscode.window.showInputBox({
+    prompt: "Baseline output path",
+    value: ".allium-baseline.json",
+  });
+  if (!baselinePath) {
+    return;
+  }
+  const files = await vscode.workspace.findFiles(
+    "**/*.allium",
+    "**/{node_modules,dist,.git}/**",
+  );
+  const records: string[] = [];
+  for (const file of files) {
+    const text = Buffer.from(await vscode.workspace.fs.readFile(file)).toString(
+      "utf8",
+    );
+    const findings = analyzeAllium(text, { mode: "strict" });
+    for (const finding of findings) {
+      const rel = path.relative(root, file.fsPath) || file.fsPath;
+      records.push(
+        `${rel}|${finding.start.line}|${finding.start.character}|${finding.code}|${finding.message}`,
+      );
+    }
+  }
+  const unique = [...new Set(records)].sort();
+  if (action === "Preview baseline findings") {
+    const preview = await vscode.workspace.openTextDocument({
+      content: [
+        "# Baseline Preview",
+        "",
+        ...unique.map((line) => `- \`${line}\``),
+      ].join("\n"),
+      language: "markdown",
+    });
+    await vscode.window.showTextDocument(preview, { preview: true });
+    return;
+  }
+  const output = {
+    version: 1,
+    findings: unique.map((fingerprint) => ({ fingerprint })),
+  };
+  const target = path.resolve(root, baselinePath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, `${JSON.stringify(output, null, 2)}\n`, "utf8");
+  void vscode.window.showInformationMessage(
+    `Wrote baseline with ${unique.length} finding fingerprints to ${baselinePath}.`,
+  );
+}
+
 async function showDiagramPreview(): Promise<void> {
   const active = vscode.window.activeTextEditor?.document;
   const choices: Array<{
@@ -1695,6 +1843,7 @@ async function showDiagramPreview(): Promise<void> {
     buildDiagramResult(document.getText()),
   );
   const sourceByNodeId = new Map<string, { uri: vscode.Uri; offset: number }>();
+  const sourceByEdgeId = new Map<string, { uri: vscode.Uri; offset: number }>();
   for (let i = 0; i < results.length; i += 1) {
     const result = results[i];
     const document = documents[i];
@@ -1705,6 +1854,19 @@ async function showDiagramPreview(): Promise<void> {
       sourceByNodeId.set(node.id, {
         uri: document.uri,
         offset: node.sourceOffset,
+      });
+    }
+    for (const edge of result.model.edges) {
+      if (edge.sourceOffset === undefined) {
+        continue;
+      }
+      const edgeId = `${edge.from}|${edge.to}|${edge.label}`;
+      if (sourceByEdgeId.has(edgeId)) {
+        continue;
+      }
+      sourceByEdgeId.set(edgeId, {
+        uri: document.uri,
+        offset: edge.sourceOffset,
       });
     }
   }
@@ -1725,6 +1887,10 @@ async function showDiagramPreview(): Promise<void> {
     nodes: mergedModel.nodes.map((node) => ({
       id: node.id,
       label: node.label,
+    })),
+    edges: mergedModel.edges.map((edge) => ({
+      id: `${edge.from}|${edge.to}|${edge.label}`,
+      label: `${edge.from} -> ${edge.to} (${edge.label})`,
     })),
   });
 
@@ -1774,6 +1940,25 @@ async function showDiagramPreview(): Promise<void> {
         if (!source) {
           void vscode.window.showInformationMessage(
             "No source location available for this diagram node.",
+          );
+          return;
+        }
+        const document = await vscode.workspace.openTextDocument(source.uri);
+        const editor = await vscode.window.showTextDocument(document);
+        const position = document.positionAt(source.offset);
+        editor.selection = new vscode.Selection(position, position);
+        editor.revealRange(new vscode.Range(position, position));
+        return;
+      }
+      if (typed.type === "revealEdge") {
+        const edgeId = (message as { edgeId?: unknown }).edgeId;
+        if (typeof edgeId !== "string") {
+          return;
+        }
+        const source = sourceByEdgeId.get(edgeId);
+        if (!source) {
+          void vscode.window.showInformationMessage(
+            "No source location available for this diagram edge.",
           );
           return;
         }

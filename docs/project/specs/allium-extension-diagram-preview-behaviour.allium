@@ -55,3 +55,10 @@ rule DiagramPreviewNodeJumpAction {
     ensures: SourceNodeLocationResolved()
     ensures: EditorRevealedAtNodeLocation()
 }
+
+rule DiagramPreviewEdgeJumpAction {
+    when: PreviewActionInvoked(name: reveal_edge)
+
+    ensures: SourceEdgeLocationResolved()
+    ensures: EditorRevealedAtEdgeLocation()
+}

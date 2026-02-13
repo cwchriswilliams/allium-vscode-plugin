@@ -631,6 +631,21 @@ function buildSafeFixPlans(
     }
 
     if (
+      finding.code === "allium.rule.missingWhen" &&
+      (fixCodes.size === 0 || fixCodes.has(finding.code))
+    ) {
+      const insertLine = finding.start.line + 1;
+      const lineStart = lineStarts[insertLine] ?? text.length;
+      const key = `${lineStart}:when`;
+      edits.set(key, {
+        offset: lineStart,
+        text: "    when: TODO()\n",
+        code: finding.code,
+        label: "insert when scaffold",
+      });
+    }
+
+    if (
       finding.code === "allium.temporal.missingGuard" &&
       (fixCodes.size === 0 || fixCodes.has(finding.code))
     ) {

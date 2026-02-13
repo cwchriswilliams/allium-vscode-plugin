@@ -1,4 +1,4 @@
-import { parseAlliumBlocks } from "./parser";
+import { parseDeclarationAst } from "./typed-ast";
 
 export interface RuleSimulationPreview {
   ruleName: string;
@@ -11,7 +11,7 @@ export function simulateRuleAtOffset(
   offset: number,
   bindings: Record<string, unknown>,
 ): RuleSimulationPreview | null {
-  const block = parseAlliumBlocks(text).find(
+  const block = parseDeclarationAst(text).find(
     (entry) =>
       entry.kind === "rule" &&
       offset >= entry.startOffset &&
@@ -20,15 +20,13 @@ export function simulateRuleAtOffset(
   if (!block || block.kind !== "rule") {
     return null;
   }
-  const requires = collectClauseExpressions(block.body, "requires");
-  const ensures = collectClauseExpressions(block.body, "ensures");
   return {
     ruleName: block.name,
-    requires: requires.map((expression) => ({
+    requires: block.requires.map((expression) => ({
       expression,
       result: evaluateExpression(expression, bindings),
     })),
-    ensures: ensures.map((expression) => ({
+    ensures: block.ensures.map((expression) => ({
       expression,
       result: evaluateExpression(expression, bindings),
     })),
@@ -66,18 +64,6 @@ export function renderSimulationMarkdown(
   }
   lines.push("");
   return lines.join("\n");
-}
-
-function collectClauseExpressions(
-  body: string,
-  clause: "requires" | "ensures",
-): string[] {
-  const pattern = new RegExp(`^\\s*${clause}\\s*:\\s*(.+)$`, "gm");
-  const expressions: string[] = [];
-  for (let match = pattern.exec(body); match; match = pattern.exec(body)) {
-    expressions.push(match[1].trim());
-  }
-  return expressions;
 }
 
 function evaluateExpression(

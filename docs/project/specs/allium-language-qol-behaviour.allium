@@ -76,71 +76,110 @@ rule TopLevelDeclarationsExposeTestReferenceCountCodeLens {
 }
 
 rule ProblemsSummaryGroupsWorkspaceFindingsByCode {
-    when: ProblemsSummaryRequested()
+    when: CommandInvoked(name: "allium.showProblemsSummary")
 
     ensures: FindingsGroupedByCode()
     ensures: MostFrequentCodesShownFirst()
 }
 
 rule RenamePreviewShowsPlannedWorkspaceChanges {
-    when: RenamePreviewRequested(symbol, new_name)
-    requires: symbol resolves_to_single_definition
-    requires: new_name valid_identifier
+    when: CommandInvoked(name: "allium.previewRename")
+    requires: SingleRenameTargetResolved()
+    requires: ProposedNameIsValidIdentifier()
 
     ensures: PlannedRenameLocationsListed()
     ensures: DocumentNotMutated()
 }
 
 rule ApplyQuickFixesInFileAppliesAllAvailableAlliumQuickFixActions {
-    when: QuickFixesInFileRequested()
+    when: CommandInvoked(name: "allium.applyQuickFixesInFile")
     requires: AlliumQuickFixesAvailableInDocument()
 
     ensures: AllAvailableAlliumQuickFixesApplied()
 }
 
 rule CleanStaleSuppressionsRemovesDeadAlliumIgnoreDirectives {
-    when: CleanSuppressionsRequested(document)
-    requires: document contains "-- allium-ignore" entries_without_matching_findings
+    when: CommandInvoked(name: "allium.cleanStaleSuppressions")
+    requires: ActiveDocumentContainsStaleAlliumIgnoreDirectives()
 
     ensures: StaleSuppressionLinesRemoved()
     ensures: RemainingSuppressionLinesReferenceActiveFindingsOnly()
 }
 
 rule OpenRelatedSpecOrTestFindsMatchingWorkspaceReferences {
-    when: RelatedSpecOrTestRequested(symbol)
-    requires: symbol referenced_in_other_spec_or_test_files
+    when: CommandInvoked(name: "allium.openRelatedSpecOrTest")
+    requires: CursorSymbolReferencedInOtherSpecOrTestFiles()
 
     ensures: RelatedFilesPresentedForSelection()
     ensures: SelectedRelatedFileOpened()
 }
 
 rule UndefinedImportedSymbolQuickFixCanCreateTargetStub {
-    when: QuickFixRequested(code: "allium.import.undefinedSymbol")
+    when: CommandInvoked(name: "allium.createImportedSymbolStub")
     requires: ImportAliasResolvesToTargetSpec()
 
     ensures: ImportedSpecUpdatedWithSymbolStub()
 }
 
 rule ExplainFindingCommandShowsRemediationGuidance {
-    when: ExplainFindingRequested(code)
-    requires: code starts_with "allium."
+    when: CommandInvoked(name: "allium.explainFinding")
+    requires: ActiveDiagnosticCodeStartsWith(prefix: "allium.")
+
+    ensures: FindingExplanationDocumentOpened()
+    ensures: RemediationGuidanceRendered()
+}
+
+rule ExplainFindingDiagnosticCommandShowsRemediationGuidance {
+    when: CommandInvoked(name: "allium.explainFindingDiagnostic")
+    requires: cursor_has_allium_diagnostic
 
     ensures: FindingExplanationDocumentOpened()
     ensures: RemediationGuidanceRendered()
 }
 
 rule RuleSimulationPreviewEvaluatesRequiresAndEnsuresAgainstBindings {
-    when: RuleSimulationRequested(rule, bindings)
-    requires: CursorInsideRule(rule)
+    when: CommandInvoked(name: "allium.previewRuleSimulation")
+    requires: CursorInsideRule()
 
     ensures: RequiresEvaluationRendered()
     ensures: EnsuresEvaluationRendered()
 }
 
 rule SpecDriftCheckReportsCodeAndCommandCoverageDiffs {
-    when: SpecDriftCheckRequested()
+    when: CommandInvoked(name: "allium.checkSpecDrift")
 
     ensures: DriftReportRendered()
     ensures: MissingSpecCoverageListed()
     ensures: StaleSpecCoverageListed()
+}
+
+rule RuleTestScaffoldCommandGeneratesTestTemplateFromRuleDeclarations {
+    when: CommandInvoked(name: "allium.generateRuleTestScaffold")
+    requires: ActiveSpecContainsRuleDeclarations()
+
+    ensures: TestTemplateDocumentOpened()
+    ensures: RuleNamesAndClauseHintsIncluded()
+}
+
+rule BaselineManagementCommandCanPreviewOrWriteFingerprintSet {
+    when: CommandInvoked(name: "allium.manageBaseline")
+
+    ensures: BaselinePreviewOrWriteChoiceShown()
+    ensures: BaselineFingerprintsComputed()
+}
+
+rule ApplyQuickFixesCommandShowsSafetyPreviewBeforeMutation {
+    when: CommandInvoked(name: "allium.applyQuickFixesInFile")
+    requires: AlliumQuickFixesAvailableInDocument()
+
+    ensures: QuickFixPreviewShown()
+    ensures: ChangesAppliedOnlyAfterExplicitConfirmation()
+}
+
+rule TypedDeclarationAstProvidesStructuredRuleAndDeclarationMetadata {
+    when: SpecParsedForTooling(spec)
+    requires: spec contains entities_or_rules_or_enums
+
+    ensures: TypedDeclarationAstProduced()
+    ensures: RuleClausesExposedAsStructuredFields()
 }

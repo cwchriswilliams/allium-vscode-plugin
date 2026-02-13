@@ -149,6 +149,19 @@ test("autofix adds temporal guard scaffold", () => {
   assert.match(updated, /requires: \/\* add temporal guard \*\//);
 });
 
+test("autofix adds missing when scaffold", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const filePath = writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  ensures: Done()\n}\n`,
+  );
+  const result = runCheck(["--autofix", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  const updated = fs.readFileSync(filePath, "utf8");
+  assert.match(updated, /when: TODO\(\)/);
+});
+
 test("json format prints machine-readable payload", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
   writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);

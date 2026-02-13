@@ -20,12 +20,24 @@ export function extractSpecDiagnosticCodes(specText: string): Set<string> {
 }
 
 export function extractSpecCommands(specText: string): Set<string> {
-  return new Set(
-    specText
-      .match(/CommandInvoked\(name:\s*"[^"]+"\)/g)
-      ?.map((item) => item.match(/"([^"]+)"/)?.[1] ?? "")
-      .filter((item) => item.length > 0) ?? [],
-  );
+  const out = new Set<string>();
+  const patterns = [
+    /CommandInvoked\(name:\s*"([^"]+)"\)/g,
+    /WorkspaceCommandInvoked\(name:\s*"([^"]+)"\)/g,
+    /CommandAvailable\(name:\s*"([^"]+)"\)/g,
+  ];
+  for (const pattern of patterns) {
+    for (
+      let match = pattern.exec(specText);
+      match;
+      match = pattern.exec(specText)
+    ) {
+      if (match[1].startsWith("allium.")) {
+        out.add(match[1]);
+      }
+    }
+  }
+  return out;
 }
 
 export function buildDriftReport(

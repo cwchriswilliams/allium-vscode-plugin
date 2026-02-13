@@ -116,6 +116,10 @@
         "title": "Allium: Preview Rule Simulation"
       },
       {
+        "command": "allium.generateRuleTestScaffold",
+        "title": "Allium: Generate Rule Test Scaffold"
+      },
+      {
         "command": "allium.applyQuickFixesInFile",
         "title": "Allium: Apply All Quick Fixes In File"
       },
@@ -134,6 +138,10 @@
       {
         "command": "allium.checkSpecDrift",
         "title": "Allium: Check Spec Drift"
+      },
+      {
+        "command": "allium.manageBaseline",
+        "title": "Allium: Manage Baseline"
       },
       {
         "command": "allium.explainFindingDiagnostic",
