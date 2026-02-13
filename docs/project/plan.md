@@ -230,6 +230,7 @@ Current implementation will proceed with defaults unless you override:
 - Diagram tooling now supports reverse edge links and constraint-aware edge labels.
 - Added typed declaration AST foundation for rule/entity/enum parsing and reuse across editor tooling.
 - Added drift gate in pre-commit to fail when implementation/spec command or diagnostic coverage diverges.
+- Added standalone `allium-drift` CLI for drift checks outside VS Code/editor workflows.
 
 ## High Priority Next Work
 

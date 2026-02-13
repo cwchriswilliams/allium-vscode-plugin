@@ -7,6 +7,7 @@ This project provides:
 3. A standalone `allium-format` CLI for formatting.
 4. A standalone `allium-diagram` CLI for text-first diagram generation from specs.
 5. A standalone `allium-trace` CLI for spec-to-test traceability checks.
+6. A standalone `allium-drift` CLI for implementation/spec coverage drift checks.
 
 The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
 
@@ -23,7 +24,7 @@ The extension is not yet published on the VS Code Marketplace. Consumers should 
 Each tagged release publishes:
 
 - `allium-vscode-<version>.vsix` (VS Code extension package)
-- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, `allium-diagram`, and `allium-trace`)
+- `allium-cli-<version>.tgz` (standalone npm CLI package exposing `allium-check`, `allium-format`, `allium-diagram`, `allium-trace`, and `allium-drift`)
 - `SHA256SUMS.txt` (artifact checksums)
 
 Install extension from VSIX:
@@ -41,6 +42,7 @@ allium-check --help
 allium-format --help
 allium-diagram --help
 allium-trace --help
+allium-drift --help
 ```
 
 Optional checksum verification:
@@ -71,6 +73,7 @@ allium-check --help
 allium-format --help
 allium-diagram --help
 allium-trace --help
+allium-drift --help
 ```
 
 ## VS Code Features
@@ -396,6 +399,38 @@ Behavior summary:
 - exits `0` when all extracted rules are referenced by tests
 - exits `1` when uncovered rules exist
 - exits `2` on invalid arguments / unresolved spec or test inputs
+
+### `allium-drift`
+
+Check whether implemented diagnostics/commands are covered by project specs.
+
+Repo-level command:
+
+```bash
+npm run drift:allium
+npm run drift:allium -- --format json
+npm run drift:allium -- --skip-commands
+npm run drift:allium -- --source extensions/allium/src/language-tools --specs docs/project/specs --commands-from extensions/allium/package.json
+```
+
+Direct built script:
+
+```bash
+node extensions/allium/dist/src/drift.js
+node extensions/allium/dist/src/drift.js --format json
+node extensions/allium/dist/src/drift.js --skip-commands
+node extensions/allium/dist/src/drift.js --source extensions/allium/src/language-tools --specs docs/project/specs --commands-from extensions/allium/package.json
+```
+
+Behavior summary:
+
+- compares implemented `allium.*` diagnostics from TypeScript source against `code: "allium.*"` entries in specs
+- compares implemented command IDs from command manifest against `CommandInvoked`/`WorkspaceCommandInvoked`/`CommandAvailable` entries in specs
+- exits `0` when no drift is present
+- exits `1` when coverage drift exists
+- exits `2` on invalid arguments or missing inputs
+- supports machine-readable output with `--format json`
+- supports diagnostics-only drift checks with `--skip-commands`
 
 ## Using CLI Tools Outside This Repo
 

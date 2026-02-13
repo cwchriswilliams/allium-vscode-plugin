@@ -14,7 +14,8 @@
     "format:allium:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/format.js --check",
     "diagram:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/diagram.js",
     "trace:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/trace.js",
-    "drift:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/spec-drift-check.js",
+    "drift:check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/drift.js",
+    "drift:allium": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/drift.js",
     "format:check": "biome format --check .",
     "check": "npm run --workspace extensions/allium build && node extensions/allium/dist/src/check.js",
     "release:artifacts": "./scripts/build-release-artifacts.sh"

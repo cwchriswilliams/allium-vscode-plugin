@@ -1,0 +1,63 @@
+-- allium-drift-tool-behaviour.allium
+-- Scope: Standalone CLI behavior for implementation/spec drift detection.
+-- Includes:
+--   - Diagnostic code drift checks between source and specs
+--   - Command coverage drift checks between command manifest and specs
+--   - Output and exit semantics
+-- Excludes:
+--   - Runtime validation of analyzer correctness
+--   - Per-finding remediation guidance
+
+rule DriftCommandSupportsDefaultWorkspaceLayout {
+    when: DriftCommandInvokedWithoutPaths()
+
+    ensures: SourceFilesResolved(path: "extensions/allium/src/language-tools")
+    ensures: SpecFilesResolved(path: "docs/project/specs")
+    ensures: CommandsManifestResolved(path: "extensions/allium/package.json")
+}
+
+rule DriftCommandReportsNoDifferencesAsSuccess {
+    when: DriftComparisonCompleted(result)
+    requires: result.has_drift = false
+
+    ensures: LinePrinted(message: "Spec drift check passed.")
+    ensures: ProcessExit(code: 0)
+}
+
+rule DriftCommandFailsWhenCoverageDiffExists {
+    when: DriftComparisonCompleted(result)
+    requires: result.has_drift = true
+
+    ensures: LinePrinted(message: "Spec drift detected.")
+    ensures: DriftReportPrinted()
+    ensures: ProcessExit(code: 1)
+}
+
+rule DriftJsonOutputIsMachineReadable {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--format json"
+
+    ensures: MachineReadableCoveragePayloadPrinted()
+}
+
+rule DriftCanSkipCommandCoverageChecks {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--skip-commands"
+
+    ensures: CommandCoverageComparisonSkipped()
+}
+
+rule DriftRejectsMissingResolvedInputs {
+    when: DriftCommandInvokedWithPaths(source_paths, spec_paths)
+    requires: ResolveSourceFiles(source_paths).is_empty = true
+    or ResolveAlliumFiles(spec_paths).is_empty = true
+
+    ensures: UsagePrinted()
+    ensures: ProcessExit(code: 2)
+}
+
+rule ReleasedCliPackageExposesDriftCommand {
+    when: CliPackageInstalledFromReleaseNpmArtifact()
+
+    ensures: CommandAvailable(name: "allium-drift")
+}

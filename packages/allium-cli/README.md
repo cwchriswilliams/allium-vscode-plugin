@@ -6,3 +6,4 @@ Standalone CLI package exposing:
 - `allium-format`
 - `allium-diagram`
 - `allium-trace`
+- `allium-drift`
