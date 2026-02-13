@@ -118,3 +118,27 @@ test("writes split-by-module diagrams", () => {
   assert.ok(fs.existsSync(path.join(outDir, "onboarding.d2")));
   assert.ok(fs.existsSync(path.join(outDir, "operations.d2")));
 });
+
+test("reverse-links emits inverse edges", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `entity Ticket {\n  status: open | closed\n}\nrule Close {\n  when: ticket: Ticket.status becomes closed\n  ensures: Done()\n}\n`,
+  );
+  const result = runDiagram(["--reverse-links", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /reverse:when/);
+});
+
+test("constraint-labels appends requires expression to when edge labels", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-diagram-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `entity Ticket {\n  status: open | closed\n}\nrule Close {\n  when: ticket: Ticket.status becomes closed\n  requires: ticket.status = open\n  ensures: Done()\n}\n`,
+  );
+  const result = runDiagram(["--constraint-labels", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /when \[ticket.status = open\]/);
+});

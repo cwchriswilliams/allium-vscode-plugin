@@ -53,6 +53,8 @@ interface ParsedArgs {
   format: DiagramFormat;
   outputPath?: string;
   strict: boolean;
+  reverseLinks: boolean;
+  constraintLabels: boolean;
   split?: SplitMode;
   filters: DiagramFilterOptions;
   inputs: string[];
@@ -97,7 +99,8 @@ function main(argv: string[]): number {
   const combined = mergeModels(
     diagramResults.map((entry) => entry.result.model),
   );
-  const filtered = applyDiagramFilters(combined, parsed.filters);
+  const augmented = augmentDiagramModel(combined, diagramResults, parsed);
+  const filtered = applyDiagramFilters(augmented, parsed.filters);
   const output = renderDiagram(filtered, parsed.format);
   if (parsed.outputPath) {
     const fullPath = path.resolve(process.cwd(), parsed.outputPath);
@@ -117,6 +120,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   let format: DiagramFormat = "d2";
   let outputPath: string | undefined;
   let strict = false;
+  let reverseLinks = false;
+  let constraintLabels = false;
   let split: SplitMode | undefined;
   const focusNames: string[] = [];
   const kinds: DiagramNodeKind[] = [];
@@ -174,6 +179,14 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       strict = true;
       continue;
     }
+    if (arg === "--reverse-links") {
+      reverseLinks = true;
+      continue;
+    }
+    if (arg === "--constraint-labels") {
+      constraintLabels = true;
+      continue;
+    }
     if (arg === "--split") {
       const splitArg = argv[i + 1];
       if (splitArg !== "module") {
@@ -200,6 +213,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     format,
     outputPath,
     strict,
+    reverseLinks,
+    constraintLabels,
     split,
     filters: {
       focusNames,
@@ -214,7 +229,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-diagram [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--strict] <file|directory|glob> [...]\n",
+    "Usage: allium-diagram [--format d2|mermaid] [--output path] [--focus names] [--kind kinds] [--split module] [--reverse-links] [--constraint-labels] [--strict] <file|directory|glob> [...]\n",
   );
 }
 
@@ -259,13 +274,88 @@ function writeSplitByModule(
     a[0].localeCompare(b[0]),
   )) {
     const merged = mergeModels(models);
-    const filtered = applyDiagramFilters(merged, parsed.filters);
+    const augmented = augmentDiagramModel(
+      merged,
+      diagramResults.filter((entry) =>
+        (entry.result.modules.length > 0
+          ? entry.result.modules
+          : ["root"]
+        ).includes(moduleName),
+      ),
+      parsed,
+    );
+    const filtered = applyDiagramFilters(augmented, parsed.filters);
     const output = renderDiagram(filtered, parsed.format);
     const fileName = `${sanitizePathToken(moduleName)}.${extension}`;
     const filePath = path.join(outputDir, fileName);
     fs.writeFileSync(filePath, output, "utf8");
     process.stdout.write(`Wrote ${parsed.format} diagram to ${filePath}\n`);
   }
+}
+
+function augmentDiagramModel(
+  model: DiagramModel,
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+  parsed: Pick<ParsedArgs, "reverseLinks" | "constraintLabels">,
+): DiagramModel {
+  let next = model;
+  if (parsed.reverseLinks) {
+    next = withReverseLinks(next);
+  }
+  if (parsed.constraintLabels) {
+    next = withConstraintLabels(next, diagramResults);
+  }
+  return next;
+}
+
+function withReverseLinks(model: DiagramModel): DiagramModel {
+  const edges = [...model.edges];
+  const seen = new Set(
+    edges.map((edge) => `${edge.from}|${edge.to}|${edge.label}`),
+  );
+  for (const edge of model.edges) {
+    const reverse = {
+      from: edge.to,
+      to: edge.from,
+      label: `reverse:${edge.label}`,
+    };
+    const key = `${reverse.from}|${reverse.to}|${reverse.label}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      edges.push(reverse);
+    }
+  }
+  return { nodes: model.nodes, edges };
+}
+
+function withConstraintLabels(
+  model: DiagramModel,
+  diagramResults: Array<{ filePath: string; result: DiagramBuildResult }>,
+): DiagramModel {
+  const requiresByRule = new Map<string, string>();
+  for (const entry of diagramResults) {
+    const text = fs.readFileSync(entry.filePath, "utf8");
+    const pattern =
+      /^\s*rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{([\s\S]*?)^\s*\}/gm;
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      const requiresMatch = match[2].match(/^\s*requires\s*:\s*(.+)$/m);
+      if (requiresMatch) {
+        requiresByRule.set(match[1], requiresMatch[1].trim());
+      }
+    }
+  }
+  const edges = model.edges.map((edge) => {
+    if (edge.label !== "when") {
+      return edge;
+    }
+    const ruleName = edge.to.replace(/^rule_/, "");
+    const constraint = requiresByRule.get(ruleName);
+    if (!constraint) {
+      return edge;
+    }
+    return { ...edge, label: `when [${constraint}]` };
+  });
+  return { nodes: model.nodes, edges };
 }
 
 function buildDiagramResult(text: string): DiagramBuildResult {

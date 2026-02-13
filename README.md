@@ -165,9 +165,12 @@ Formatting settings:
 - Command: `Allium: Show Spec Health` (`allium.showSpecHealth`)
 - Command: `Allium: Show Problems Summary` (`allium.showProblemsSummary`)
 - Command: `Allium: Preview Rename Plan` (`allium.previewRename`)
+- Command: `Allium: Preview Rule Simulation` (`allium.previewRuleSimulation`)
 - Command: `Allium: Apply All Quick Fixes In File` (`allium.applyQuickFixesInFile`)
 - Command: `Allium: Clean Stale Suppressions` (`allium.cleanStaleSuppressions`)
 - Command: `Allium: Open Related Spec/Test` (`allium.openRelatedSpecOrTest`)
+- Command: `Allium: Explain Finding At Cursor` (`allium.explainFinding`)
+- Command: `Allium: Check Spec Drift` (`allium.checkSpecDrift`)
 - Command: `Allium: Generate Diagram` (`allium.generateDiagram`)
 - Quick fixes:
   - insert `ensures: TODO()` scaffold for missing ensures
@@ -197,6 +200,9 @@ Formatting settings:
 - one-command application of all available Allium quick fixes in the active file
 - suppression cleanup command to remove stale `-- allium-ignore ...` directives
 - related-file jump command that finds matching symbols across workspace specs/tests
+- finding explanation command with remediation guidance (`allium.explainFinding`)
+- rule simulation preview with JSON bindings for `requires`/`ensures` (`allium.previewRuleSimulation`)
+- spec drift report command for diagnostics/commands vs project specs (`allium.checkSpecDrift`)
 - folding ranges for top-level blocks
 - document formatting for `.allium` files
 - semantic tokens for richer syntax-aware highlighting layers
@@ -217,6 +223,7 @@ npm run check -- docs/project/specs
 npm run check -- --mode relaxed "docs/project/specs/**/*.allium"
 npm run check -- --autofix docs/project/specs
 npm run check -- --autofix --dryrun docs/project/specs
+npm run check -- --autofix --fix-interactive docs/project/specs
 npm run check -- --autofix --fix-code allium.rule.missingEnsures docs/project/specs
 npm run check -- --changed
 npm run check -- --min-severity warning --ignore-code allium.rule.unreachableTrigger docs/project/specs
@@ -224,6 +231,7 @@ npm run check -- --fail-on error docs/project/specs
 npm run check -- --format json --report reports/allium-check.json docs/project/specs
 npm run check -- --stats docs/project/specs
 npm run check -- --watch docs/project/specs
+npm run check -- --cache docs/project/specs
 npm run check -- --format json docs/project/specs
 npm run check -- --write-baseline .allium-baseline.json docs/project/specs
 npm run check -- --baseline .allium-baseline.json docs/project/specs
@@ -245,6 +253,7 @@ Behavior summary:
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files
 - `--autofix` applies safe automatic edits (`missing ensures` scaffold and temporal `requires` guard scaffold)
+- `--autofix --fix-interactive` prompts before each safe fix so you can accept/reject edits
 - `--autofix --dryrun` previews safe automatic edits without writing files
 - `--changed` checks only `.allium` files currently changed in git working tree
 - `--min-severity <info|warning|error>` filters reported findings to a severity floor
@@ -253,8 +262,12 @@ Behavior summary:
 - `--stats` prints grouped finding counts by code
 - `--report <file>` writes emitted output to a report file in the selected output format
 - `--watch` continuously reruns checks when input file content changes
+- `--cache` stores/reuses findings for unchanged files with import-aware invalidation
+- `--cache-path <file>` changes cache file location (default `.allium-check-cache.json`)
 - `--format json|sarif` emits machine-readable findings for CI/code-scanning integrations
+- SARIF output includes remediation metadata (`helpUri`, `fullDescription`) for rules
 - `--fix-code <code[,code...]>` limits `--autofix` edits to selected diagnostic codes
+- `--config <file>` and `--no-config` control loading defaults from `allium.config.json`
 - `--write-baseline <file>` records current findings as suppression fingerprints and exits successfully
 - `--baseline <file>` suppresses matching known findings to support ratcheting in legacy specs
 
@@ -276,6 +289,7 @@ node extensions/allium/dist/src/format.js docs/project/specs
 node extensions/allium/dist/src/format.js --check "docs/project/specs/**/*.allium"
 node extensions/allium/dist/src/format.js --indent-width 2 --top-level-spacing 0 docs/project/specs
 node extensions/allium/dist/src/format.js --dryrun docs/project/specs
+node extensions/allium/dist/src/format.js --config allium.config.json docs/project/specs
 cat docs/project/specs/allium-check-tool-behaviour.allium | node extensions/allium/dist/src/format.js --stdin --stdout
 ```
 
@@ -290,6 +304,7 @@ Current formatter behavior:
 - normalize spacing around pipe-delimited literals (for example enum literal sets)
 - `--dryrun` previews formatted output without writing files
 - `--stdin --stdout` supports formatter pipelines and editor integration
+- `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
 
 ### `allium-diagram` (experimental)
 
@@ -315,6 +330,7 @@ node extensions/allium/dist/src/diagram.js --format d2 --output docs/project/dia
 node extensions/allium/dist/src/diagram.js --format mermaid docs/project/specs/allium-extension-behaviour.allium
 node extensions/allium/dist/src/diagram.js --focus Invitation,AcceptInvitation --kind entity,rule docs/project/specs
 node extensions/allium/dist/src/diagram.js --split module --output docs/project/diagrams/by-module docs/project/specs
+node extensions/allium/dist/src/diagram.js --reverse-links --constraint-labels docs/project/specs
 ```
 
 Key diagram options:
@@ -323,6 +339,8 @@ Key diagram options:
 - `--focus NameA,NameB` to include matching nodes and one-hop neighbours
 - `--kind entity,rule,...` to filter node kinds
 - `--split module --output <dir>` to emit one file per detected `module` declaration
+- `--reverse-links` to emit inverse edges for bidirectional browsing
+- `--constraint-labels` to annotate `when` edges with rule `requires` expressions
 - grouped rendering by declaration kind in both D2 and Mermaid outputs
 
 Current diagram model captures:
@@ -352,6 +370,7 @@ node extensions/allium/dist/src/trace.js --junit --tests "extensions/allium/test
 node extensions/allium/dist/src/trace.js --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --by-file --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --strict --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --config allium.config.json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 ```
 
 Behavior summary:
@@ -362,6 +381,8 @@ Behavior summary:
 - optional `--allowlist <file>` suppresses known uncovered rule names
 - optional `--strict` fails when allowlist contains stale rule names not present in specs
 - optional `--by-file` includes per-spec-file coverage breakdown
+- JSON output includes exact test-reference locations (file + line) for covered rules
+- `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
 - prints coverage summary and uncovered rule names
 - exits `0` when all extracted rules are referenced by tests
 - exits `1` when uncovered rules exist
@@ -378,6 +399,32 @@ Planned improvements:
 
 - publish dedicated standalone CLI package(s) with stable install names (without extension packaging concerns)
 
+### Shared CLI Defaults (`allium.config.json`)
+
+CLI commands can load defaults from a workspace-local config file:
+
+```json
+{
+  "check": {
+    "mode": "strict",
+    "minSeverity": "info",
+    "failOn": "warning",
+    "ignoreCodes": []
+  },
+  "format": {
+    "indentWidth": 4,
+    "topLevelSpacing": 1
+  },
+  "trace": {
+    "format": "text",
+    "byFile": false,
+    "strict": false
+  }
+}
+```
+
+Use `--config <file>` to point at a custom location or `--no-config` to disable config loading for a run.
+
 ## Development
 
 ### Project layout
@@ -387,6 +434,7 @@ Planned improvements:
   - `src/language-tools/`: analyzer, refactors, definitions, hover, folding, CLI tooling
 - `docs/project/specs/`: Allium specs describing expected system behavior
 - `docs/project/plan.md`: project roadmap and priorities
+- `allium.config.json`: shared defaults for `allium-check`, `allium-format`, and `allium-trace`
 - `AGENTS.md`: development rules for humans and AI agents
 
 ### Development workflow

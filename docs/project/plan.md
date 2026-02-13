@@ -216,12 +216,17 @@ Current implementation will proceed with defaults unless you override:
 - Standalone checker supports machine-readable outputs (`--format json|sarif`) and baseline files (`--baseline`, `--write-baseline`).
 - Standalone checker supports scoped execution and reporting controls (`--changed`, `--min-severity`, `--ignore-code`, `--stats`) plus autofix preview mode (`--autofix --dryrun`).
 - Standalone checker supports advanced controls: fix scoping (`--fix-code`), configurable failure threshold (`--fail-on`), report artifacts (`--report`), and watch mode (`--watch`).
+- Standalone checker now supports interactive fix review (`--fix-interactive`), importer-aware incremental cache (`--cache`, `--cache-path`), and workspace config defaults (`--config`, `--no-config`).
 - Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 - Experimental diagram generator now supports strict extraction checks, focus/kind filtering, grouped rendering, and split-by-module output.
 - Standalone traceability checker added: `npm run trace:allium -- --tests <file|directory|glob> <spec-file|directory|glob>` for rule-name coverage checks between specs and tests.
 - Standalone traceability checker supports CI-friendly outputs and reporting detail (`--junit`, `--by-file`) in addition to allowlist/strict controls.
+- Standalone traceability checker now reports exact test reference locations (file + line) and supports config-backed defaults.
 - Standalone formatter supports preview/pipeline modes (`--dryrun`, `--stdin --stdout`).
+- Standalone formatter now supports config-backed defaults (`--config`, `--no-config`).
 - VS Code quality-of-life commands now include apply-all quick fixes in file, stale suppression cleanup, and related spec/test navigation.
+- Additional VS Code quality-of-life: diagnostic explanation command, imported-symbol stub quick fix, rule simulation preview, and spec drift report.
+- Diagram tooling now supports reverse edge links and constraint-aware edge labels.
 
 ## High Priority Next Work
 

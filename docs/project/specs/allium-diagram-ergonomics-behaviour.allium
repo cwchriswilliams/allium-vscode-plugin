@@ -72,3 +72,17 @@ rule RendererGroupsNodesByKind {
     ensures: GroupContainerRendered(kind: rule)
     ensures: GroupContainerRendered(kind: trigger)
 }
+
+rule ReverseLinksOptionAddsInverseEdges {
+    when: DiagramCommandInvoked(args)
+    requires: args includes "--reverse-links"
+
+    ensures: InverseEdgesRendered(prefix: "reverse:")
+}
+
+rule ConstraintLabelsOptionAnnotatesWhenEdgesWithRequiresExpressions {
+    when: DiagramCommandInvoked(args)
+    requires: args includes "--constraint-labels"
+
+    ensures: WhenEdgeLabelsIncludeConstraintText()
+}
