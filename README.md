@@ -633,7 +633,7 @@ Use this section for creating GitHub Releases with VSIX + CLI artifacts.
 
 1. `npm ci`
 2. `npm run lint`
-3. `npm run test`
+3. `npm run test` (workspace test scripts use `scripts/run-node-tests.mjs` so CI shells do not need globstar expansion)
 4. `npm run release:artifacts`
 5. upload `artifacts/*` to Actions run artifacts
 6. if the run is from a tag, publish a GitHub Release and attach artifacts:

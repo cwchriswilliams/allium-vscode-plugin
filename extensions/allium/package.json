@@ -159,7 +159,7 @@
   },
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
-    "test": "npm run build && node --test ./dist/test/**/*.test.js",
+    "test": "npm run build && node ../../scripts/run-node-tests.mjs ./dist/test",
     "lint": "tsc -p ./tsconfig.json --noEmit",
     "check": "npm run build && node ./dist/src/check.js",
     "format:allium": "npm run build && node ./dist/src/format.js",

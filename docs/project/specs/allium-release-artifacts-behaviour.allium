@@ -36,6 +36,13 @@ rule ManualBuildUploadsArtifacts {
     ensures: ReleaseArtifactUploaded(kind: cli_npm_tgz)
 }
 
+rule WorkspaceUnitTestStageIsShellGlobIndependent {
+    when: CommandInvoked(name: "npm run test")
+
+    ensures: CompiledTestFilesDiscoveredByScript(path: "scripts/run-node-tests.mjs")
+    ensures: UnitTestsExecutedInLinuxShellWithoutGlobstarAssumption()
+}
+
 rule ReleaseGuidesIncludeInstallSnippets {
     when: ReleaseArtifactsPublished()
 
