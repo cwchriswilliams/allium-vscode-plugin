@@ -222,6 +222,7 @@ node extensions/allium/dist/src/check.js --format sarif docs/project/specs
 
 Behavior summary:
 
+- uses the same analyzer rule set as extension diagnostics
 - exits `0` when only informational findings (or no findings) are present
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files

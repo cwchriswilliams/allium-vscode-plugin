@@ -205,6 +205,7 @@ Current implementation will proceed with defaults unless you override:
 
 - Add an independent `check` tool (CLI or library-backed command) so users can run Allium validation outside VS Code.
 - Evaluate architecture options for sharing analyzer logic between extension-host diagnostics and the standalone check tool without duplicating rules.
+- Completed: standalone `allium-cli` now carries the same parser-backed analyzer implementation as the extension to prevent diagnostics drift.
 - Initial implementation exists as `extensions/allium/src/check.ts`; next iteration should package and document it as a stable external workflow.
 - Workspace command added: `npm run check -- <file|directory|glob>` delegates to the standalone checker.
 - Standalone formatter added: `npm run format:allium -- <file|directory|glob>` for project-local `.allium` formatting.

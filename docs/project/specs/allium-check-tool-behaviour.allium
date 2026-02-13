@@ -112,3 +112,11 @@ rule ReleasedCliPackageExposesCheckCommand {
 
     ensures: CommandAvailable(name: "allium-check")
 }
+
+rule StandaloneCheckerMatchesExtensionRuleSet {
+    when: CheckCommandInvokedWithInputs(inputs)
+    requires: input includes "docs/project/specs/allium-check-tool-behaviour.allium"
+
+    ensures: FindingObserved(code: "allium.field.unused", severity: info)
+    ensures: FindingObserved(code: "allium.rule.unreachableTrigger", severity: info)
+}
