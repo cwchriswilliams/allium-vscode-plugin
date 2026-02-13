@@ -1,5 +1,7 @@
 # Allium VS Code Extension + Standalone Tooling
 
+> **Pre-release notice:** This software is currently in a pre-release state. Treat it as unstable, expect breaking changes, and validate it carefully before production use.
+
 This project provides:
 
 1. A VS Code extension for `.allium` files.
