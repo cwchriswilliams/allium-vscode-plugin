@@ -113,3 +113,34 @@ rule OpenRelatedSpecOrTestFindsMatchingWorkspaceReferences {
     ensures: RelatedFilesPresentedForSelection()
     ensures: SelectedRelatedFileOpened()
 }
+
+rule UndefinedImportedSymbolQuickFixCanCreateTargetStub {
+    when: QuickFixRequested(code: "allium.import.undefinedSymbol")
+    requires: ImportAliasResolvesToTargetSpec()
+
+    ensures: ImportedSpecUpdatedWithSymbolStub()
+}
+
+rule ExplainFindingCommandShowsRemediationGuidance {
+    when: ExplainFindingRequested(code)
+    requires: code starts_with "allium."
+
+    ensures: FindingExplanationDocumentOpened()
+    ensures: RemediationGuidanceRendered()
+}
+
+rule RuleSimulationPreviewEvaluatesRequiresAndEnsuresAgainstBindings {
+    when: RuleSimulationRequested(rule, bindings)
+    requires: CursorInsideRule(rule)
+
+    ensures: RequiresEvaluationRendered()
+    ensures: EnsuresEvaluationRendered()
+}
+
+rule SpecDriftCheckReportsCodeAndCommandCoverageDiffs {
+    when: SpecDriftCheckRequested()
+
+    ensures: DriftReportRendered()
+    ensures: MissingSpecCoverageListed()
+    ensures: StaleSpecCoverageListed()
+}

@@ -112,6 +112,10 @@
         "title": "Allium: Preview Rename Plan"
       },
       {
+        "command": "allium.previewRuleSimulation",
+        "title": "Allium: Preview Rule Simulation"
+      },
+      {
         "command": "allium.applyQuickFixesInFile",
         "title": "Allium: Apply All Quick Fixes In File"
       },
@@ -122,6 +126,22 @@
       {
         "command": "allium.openRelatedSpecOrTest",
         "title": "Allium: Open Related Spec/Test"
+      },
+      {
+        "command": "allium.explainFinding",
+        "title": "Allium: Explain Finding At Cursor"
+      },
+      {
+        "command": "allium.checkSpecDrift",
+        "title": "Allium: Check Spec Drift"
+      },
+      {
+        "command": "allium.explainFindingDiagnostic",
+        "title": "Allium: Explain Finding"
+      },
+      {
+        "command": "allium.createImportedSymbolStub",
+        "title": "Allium: Create Imported Symbol Stub"
       },
       {
         "command": "allium.generateDiagram",

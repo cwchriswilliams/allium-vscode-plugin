@@ -21,6 +21,10 @@ import {
   hoverTextAtOffset,
 } from "./language-tools/hover";
 import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
+import {
+  renderSimulationMarkdown,
+  simulateRuleAtOffset,
+} from "./language-tools/rule-sim";
 import { collectAlliumSymbols } from "./language-tools/outline";
 import { collectCompletionCandidates } from "./language-tools/completion";
 import {
@@ -39,6 +43,7 @@ import {
   buildSuppressionDirectiveEdit,
   removeStaleSuppressions,
 } from "./language-tools/suppression";
+import { buildFindingExplanationMarkdown } from "./language-tools/finding-help";
 import {
   buildWorkspaceIndex,
   resolveImportedDefinition,
@@ -56,6 +61,13 @@ import {
   buildExternalTriggerRuleScaffold,
   extractUndefinedProvidesTriggerName,
 } from "./language-tools/provides-trigger-fix";
+import {
+  buildDriftReport,
+  extractAlliumDiagnosticCodes,
+  extractSpecCommands,
+  extractSpecDiagnosticCodes,
+  renderDriftMarkdown,
+} from "./language-tools/spec-drift";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -202,6 +214,14 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand(
+      "allium.previewRuleSimulation",
+      async () => {
+        await previewRuleSimulation();
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
       "allium.applyQuickFixesInFile",
       async () => {
         await applyAllQuickFixesInActiveFile();
@@ -221,6 +241,32 @@ export function activate(context: vscode.ExtensionContext): void {
       "allium.openRelatedSpecOrTest",
       async () => {
         await openRelatedSpecOrTest();
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.explainFinding", async () => {
+      await explainFindingAtCursor(diagnostics);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("allium.checkSpecDrift", async () => {
+      await checkSpecDriftReport();
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.explainFindingDiagnostic",
+      async (code: string, message: string) => {
+        await showFindingExplanation(code, message);
+      },
+    ),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "allium.createImportedSymbolStub",
+      async (uri: vscode.Uri, alias: string, symbol: string) => {
+        await createImportedSymbolStub(uri, alias, symbol);
       },
     ),
   );
@@ -394,6 +440,23 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
         }
       }
 
+      if (diagnostic.code === "allium.import.undefinedSymbol") {
+        const imported = parseImportedSymbolFromDiagnostic(diagnostic.message);
+        if (imported) {
+          const action = new vscode.CodeAction(
+            `Create '${imported.symbol}' stub in imported spec`,
+            vscode.CodeActionKind.QuickFix,
+          );
+          action.diagnostics = [diagnostic];
+          action.command = {
+            command: "allium.createImportedSymbolStub",
+            title: "Create imported symbol stub",
+            arguments: [document.uri, imported.alias, imported.symbol],
+          };
+          actions.push(action);
+        }
+      }
+
       const diagnosticCode = String(diagnostic.code ?? "");
       if (diagnosticCode.startsWith("allium.")) {
         const suppression = buildSuppressionDirectiveEdit(
@@ -416,6 +479,17 @@ class AlliumQuickFixProvider implements vscode.CodeActionProvider {
           action.edit = edit;
           actions.push(action);
         }
+        const explain = new vscode.CodeAction(
+          "Explain this finding",
+          vscode.CodeActionKind.QuickFix,
+        );
+        explain.diagnostics = [diagnostic];
+        explain.command = {
+          command: "allium.explainFindingDiagnostic",
+          title: "Explain finding",
+          arguments: [diagnosticCode, diagnostic.message],
+        };
+        actions.push(explain);
       }
     }
 
@@ -493,11 +567,33 @@ function readDiagnosticsMode(): "strict" | "relaxed" {
   const configuredMode = vscode.workspace
     .getConfiguration("allium")
     .get<"strict" | "relaxed">("diagnostics.mode", "strict");
+  const configMode =
+    profile === "custom" ? readAlliumConfigDiagnosticsMode() : undefined;
+  const effectiveMode = configMode ?? configuredMode;
 
   return resolveDiagnosticsModeForProfile(
     profile,
-    configuredMode === "relaxed" ? "relaxed" : "strict",
+    effectiveMode === "relaxed" ? "relaxed" : "strict",
   );
+}
+
+function readAlliumConfigDiagnosticsMode(): "strict" | "relaxed" | undefined {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!root) {
+    return undefined;
+  }
+  const configPath = path.join(root, "allium.config.json");
+  if (!fs.existsSync(configPath)) {
+    return undefined;
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      check?: { mode?: "strict" | "relaxed" };
+    };
+    return parsed.check?.mode;
+  } catch {
+    return undefined;
+  }
 }
 
 function toDiagnosticSeverity(
@@ -1319,6 +1415,67 @@ async function showProblemsSummary(): Promise<void> {
   await vscode.window.showTextDocument(doc);
 }
 
+async function checkSpecDriftReport(): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceRoot) {
+    void vscode.window.showInformationMessage("Open a workspace first.");
+    return;
+  }
+  const sourceFiles = await vscode.workspace.findFiles(
+    "extensions/allium/src/language-tools/**/*.ts",
+    "**/{node_modules,dist,.git}/**",
+  );
+  const specFiles = await vscode.workspace.findFiles(
+    "docs/project/specs/**/*.allium",
+    "**/{node_modules,dist,.git}/**",
+  );
+  const sourceText = (
+    await Promise.all(
+      sourceFiles.map(async (file) =>
+        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
+      ),
+    )
+  ).join("\n");
+  const specText = (
+    await Promise.all(
+      specFiles.map(async (file) =>
+        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
+      ),
+    )
+  ).join("\n");
+
+  const implementedDiagnostics = extractAlliumDiagnosticCodes(sourceText);
+  const specifiedDiagnostics = extractSpecDiagnosticCodes(specText);
+
+  const packageJsonPath = path.join(
+    workspaceRoot,
+    "extensions/allium/package.json",
+  );
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")) as {
+    contributes?: { commands?: Array<{ command?: string }> };
+  };
+  const implementedCommands = new Set(
+    (packageJson.contributes?.commands ?? [])
+      .map((entry) => entry.command)
+      .filter((entry): entry is string => typeof entry === "string"),
+  );
+  const specifiedCommands = extractSpecCommands(specText);
+  const diagnosticsDrift = buildDriftReport(
+    implementedDiagnostics,
+    specifiedDiagnostics,
+  );
+  const commandsDrift = buildDriftReport(
+    implementedCommands,
+    specifiedCommands,
+  );
+  const markdown = renderDriftMarkdown(diagnosticsDrift, commandsDrift);
+  const doc = await vscode.workspace.openTextDocument({
+    content: markdown,
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
 async function previewRenamePlan(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
@@ -1429,6 +1586,52 @@ async function previewRenamePlan(): Promise<void> {
   await vscode.window.showQuickPick(items, {
     placeHolder: `Rename preview: ${plannedChanges.length} change(s)`,
   });
+}
+
+async function previewRuleSimulation(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage("Open an .allium file first.");
+    return;
+  }
+  const raw = await vscode.window.showInputBox({
+    prompt:
+      'Enter sample bindings JSON object for simulation (for example: {"status":"approved"})',
+    value: "{}",
+  });
+  if (raw === undefined) {
+    return;
+  }
+  let bindings: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("Bindings must be a JSON object.");
+    }
+    bindings = parsed as Record<string, unknown>;
+  } catch {
+    void vscode.window.showErrorMessage(
+      "Invalid JSON bindings. Please provide an object.",
+    );
+    return;
+  }
+  const preview = simulateRuleAtOffset(
+    editor.document.getText(),
+    editor.document.offsetAt(editor.selection.active),
+    bindings,
+  );
+  if (!preview) {
+    void vscode.window.showInformationMessage(
+      "Place cursor inside a rule block first.",
+    );
+    return;
+  }
+  const markdown = renderSimulationMarkdown(preview, bindings);
+  const doc = await vscode.workspace.openTextDocument({
+    content: markdown,
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(doc, { preview: true });
 }
 
 async function showDiagramPreview(): Promise<void> {
@@ -1584,6 +1787,107 @@ async function showDiagramPreview(): Promise<void> {
     undefined,
     [],
   );
+}
+
+async function explainFindingAtCursor(
+  diagnostics: vscode.DiagnosticCollection,
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
+    void vscode.window.showInformationMessage("Open an .allium file first.");
+    return;
+  }
+  const position = editor.selection.active;
+  const entry = (diagnostics.get(editor.document.uri) ?? []).find(
+    (diagnostic) => diagnostic.range.contains(position),
+  );
+  if (!entry || typeof entry.code !== "string") {
+    void vscode.window.showInformationMessage(
+      "No Allium finding at cursor position.",
+    );
+    return;
+  }
+  await showFindingExplanation(entry.code, entry.message);
+}
+
+async function showFindingExplanation(
+  code: string,
+  message: string,
+): Promise<void> {
+  const markdown = buildFindingExplanationMarkdown(code, message);
+  const doc = await vscode.workspace.openTextDocument({
+    content: markdown,
+    language: "markdown",
+  });
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+function parseImportedSymbolFromDiagnostic(
+  message: string,
+): { alias: string; symbol: string } | null {
+  const match = message.match(
+    /Imported symbol '([A-Za-z_][A-Za-z0-9_]*)\/([A-Za-z_][A-Za-z0-9_]*)'/,
+  );
+  if (!match) {
+    return null;
+  }
+  return { alias: match[1], symbol: match[2] };
+}
+
+async function createImportedSymbolStub(
+  fromUri: vscode.Uri,
+  alias: string,
+  symbol: string,
+): Promise<void> {
+  const sourceText = Buffer.from(
+    await vscode.workspace.fs.readFile(fromUri),
+  ).toString("utf8");
+  const useAlias = parseUseAliases(sourceText).find(
+    (entry) => entry.alias === alias,
+  );
+  if (!useAlias) {
+    void vscode.window.showErrorMessage(
+      `Could not resolve import alias '${alias}' in current document.`,
+    );
+    return;
+  }
+  const targetPath = resolveImportPath(fromUri.fsPath, useAlias.sourcePath);
+  const targetUri = vscode.Uri.file(targetPath);
+  const edit = new vscode.WorkspaceEdit();
+  let existingText = "";
+  let insertPosition = new vscode.Position(0, 0);
+  let fileExists = false;
+  try {
+    existingText = Buffer.from(
+      await vscode.workspace.fs.readFile(targetUri),
+    ).toString("utf8");
+    fileExists = true;
+  } catch {
+    edit.createFile(targetUri, { ignoreIfExists: true });
+  }
+  if (new RegExp(`\\b${symbol}\\b`).test(existingText)) {
+    void vscode.window.showInformationMessage(
+      `Symbol '${symbol}' already exists in ${path.basename(targetPath)}.`,
+    );
+    return;
+  }
+  const needsLeadingNewline =
+    existingText.length > 0 && !existingText.endsWith("\n");
+  const insertion = `${needsLeadingNewline ? "\n" : ""}\nvalue ${symbol} {\n    value: TODO\n}\n`;
+  if (fileExists) {
+    const doc = await vscode.workspace.openTextDocument(targetUri);
+    insertPosition = doc.positionAt(existingText.length);
+  }
+  edit.insert(targetUri, insertPosition, insertion);
+  const applied = await vscode.workspace.applyEdit(edit);
+  if (!applied) {
+    void vscode.window.showErrorMessage(
+      `Failed to create '${symbol}' in imported specification.`,
+    );
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument(targetUri);
+  await vscode.window.showTextDocument(doc);
 }
 
 async function findRelatedSpecOrTestFiles(
