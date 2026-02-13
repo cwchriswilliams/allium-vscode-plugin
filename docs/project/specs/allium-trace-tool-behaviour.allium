@@ -118,6 +118,30 @@ rule TraceConfigDefaultsCanBeLoadedFromWorkspaceFile {
     ensures: ConfigDefaultsLoaded(section: trace)
 }
 
+rule TraceCanUseConfigProvidedTestAndSpecInputs {
+    when: TraceCommandInvokedWithoutExplicitInputs()
+    requires: FileExists(path: "allium-config-file")
+    requires: ConfigContainsTraceDefaultSpecAndTestInputs()
+    requires: command_args excludes "--no-config"
+
+    ensures: TraceCommandUsesConfiguredSpecInputs()
+    ensures: TraceCommandUsesConfiguredTestInputs()
+}
+
+rule TraceSupportsLanguageAgnosticTestFilePatterns {
+    when: TraceCommandInvokedWithOptions(option)
+    requires: option = "--test-pattern"
+
+    ensures: TestFilesFilteredByRegexPattern()
+}
+
+rule TraceSupportsCustomTestFileExtensions {
+    when: TraceCommandInvokedWithOptions(option)
+    requires: option = "--test-ext"
+
+    ensures: TestFilesFilteredByConfiguredExtensions()
+}
+
 rule TraceSemanticModeUsesStructuredTestSignalExtraction {
     when: TraceCommandInvokedWithOptions(option)
     requires: option = "--semantic"

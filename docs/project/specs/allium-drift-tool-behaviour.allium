@@ -8,12 +8,11 @@
 --   - Runtime validation of analyzer correctness
 --   - Per-finding remediation guidance
 
-rule DriftCommandSupportsDefaultWorkspaceLayout {
+rule DriftCommandDefaultsToCurrentWorkspaceScan {
     when: DriftCommandInvokedWithoutPaths()
 
-    ensures: SourceFilesResolved(path: "extensions/allium/src/language-tools")
-    ensures: SpecFilesResolved(path: "docs/project/specs")
-    ensures: CommandsManifestResolved(path: "extensions/allium/package.json")
+    ensures: SourceFilesResolved(path: ".")
+    ensures: SpecFilesResolved(path: ".")
 }
 
 rule DriftCommandReportsNoDifferencesAsSuccess {
@@ -45,6 +44,37 @@ rule DriftCanSkipCommandCoverageChecks {
     requires: option = "--skip-commands"
 
     ensures: CommandCoverageComparisonSkipped()
+}
+
+rule DriftCanLoadDiagnosticsFromManifest {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--diagnostics-from"
+
+    ensures: DiagnosticsLoadedFromManifest()
+    ensures: SourceScanOptional()
+}
+
+rule DriftSourceExtensionsCanBeConfigured {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--source-ext"
+
+    ensures: SourceFilesFilteredByConfiguredExtensions()
+}
+
+rule DriftSupportsGenericCommandManifestShapes {
+    when: DriftCommandInvokedWithOptions(option)
+    requires: option = "--commands-from"
+
+    ensures: CommandsLoadedFromManifestShape(shape: "package_contributes")
+    ensures: CommandsLoadedFromManifestShape(shape: "flat_commands_array")
+}
+
+rule DriftConfigDefaultsCanBeLoadedFromWorkspaceFile {
+    when: DriftCommandInvokedWithoutPaths()
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+
+    ensures: ConfigDefaultsLoaded(section: drift)
 }
 
 rule DriftRejectsMissingResolvedInputs {

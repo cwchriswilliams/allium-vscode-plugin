@@ -231,6 +231,9 @@ Current implementation will proceed with defaults unless you override:
 - Added typed declaration AST foundation for rule/entity/enum parsing and reuse across editor tooling.
 - Added drift gate in pre-commit to fail when implementation/spec command or diagnostic coverage diverges.
 - Added standalone `allium-drift` CLI for drift checks outside VS Code/editor workflows.
+- Added cross-repo portability defaults via `allium.config.json` `project.specPaths` / `project.testPaths` and tool-specific path overrides.
+- Added language-agnostic trace file matching controls (`--test-ext`, `--test-pattern`) for non-JS/TS codebases.
+- Added language-agnostic drift inputs (`--source-ext`, `--diagnostics-from`, generic command manifest shapes) to avoid TypeScript/VS Code coupling.
 
 ## High Priority Next Work
 

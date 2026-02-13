@@ -31,6 +31,15 @@ rule DiagramCommandRequiresInputs {
     ensures: ProcessExit(code: 2)
 }
 
+rule DiagramCommandCanUseProjectSpecPathsFromConfig {
+    when: DiagramCommandInvokedWithoutInputs()
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+    requires: ConfigContainsProjectSpecPaths()
+
+    ensures: DiagramCommandUsesConfiguredProjectSpecPaths()
+}
+
 rule DiagramCommandRejectsMissingAlliumFiles {
     when: DiagramCommandInvoked(args)
     requires: ResolveAlliumFiles(args.inputs).is_empty = true

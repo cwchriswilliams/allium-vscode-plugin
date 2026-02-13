@@ -201,6 +201,15 @@ rule ConfigFileCanProvideCheckDefaults {
     ensures: ConfigDefaultsLoaded(section: check)
 }
 
+rule CheckCanUseProjectSpecPathsFromConfig {
+    when: CheckCommandInvokedWithoutInputs()
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+    requires: ConfigContainsProjectSpecPaths()
+
+    ensures: CheckCommandUsesConfiguredProjectSpecPaths()
+}
+
 rule SpecDriftGateRunsInPreCommitWorkflow {
     when: PreCommitWorkflowInvoked()
 

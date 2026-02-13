@@ -98,3 +98,12 @@ rule FormatterConfigDefaultsCanBeLoadedFromWorkspaceFile {
 
     ensures: ConfigDefaultsLoaded(section: format)
 }
+
+rule FormatterCanUseProjectSpecPathsFromConfig {
+    when: FormatCommandInvokedWithoutInputs()
+    requires: FileExists(path: "allium-config-file")
+    requires: command_args excludes "--no-config"
+    requires: ConfigContainsProjectSpecPaths()
+
+    ensures: FormatCommandUsesConfiguredProjectSpecPaths()
+}

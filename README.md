@@ -278,6 +278,7 @@ Behavior summary:
 - SARIF output includes remediation metadata (`helpUri`, `fullDescription`) for rules
 - `--fix-code <code[,code...]>` limits `--autofix` edits to selected diagnostic codes
 - `--config <file>` and `--no-config` control loading defaults from `allium.config.json`
+- when no explicit inputs are provided, `project.specPaths` from config can supply default spec roots
 - `--write-baseline <file>` records current findings as suppression fingerprints and exits successfully
 - `--baseline <file>` suppresses matching known findings to support ratcheting in legacy specs
 
@@ -315,6 +316,7 @@ Current formatter behavior:
 - `--dryrun` previews formatted output without writing files
 - `--stdin --stdout` supports formatter pipelines and editor integration
 - `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
+- when no explicit inputs are provided, `project.specPaths` from config can supply default spec roots
 
 ### `allium-diagram` (experimental)
 
@@ -352,6 +354,8 @@ Key diagram options:
 - `--reverse-links` to emit inverse edges for bidirectional browsing
 - `--constraint-labels` to annotate `when` edges with rule `requires` expressions
 - grouped rendering by declaration kind in both D2 and Mermaid outputs
+- `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
+- when no explicit inputs are provided, `project.specPaths` from config can supply default spec roots
 
 Current diagram model captures:
 
@@ -380,6 +384,7 @@ node extensions/allium/dist/src/trace.js --junit --tests "extensions/allium/test
 node extensions/allium/dist/src/trace.js --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --by-file --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --semantic --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --test-ext .py --test-pattern "_test\\.py$" --tests tests specs
 node extensions/allium/dist/src/trace.js --strict --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --config allium.config.json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 ```
@@ -393,8 +398,11 @@ Behavior summary:
 - optional `--strict` fails when allowlist contains stale rule names not present in specs
 - optional `--by-file` includes per-spec-file coverage breakdown
 - optional `--semantic` derives hits from structured test signals (quoted literals + coverage helper calls)
+- optional `--test-ext <ext[,ext...]>` customizes accepted test file extensions
+- optional `--test-pattern <regex>` customizes test filename matching for non-JS/TS repos
 - JSON output includes exact test-reference locations (file + line) for covered rules
 - `--config <file>` / `--no-config` controls loading defaults from `allium.config.json`
+- `trace.tests` and `trace.specs` config values can supply default test/spec inputs
 - prints coverage summary and uncovered rule names
 - exits `0` when all extracted rules are referenced by tests
 - exits `1` when uncovered rules exist
@@ -410,7 +418,8 @@ Repo-level command:
 npm run drift:allium
 npm run drift:allium -- --format json
 npm run drift:allium -- --skip-commands
-npm run drift:allium -- --source extensions/allium/src/language-tools --specs docs/project/specs --commands-from extensions/allium/package.json
+npm run drift:allium -- --source src --source-ext .ts,.py,.clj,.c --specs specs --commands-from .allium/commands.json
+npm run drift:allium -- --diagnostics-from .allium/diagnostics.json --specs specs --skip-commands
 ```
 
 Direct built script:
@@ -419,18 +428,22 @@ Direct built script:
 node extensions/allium/dist/src/drift.js
 node extensions/allium/dist/src/drift.js --format json
 node extensions/allium/dist/src/drift.js --skip-commands
-node extensions/allium/dist/src/drift.js --source extensions/allium/src/language-tools --specs docs/project/specs --commands-from extensions/allium/package.json
+node extensions/allium/dist/src/drift.js --source src --source-ext .ts,.py,.clj,.c --specs specs --commands-from .allium/commands.json
+node extensions/allium/dist/src/drift.js --diagnostics-from .allium/diagnostics.json --specs specs --skip-commands
 ```
 
 Behavior summary:
 
 - compares implemented `allium.*` diagnostics from TypeScript source against `code: "allium.*"` entries in specs
+- can read implemented diagnostics from source scanning (`--source` + `--source-ext`) or a manifest (`--diagnostics-from`)
 - compares implemented command IDs from command manifest against `CommandInvoked`/`WorkspaceCommandInvoked`/`CommandAvailable` entries in specs
 - exits `0` when no drift is present
 - exits `1` when coverage drift exists
 - exits `2` on invalid arguments or missing inputs
 - supports machine-readable output with `--format json`
 - supports diagnostics-only drift checks with `--skip-commands`
+- accepts generic command manifest shapes (`contributes.commands`, `commands`, `commandIds`, or JSON string arrays)
+- supports config defaults from `allium.config.json` for reusable cross-repo setups
 
 ## Using CLI Tools Outside This Repo
 
@@ -449,6 +462,10 @@ CLI commands can load defaults from a workspace-local config file:
 
 ```json
 {
+  "project": {
+    "specPaths": ["docs/project/specs"],
+    "testPaths": ["extensions/allium/test"]
+  },
   "check": {
     "mode": "strict",
     "minSeverity": "info",
@@ -462,7 +479,19 @@ CLI commands can load defaults from a workspace-local config file:
   "trace": {
     "format": "text",
     "byFile": false,
-    "strict": false
+    "strict": false,
+    "tests": ["extensions/allium/test"],
+    "specs": ["docs/project/specs"],
+    "testExtensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+    "testNamePatterns": ["\\\\.test\\\\.", "\\\\.spec\\."]
+  },
+  "drift": {
+    "sources": ["extensions/allium/src/language-tools"],
+    "sourceExtensions": [".ts"],
+    "specs": ["docs/project/specs"],
+    "commandsFrom": "extensions/allium/package.json",
+    "skipCommands": false,
+    "format": "text"
   }
 }
 ```
