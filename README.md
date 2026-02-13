@@ -332,20 +332,6 @@ Produces `artifacts/` containing:
 - standalone CLI npm artifact: `allium-cli-<version>.tgz`
 - checksum manifest: `SHA256SUMS.txt`
 
-### Automated release path
-
-- GitHub Actions workflow: `.github/workflows/release-artifacts.yml`
-- Triggered on:
-  - tag push matching `v*`
-  - manual dispatch
-- Actions:
-  - install dependencies
-  - lint
-  - test
-  - build release artifacts
-  - upload artifacts
-  - attach artifacts to GitHub release for tagged builds
-
 ### Pre-commit checks enforced
 
 Pre-commit runs:
@@ -370,3 +356,49 @@ Pre-commit runs:
 - All feature work must include updating Allium specs under `docs/project/specs/` when behavior changes.
 - Specs should describe current, intended behavior and stay aligned with tooling implementation.
 - All language-level behavior must align with the official Allium language reference: `https://juxt.github.io/allium/language`.
+
+## Deployment
+
+Use this section for creating GitHub Releases with VSIX + CLI artifacts.
+
+### Workflow used
+
+- Workflow file: `.github/workflows/release-artifacts.yml`
+- Triggered by:
+  - pushing a tag matching `v*` (for example `v0.1.0`)
+  - manual `workflow_dispatch`
+
+### What the workflow does
+
+1. `npm ci`
+2. `npm run lint`
+3. `npm run test`
+4. `npm run release:artifacts`
+5. upload `artifacts/*` to Actions run artifacts
+6. if the run is from a tag, publish a GitHub Release and attach artifacts:
+   - `allium-vscode-<version>.vsix`
+   - `allium-cli-<version>.tgz`
+   - `SHA256SUMS.txt`
+
+### Required GitHub repo setup
+
+1. Ensure GitHub Actions is enabled for the repository.
+2. Set workflow permissions to `Read and write`:
+   - `Settings` -> `Actions` -> `General` -> `Workflow permissions` -> `Read and write permissions`.
+3. Push this repository (including `.github/workflows/release-artifacts.yml`) to GitHub.
+
+### Release commands
+
+Create and push a release tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+This triggers the workflow and creates/updates the corresponding GitHub Release with attached artifacts.
+
+### Manual run behavior
+
+- `workflow_dispatch` builds artifacts and uploads them to the Actions run.
+- It does **not** publish a GitHub Release unless the workflow run is on a tag ref.
