@@ -4,6 +4,11 @@ import * as path from "node:path";
 
 interface ParsedArgs {
   checkOnly: boolean;
+  dryRun: boolean;
+  readFromStdin: boolean;
+  writeToStdout: boolean;
+  indentWidth: number;
+  topLevelSpacing: number;
   inputs: string[];
 }
 
@@ -11,6 +16,23 @@ function main(argv: string[]): number {
   const parsed = parseArgs(argv);
   if (!parsed) {
     return 2;
+  }
+
+  if (parsed.readFromStdin) {
+    const original = fs.readFileSync(0, "utf8");
+    const formatted = formatAlliumText(original, {
+      indentWidth: parsed.indentWidth,
+      topLevelSpacing: parsed.topLevelSpacing,
+    });
+    const changed = formatted !== original;
+    if (parsed.writeToStdout || !parsed.checkOnly) {
+      process.stdout.write(formatted);
+    }
+    if (parsed.checkOnly && changed) {
+      process.stderr.write("stdin: would format\n");
+      return 1;
+    }
+    return 0;
   }
 
   const files = resolveInputs(parsed.inputs);
@@ -22,7 +44,10 @@ function main(argv: string[]): number {
   let changed = 0;
   for (const filePath of files) {
     const original = fs.readFileSync(filePath, "utf8");
-    const formatted = formatAlliumText(original);
+    const formatted = formatAlliumText(original, {
+      indentWidth: parsed.indentWidth,
+      topLevelSpacing: parsed.topLevelSpacing,
+    });
     if (formatted === original) {
       continue;
     }
@@ -31,6 +56,12 @@ function main(argv: string[]): number {
     const relPath = path.relative(process.cwd(), filePath) || filePath;
     if (parsed.checkOnly) {
       process.stdout.write(`${relPath}: would format\n`);
+    } else if (parsed.dryRun || parsed.writeToStdout) {
+      process.stdout.write(`--- ${relPath} (formatted preview)\n`);
+      process.stdout.write(formatted);
+      if (!formatted.endsWith("\n")) {
+        process.stdout.write("\n");
+      }
     } else {
       fs.writeFileSync(filePath, formatted, "utf8");
       process.stdout.write(`${relPath}: formatted\n`);
@@ -56,7 +87,17 @@ function main(argv: string[]): number {
   return 0;
 }
 
-export function formatAlliumText(text: string): string {
+export interface FormatOptions {
+  indentWidth?: number;
+  topLevelSpacing?: number;
+}
+
+export function formatAlliumText(
+  text: string,
+  options: FormatOptions = {},
+): string {
+  const indentWidth = clampInteger(options.indentWidth ?? 4, 1, 8);
+  const topLevelSpacing = clampInteger(options.topLevelSpacing ?? 1, 0, 3);
   const normalized = text.replace(/\r\n?/g, "\n");
   const lines = normalized
     .split("\n")
@@ -82,20 +123,21 @@ export function formatAlliumText(text: string): string {
     indentLevel = Math.max(indentLevel - leadingClosers, 0);
 
     const isTopLevelDeclaration =
-      indentLevel === 0 &&
-      /^(entity|external\s+entity|value|variant|rule|surface|actor|config)\b/.test(
-        trimmed,
-      );
+      indentLevel === 0 && isTopLevelDeclarationLine(trimmed);
     if (
       isTopLevelDeclaration &&
       formattedLines.length > 0 &&
-      formattedLines[formattedLines.length - 1] !== ""
+      blankLinesAtEnd(formattedLines) < topLevelSpacing
     ) {
-      formattedLines.push("");
+      while (blankLinesAtEnd(formattedLines) < topLevelSpacing) {
+        formattedLines.push("");
+      }
     }
 
-    const indent = " ".repeat(indentLevel * 4);
-    formattedLines.push(`${indent}${trimmed}`);
+    const indent = " ".repeat(indentLevel * indentWidth);
+    formattedLines.push(
+      `${indent}${normalizePipeSpacing(normalizeDeclarationHeaderSpacing(trimmed))}`,
+    );
 
     const openCount = countOccurrences(trimmed, "{");
     const closeCount = countOccurrences(trimmed, "}");
@@ -128,10 +170,48 @@ function countLeadingClosers(text: string): number {
 function parseArgs(argv: string[]): ParsedArgs | null {
   const inputs: string[] = [];
   let checkOnly = false;
+  let dryRun = false;
+  let readFromStdin = false;
+  let writeToStdout = false;
+  let indentWidth = 4;
+  let topLevelSpacing = 1;
 
-  for (const arg of argv) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
     if (arg === "--check") {
       checkOnly = true;
+      continue;
+    }
+    if (arg === "--dryrun" || arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    if (arg === "--stdin") {
+      readFromStdin = true;
+      continue;
+    }
+    if (arg === "--stdout") {
+      writeToStdout = true;
+      continue;
+    }
+    if (arg === "--indent-width") {
+      const value = Number(argv[i + 1]);
+      if (!Number.isInteger(value) || value < 1 || value > 8) {
+        printUsage("Expected --indent-width <1-8>");
+        return null;
+      }
+      indentWidth = value;
+      i += 1;
+      continue;
+    }
+    if (arg === "--top-level-spacing") {
+      const value = Number(argv[i + 1]);
+      if (!Number.isInteger(value) || value < 0 || value > 3) {
+        printUsage("Expected --top-level-spacing <0-3>");
+        return null;
+      }
+      topLevelSpacing = value;
+      i += 1;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -142,11 +222,30 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   }
 
   if (inputs.length === 0) {
+    if (readFromStdin) {
+      return {
+        checkOnly,
+        dryRun,
+        readFromStdin,
+        writeToStdout,
+        indentWidth,
+        topLevelSpacing,
+        inputs: [],
+      };
+    }
     printUsage("Provide at least one file, directory, or glob.");
     return null;
   }
 
-  return { checkOnly, inputs };
+  return {
+    checkOnly,
+    dryRun,
+    readFromStdin,
+    writeToStdout,
+    indentWidth,
+    topLevelSpacing,
+    inputs,
+  };
 }
 
 function printUsage(error?: string): void {
@@ -154,7 +253,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/format.js [--check] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/format.js [--check] [--dryrun] [--stdin --stdout] [--stdout] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
   );
 }
 
@@ -230,6 +329,45 @@ function wildcardToRegex(pattern: string): RegExp {
     .replace(/\?/g, ".");
 
   return new RegExp(`^${escaped}$`);
+}
+
+function blankLinesAtEnd(lines: string[]): number {
+  let count = 0;
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    if (lines[i] !== "") {
+      break;
+    }
+    count += 1;
+  }
+  return count;
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, Math.floor(value)));
+}
+
+function isTopLevelDeclarationLine(line: string): boolean {
+  return /^(entity|external\s+entity|value|variant|rule|surface|actor|config|enum|default|module|context|deferred|open_question)\b/.test(
+    line,
+  );
+}
+
+function normalizeDeclarationHeaderSpacing(line: string): string {
+  if (line.startsWith("--")) {
+    return line;
+  }
+  return line.replace(
+    /^((?:entity|external\s+entity|value|variant|rule|surface|actor|config|enum|default|module|context|deferred|open_question)\b[^{]*?)\s*\{$/,
+    "$1 {",
+  );
+}
+
+function normalizePipeSpacing(line: string): string {
+  const trimmed = line.trim();
+  if (trimmed.startsWith("--") || !line.includes("|")) {
+    return line;
+  }
+  return line.replace(/\s*\|\s*/g, " | ");
 }
 
 if (require.main === module) {

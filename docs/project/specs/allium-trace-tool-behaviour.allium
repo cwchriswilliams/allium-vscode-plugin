@@ -73,6 +73,22 @@ rule TraceSupportsJsonOutput {
     ensures: MachineReadableCoveragePayloadPrinted()
 }
 
+rule TraceAllowlistSuppressesKnownGaps {
+    when: TraceCommandInvokedWithOptions(option)
+    requires: option = "--allowlist"
+
+    ensures: AllowlistedRulesExcludedFromUncoveredSet()
+}
+
+rule StrictTraceFailsOnStaleAllowlistEntries {
+    when: TraceCommandInvokedWithOptions(option)
+    requires: option = "--strict"
+    requires: AllowlistContainsRulesNotInSpec()
+
+    ensures: UserInformed(message: "Stale allowlist entries")
+    ensures: ProcessExit(code: 1)
+}
+
 rule ReleasedCliPackageExposesTraceCommand {
     when: CliPackageInstalledFromReleaseNpmArtifact()
 

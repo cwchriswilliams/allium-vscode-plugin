@@ -197,3 +197,101 @@ test("baseline suppresses known findings", () => {
   assert.match(result.stdout, /Suppressed/);
   assert.match(result.stdout, /No blocking findings\./);
 });
+
+test("min-severity hides informational findings", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n  ensures: Done()\n}\n`,
+  );
+
+  const result = runCheck(
+    ["--format", "json", "--min-severity", "warning", "spec.allium"],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout) as {
+    summary: { findings: number; infos: number };
+  };
+  assert.equal(parsed.summary.findings, 0);
+  assert.equal(parsed.summary.infos, 0);
+});
+
+test("ignore-code suppresses matching findings", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n  ensures: Done()\n}\n`,
+  );
+
+  const result = runCheck(
+    [
+      "--format",
+      "json",
+      "--ignore-code",
+      "allium.rule.unreachableTrigger",
+      "spec.allium",
+    ],
+    dir,
+  );
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout) as {
+    findings: Array<{ code: string }>;
+  };
+  assert.equal(parsed.findings.length, 0);
+});
+
+test("stats prints finding counts by code", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n}\nrule B {\n  when: Pong()\n}\n`,
+  );
+  const result = runCheck(["--stats", "spec.allium"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /Stats by code:/);
+  assert.match(result.stdout, /allium\.rule\.missingEnsures/);
+});
+
+test("autofix dryrun does not persist file edits", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  const filePath = writeAllium(
+    dir,
+    "spec.allium",
+    `rule A {\n  when: Ping()\n}\n`,
+  );
+  const before = fs.readFileSync(filePath, "utf8");
+
+  const result = runCheck(["--autofix", "--dryrun", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /would autofix/);
+  const after = fs.readFileSync(filePath, "utf8");
+  assert.equal(after, before);
+});
+
+test("changed checks modified allium files", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-check-"));
+  writeAllium(dir, "spec.allium", `rule A {\n  when: Ping()\n}\n`);
+  spawnSync("git", ["init"], { cwd: dir, encoding: "utf8" });
+  spawnSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  spawnSync("git", ["config", "user.name", "Test"], {
+    cwd: dir,
+    encoding: "utf8",
+  });
+  spawnSync("git", ["add", "."], { cwd: dir, encoding: "utf8" });
+  spawnSync("git", ["commit", "-m", "init"], { cwd: dir, encoding: "utf8" });
+  fs.writeFileSync(
+    path.join(dir, "spec.allium"),
+    `rule A {\n  when: Ping()\n}\n\n`,
+  );
+
+  const result = runCheck(["--changed"], dir);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /allium\.rule\.missingEnsures/);
+});

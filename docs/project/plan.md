@@ -211,9 +211,11 @@ Current implementation will proceed with defaults unless you override:
 - Standalone formatter added: `npm run format:allium -- <file|directory|glob>` for project-local `.allium` formatting.
 - Standalone checker supports `--autofix` for safe automatic rule scaffolding fixes.
 - Standalone checker supports machine-readable outputs (`--format json|sarif`) and baseline files (`--baseline`, `--write-baseline`).
+- Standalone checker supports scoped execution and reporting controls (`--changed`, `--min-severity`, `--ignore-code`, `--stats`) plus autofix preview mode (`--autofix --dryrun`).
 - Experimental diagram generator added: `npm run diagram:allium -- <file|directory|glob>` with D2 (default) and Mermaid output.
 - Experimental diagram generator now supports strict extraction checks, focus/kind filtering, grouped rendering, and split-by-module output.
 - Standalone traceability checker added: `npm run trace:allium -- --tests <file|directory|glob> <spec-file|directory|glob>` for rule-name coverage checks between specs and tests.
+- Standalone formatter supports preview/pipeline modes (`--dryrun`, `--stdin --stdout`).
 
 ## High Priority Next Work
 

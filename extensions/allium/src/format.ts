@@ -4,6 +4,9 @@ import * as path from "node:path";
 
 interface ParsedArgs {
   checkOnly: boolean;
+  dryRun: boolean;
+  readFromStdin: boolean;
+  writeToStdout: boolean;
   indentWidth: number;
   topLevelSpacing: number;
   inputs: string[];
@@ -13,6 +16,23 @@ function main(argv: string[]): number {
   const parsed = parseArgs(argv);
   if (!parsed) {
     return 2;
+  }
+
+  if (parsed.readFromStdin) {
+    const original = fs.readFileSync(0, "utf8");
+    const formatted = formatAlliumText(original, {
+      indentWidth: parsed.indentWidth,
+      topLevelSpacing: parsed.topLevelSpacing,
+    });
+    const changed = formatted !== original;
+    if (parsed.writeToStdout || !parsed.checkOnly) {
+      process.stdout.write(formatted);
+    }
+    if (parsed.checkOnly && changed) {
+      process.stderr.write("stdin: would format\n");
+      return 1;
+    }
+    return 0;
   }
 
   const files = resolveInputs(parsed.inputs);
@@ -36,6 +56,12 @@ function main(argv: string[]): number {
     const relPath = path.relative(process.cwd(), filePath) || filePath;
     if (parsed.checkOnly) {
       process.stdout.write(`${relPath}: would format\n`);
+    } else if (parsed.dryRun || parsed.writeToStdout) {
+      process.stdout.write(`--- ${relPath} (formatted preview)\n`);
+      process.stdout.write(formatted);
+      if (!formatted.endsWith("\n")) {
+        process.stdout.write("\n");
+      }
     } else {
       fs.writeFileSync(filePath, formatted, "utf8");
       process.stdout.write(`${relPath}: formatted\n`);
@@ -144,6 +170,9 @@ function countLeadingClosers(text: string): number {
 function parseArgs(argv: string[]): ParsedArgs | null {
   const inputs: string[] = [];
   let checkOnly = false;
+  let dryRun = false;
+  let readFromStdin = false;
+  let writeToStdout = false;
   let indentWidth = 4;
   let topLevelSpacing = 1;
 
@@ -151,6 +180,18 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     const arg = argv[i];
     if (arg === "--check") {
       checkOnly = true;
+      continue;
+    }
+    if (arg === "--dryrun" || arg === "--dry-run") {
+      dryRun = true;
+      continue;
+    }
+    if (arg === "--stdin") {
+      readFromStdin = true;
+      continue;
+    }
+    if (arg === "--stdout") {
+      writeToStdout = true;
       continue;
     }
     if (arg === "--indent-width") {
@@ -181,11 +222,30 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   }
 
   if (inputs.length === 0) {
+    if (readFromStdin) {
+      return {
+        checkOnly,
+        dryRun,
+        readFromStdin,
+        writeToStdout,
+        indentWidth,
+        topLevelSpacing,
+        inputs: [],
+      };
+    }
     printUsage("Provide at least one file, directory, or glob.");
     return null;
   }
 
-  return { checkOnly, indentWidth, topLevelSpacing, inputs };
+  return {
+    checkOnly,
+    dryRun,
+    readFromStdin,
+    writeToStdout,
+    indentWidth,
+    topLevelSpacing,
+    inputs,
+  };
 }
 
 function printUsage(error?: string): void {
@@ -193,7 +253,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: node dist/src/format.js [--check] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
+    "Usage: node dist/src/format.js [--check] [--dryrun] [--stdin --stdout] [--stdout] [--indent-width N] [--top-level-spacing N] <file|directory|glob> [...]\n",
   );
 }
 

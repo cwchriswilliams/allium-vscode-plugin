@@ -6,6 +6,8 @@ type TraceOutputFormat = "text" | "json";
 
 interface ParsedArgs {
   format: TraceOutputFormat;
+  strict: boolean;
+  allowlistPath?: string;
   testInputs: string[];
   specInputs: string[];
 }
@@ -19,6 +21,7 @@ interface TraceResult {
   totalRules: number;
   coveredRules: number;
   uncovered: RuleReference[];
+  staleAllowlistEntries: string[];
 }
 
 function main(argv: string[]): number {
@@ -44,20 +47,33 @@ function main(argv: string[]): number {
   }
 
   const rules = collectRules(specFiles);
+  const allowlist = parsed.allowlistPath
+    ? readAllowlist(parsed.allowlistPath)
+    : new Set<string>();
   const testBodies = testFiles.map((filePath) =>
     fs.readFileSync(filePath, "utf8"),
   );
   const uncovered = rules.filter(
-    (rule) => !testBodies.some((content) => content.includes(rule.name)),
+    (rule) =>
+      !allowlist.has(rule.name) &&
+      !testBodies.some((content) => content.includes(rule.name)),
+  );
+  const ruleNames = new Set(rules.map((rule) => rule.name));
+  const staleAllowlistEntries = [...allowlist].filter(
+    (name) => !ruleNames.has(name),
   );
 
   const result: TraceResult = {
     totalRules: rules.length,
     coveredRules: rules.length - uncovered.length,
     uncovered,
+    staleAllowlistEntries,
   };
 
   renderOutput(parsed.format, result);
+  if (parsed.strict && staleAllowlistEntries.length > 0) {
+    return 1;
+  }
   return uncovered.length > 0 ? 1 : 0;
 }
 
@@ -65,6 +81,8 @@ function parseArgs(argv: string[]): ParsedArgs | null {
   const specInputs: string[] = [];
   const testInputs: string[] = [];
   let format: TraceOutputFormat = "text";
+  let strict = false;
+  let allowlistPath: string | undefined;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -88,6 +106,20 @@ function parseArgs(argv: string[]): ParsedArgs | null {
       i += 1;
       continue;
     }
+    if (arg === "--strict") {
+      strict = true;
+      continue;
+    }
+    if (arg === "--allowlist") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("--")) {
+        printUsage("Expected a path after --allowlist");
+        return null;
+      }
+      allowlistPath = value;
+      i += 1;
+      continue;
+    }
     if (arg === "--help" || arg === "-h") {
       printUsage();
       return null;
@@ -104,7 +136,7 @@ function parseArgs(argv: string[]): ParsedArgs | null {
     return null;
   }
 
-  return { format, testInputs, specInputs };
+  return { format, strict, allowlistPath, testInputs, specInputs };
 }
 
 function printUsage(error?: string): void {
@@ -112,7 +144,7 @@ function printUsage(error?: string): void {
     process.stderr.write(`${error}\n`);
   }
   process.stderr.write(
-    "Usage: allium-trace [--format text|json] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
+    "Usage: allium-trace [--format text|json] [--strict] [--allowlist file] --tests <file|directory|glob> [--tests ...] <spec-file|directory|glob> [...]\n",
   );
 }
 
@@ -149,6 +181,7 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
             name: entry.name,
             filePath: entry.filePath,
           })),
+          staleAllowlistEntries: result.staleAllowlistEntries,
         },
         null,
         2,
@@ -164,16 +197,36 @@ function renderOutput(format: TraceOutputFormat, result: TraceResult): void {
   process.stdout.write(
     `Rules: ${result.totalRules} total, ${result.coveredRules} covered, ${result.uncovered.length} uncovered (${coverage.toFixed(1)}%).\n`,
   );
-  if (result.uncovered.length === 0) {
+  if (result.uncovered.length > 0) {
+    process.stdout.write("Uncovered rules:\n");
+    for (const entry of result.uncovered) {
+      const relPath =
+        path.relative(process.cwd(), entry.filePath) || entry.filePath;
+      process.stdout.write(`- ${entry.name} (${relPath})\n`);
+    }
+  } else {
     process.stdout.write("All spec rules are referenced by tests.\n");
-    return;
   }
-  process.stdout.write("Uncovered rules:\n");
-  for (const entry of result.uncovered) {
-    const relPath =
-      path.relative(process.cwd(), entry.filePath) || entry.filePath;
-    process.stdout.write(`- ${entry.name} (${relPath})\n`);
+  if (result.staleAllowlistEntries.length > 0) {
+    process.stdout.write("Stale allowlist entries:\n");
+    for (const name of result.staleAllowlistEntries) {
+      process.stdout.write(`- ${name}\n`);
+    }
   }
+}
+
+function readAllowlist(filePath: string): Set<string> {
+  const fullPath = path.resolve(process.cwd(), filePath);
+  if (!fs.existsSync(fullPath)) {
+    return new Set<string>();
+  }
+  const raw = fs.readFileSync(fullPath, "utf8");
+  return new Set(
+    raw
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")),
+  );
 }
 
 function isTestFilePath(filePath: string): boolean {

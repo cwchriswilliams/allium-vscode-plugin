@@ -9,11 +9,12 @@ import { formatAlliumText } from "../src/format";
 function runFormat(
   args: string[],
   cwd: string,
+  input?: string,
 ): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(
     process.execPath,
     [path.resolve("dist/src/format.js"), ...args],
-    { cwd, encoding: "utf8" },
+    { cwd, encoding: "utf8", input },
   );
   return {
     status: result.status,
@@ -133,4 +134,24 @@ test("format CLI accepts indent and spacing options", () => {
     fs.readFileSync(target, "utf8"),
     "rule A {\n  when: Ping()\n}\n",
   );
+});
+
+test("format CLI dryrun previews changes without writing file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  const target = path.join(dir, "spec.allium");
+  const original = "rule A {\nwhen: Ping()\n}\n";
+  fs.writeFileSync(target, original, "utf8");
+
+  const result = runFormat(["--dryrun", "spec.allium"], dir);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /formatted preview/);
+  assert.equal(fs.readFileSync(target, "utf8"), original);
+});
+
+test("format CLI supports stdin stdout mode", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "allium-format-"));
+  const input = "rule A {\nwhen: Ping()\n}\n";
+  const result = runFormat(["--stdin", "--stdout"], dir, input);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, / {4}when: Ping\(\)/);
 });

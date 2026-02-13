@@ -206,6 +206,10 @@ Repo-level command:
 npm run check -- docs/project/specs
 npm run check -- --mode relaxed "docs/project/specs/**/*.allium"
 npm run check -- --autofix docs/project/specs
+npm run check -- --autofix --dryrun docs/project/specs
+npm run check -- --changed
+npm run check -- --min-severity warning --ignore-code allium.rule.unreachableTrigger docs/project/specs
+npm run check -- --stats docs/project/specs
 npm run check -- --format json docs/project/specs
 npm run check -- --write-baseline .allium-baseline.json docs/project/specs
 npm run check -- --baseline .allium-baseline.json docs/project/specs
@@ -227,6 +231,11 @@ Behavior summary:
 - exits `1` when warning/error findings exist
 - exits `2` on invalid arguments / no resolved `.allium` files
 - `--autofix` applies safe automatic edits (`missing ensures` scaffold and temporal `requires` guard scaffold)
+- `--autofix --dryrun` previews safe automatic edits without writing files
+- `--changed` checks only `.allium` files currently changed in git working tree
+- `--min-severity <info|warning|error>` filters reported findings to a severity floor
+- `--ignore-code <code[,code...]>` suppresses matching finding codes for the run
+- `--stats` prints grouped finding counts by code
 - `--format json|sarif` emits machine-readable findings for CI/code-scanning integrations
 - `--write-baseline <file>` records current findings as suppression fingerprints and exits successfully
 - `--baseline <file>` suppresses matching known findings to support ratcheting in legacy specs
@@ -248,6 +257,8 @@ Direct built script:
 node extensions/allium/dist/src/format.js docs/project/specs
 node extensions/allium/dist/src/format.js --check "docs/project/specs/**/*.allium"
 node extensions/allium/dist/src/format.js --indent-width 2 --top-level-spacing 0 docs/project/specs
+node extensions/allium/dist/src/format.js --dryrun docs/project/specs
+cat docs/project/specs/allium-check-tool-behaviour.allium | node extensions/allium/dist/src/format.js --stdin --stdout
 ```
 
 Current formatter behavior:
@@ -259,6 +270,8 @@ Current formatter behavior:
 - normalize spacing between top-level blocks
 - normalize declaration header spacing before `{` for official top-level declarations
 - normalize spacing around pipe-delimited literals (for example enum literal sets)
+- `--dryrun` previews formatted output without writing files
+- `--stdin --stdout` supports formatter pipelines and editor integration
 
 ### `allium-diagram` (experimental)
 
@@ -317,12 +330,16 @@ Direct built script:
 ```bash
 node extensions/allium/dist/src/trace.js --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 node extensions/allium/dist/src/trace.js --format json --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
+node extensions/allium/dist/src/trace.js --strict --allowlist docs/project/trace-allowlist.txt --tests "extensions/allium/test/**/*.test.ts" docs/project/specs
 ```
 
 Behavior summary:
 
 - extracts rule names from `.allium` specs
 - resolves test files from explicit `--tests` inputs (file, directory, glob)
+- optional `--allowlist <file>` suppresses known uncovered rule names
+- optional `--strict` fails when allowlist contains stale rule names not present in specs
 - prints coverage summary and uncovered rule names
 - exits `0` when all extracted rules are referenced by tests
 - exits `1` when uncovered rules exist

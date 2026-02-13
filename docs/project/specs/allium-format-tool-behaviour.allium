@@ -74,3 +74,19 @@ rule FormatterSupportsConfigurableIndentAndSpacing {
 
     ensures: FormattingAppliedWith(indent_width, top_level_spacing)
 }
+
+rule DryRunPreviewsFormattingWithoutWriting {
+    when: FormatCommandInvokedWithOptions(option)
+    requires: option = "--dryrun"
+
+    ensures: FormattedPreviewPrinted()
+    ensures: FileUnchanged(path: "<input>.allium")
+}
+
+rule FormatterSupportsStdinStdoutPipeline {
+    when: FormatCommandInvokedWithOptions(option)
+    requires: option = "--stdin"
+
+    ensures: ReadsFromStandardInput()
+    ensures: WritesFormattedOutputToStandardOutput()
+}

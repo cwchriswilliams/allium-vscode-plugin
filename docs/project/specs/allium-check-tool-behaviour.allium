@@ -101,10 +101,47 @@ rule AutofixWritesUpdatedSpecs {
     ensures: LinePrinted(message: "<path>: autofixed")
 }
 
+rule AutofixDryRunDoesNotWriteChanges {
+    when: CheckCommandInvokedWithInputs(inputs)
+    requires: command_args includes "--autofix"
+    requires: command_args includes "--dryrun"
+
+    ensures: LinePrinted(message: "<path>: would autofix")
+    ensures: FileUnchanged(path: "<input>.allium")
+}
+
 rule WorkspaceCheckCommandDelegatesToChecker {
     when: WorkspaceCommandInvoked(name: "npm run check -- <inputs>")
 
     ensures: CheckCommandInvokedWithInputs(inputs)
+}
+
+rule ChangedFlagChecksModifiedAlliumFiles {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--changed"
+
+    ensures: ResolveAlliumFilesFromGitStatus()
+}
+
+rule MinSeverityFiltersReportedFindings {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--min-severity warning"
+
+    ensures: FindingsWithSeverity(info) are_filtered_out
+}
+
+rule IgnoreCodeFiltersMatchingFindings {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--ignore-code"
+
+    ensures: FindingsWithCode(code) are_filtered_out
+}
+
+rule StatsOptionPrintsCountsByCode {
+    when: CheckCommandInvokedWithOptions(options)
+    requires: options includes "--stats"
+
+    ensures: FindingCountsPrintedGroupedByCode()
 }
 
 rule ReleasedCliPackageExposesCheckCommand {
