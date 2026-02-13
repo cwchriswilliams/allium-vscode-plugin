@@ -73,6 +73,8 @@ rule TopLevelDeclarationsExposeTestReferenceCountCodeLens {
     requires: symbol declared_at_top_level
 
     ensures: CodeLensRendered(label: "Referenced in <n> tests")
+    ensures: TestReferenceSearchUsesConfiguredTestDiscoveryInputs()
+    ensures: TestReferenceSearchSupportsConfiguredExtensionsAndNamePatterns()
 }
 
 rule ProblemsSummaryGroupsWorkspaceFindingsByCode {
@@ -112,6 +114,7 @@ rule OpenRelatedSpecOrTestFindsMatchingWorkspaceReferences {
 
     ensures: RelatedFilesPresentedForSelection()
     ensures: SelectedRelatedFileOpened()
+    ensures: RelatedTestFileDiscoveryUsesConfiguredTestInputsAndPatterns()
 }
 
 rule UndefinedImportedSymbolQuickFixCanCreateTargetStub {

@@ -207,6 +207,7 @@ Formatting settings:
 - one-command application of all available Allium quick fixes in the active file
 - suppression cleanup command to remove stale `-- allium-ignore ...` directives
 - related-file jump command that finds matching symbols across workspace specs/tests
+- code lens test-reference counts and related-file test discovery use config-driven, language-agnostic matching (`trace.tests`, `project.testPaths`, `trace.testExtensions`, `trace.testNamePatterns`)
 - finding explanation command with remediation guidance (`allium.explainFinding`)
 - rule simulation preview with JSON bindings for `requires`/`ensures` (`allium.previewRuleSimulation`)
 - rule-test scaffold generation from parsed rule declarations (`allium.generateRuleTestScaffold`)

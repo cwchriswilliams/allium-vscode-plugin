@@ -76,6 +76,11 @@ import {
   readDiagnosticsManifest,
   readWorkspaceAlliumConfig,
 } from "./language-tools/drift-workspace";
+import {
+  buildFindInFilesIncludePattern,
+  buildTestFileMatcher,
+  resolveTestDiscoveryOptions,
+} from "./language-tools/test-discovery";
 
 const ALLIUM_LANGUAGE_ID = "allium";
 const semanticTokensLegend = new vscode.SemanticTokensLegend([
@@ -678,15 +683,26 @@ class AlliumCodeLensProvider implements vscode.CodeLensProvider {
   ): Promise<vscode.CodeLens[]> {
     const text = document.getText();
     const targets = collectCodeLensTargets(text);
-    const testFiles = await vscode.workspace.findFiles(
-      "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}",
-      "**/{node_modules,dist,.git}/**",
-    );
-    const testBodies = await Promise.all(
-      testFiles.map(async (file) =>
-        Buffer.from(await vscode.workspace.fs.readFile(file)).toString("utf8"),
-      ),
-    );
+    const workspaceRoot = workspaceRootForUri(document.uri);
+    const alliumConfig = workspaceRoot
+      ? readWorkspaceAlliumConfig(workspaceRoot)
+      : undefined;
+    const testOptions = resolveTestDiscoveryOptions(alliumConfig);
+    const testBodies = workspaceRoot
+      ? collectWorkspaceFiles(
+          workspaceRoot,
+          testOptions.testInputs,
+          testOptions.testExtensions,
+          alliumConfig?.drift?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS,
+        )
+          .filter(
+            buildTestFileMatcher(
+              testOptions.testExtensions,
+              testOptions.testNamePatterns,
+            ),
+          )
+          .map((filePath) => fs.readFileSync(filePath, "utf8"))
+      : [];
     const counts = countSymbolReferencesInTestBodies(
       targets.map((target) => target.name),
       testBodies,
@@ -713,7 +729,9 @@ class AlliumCodeLensProvider implements vscode.CodeLensProvider {
               query: target.name,
               isRegex: false,
               triggerSearch: true,
-              filesToInclude: "**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}",
+              filesToInclude: buildFindInFilesIncludePattern(
+                testOptions.testInputs,
+              ),
             },
           ],
         }),
@@ -2124,28 +2142,44 @@ async function findRelatedSpecOrTestFiles(
   symbol: string,
   currentUri: vscode.Uri,
 ): Promise<vscode.Uri[]> {
+  const workspaceRoot = workspaceRootForUri(currentUri);
+  if (!workspaceRoot) {
+    return [];
+  }
+  const alliumConfig = readWorkspaceAlliumConfig(workspaceRoot);
+  const testOptions = resolveTestDiscoveryOptions(alliumConfig);
+  const testMatcher = buildTestFileMatcher(
+    testOptions.testExtensions,
+    testOptions.testNamePatterns,
+  );
+  const excludedDirs =
+    alliumConfig?.drift?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS;
+  const specInputs = alliumConfig?.project?.specPaths ?? ["."];
   const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const matcher = new RegExp(`\\b${escaped}\\b`, "m");
   const matches = new Map<string, vscode.Uri>();
-  const searchIn = async (include: string): Promise<void> => {
-    const files = await vscode.workspace.findFiles(
-      include,
-      "**/{node_modules,dist,.git}/**",
-    );
-    for (const file of files) {
-      if (file.fsPath === currentUri.fsPath) {
+  const searchIn = (filePaths: string[]): void => {
+    for (const filePath of filePaths) {
+      if (filePath === currentUri.fsPath) {
         continue;
       }
-      const text = Buffer.from(
-        await vscode.workspace.fs.readFile(file),
-      ).toString("utf8");
+      const text = fs.readFileSync(filePath, "utf8");
       if (matcher.test(text)) {
-        matches.set(file.fsPath, file);
+        matches.set(filePath, vscode.Uri.file(filePath));
       }
     }
   };
-  await searchIn("**/*.allium");
-  await searchIn("**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}");
+  searchIn(
+    collectWorkspaceFiles(workspaceRoot, specInputs, [".allium"], excludedDirs),
+  );
+  searchIn(
+    collectWorkspaceFiles(
+      workspaceRoot,
+      testOptions.testInputs,
+      testOptions.testExtensions,
+      excludedDirs,
+    ).filter(testMatcher),
+  );
   return [...matches.values()].sort((a, b) => a.fsPath.localeCompare(b.fsPath));
 }
 

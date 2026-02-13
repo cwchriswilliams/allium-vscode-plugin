@@ -2,7 +2,17 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 export interface WorkspaceAlliumConfig {
+  project?: {
+    specPaths?: string[];
+    testPaths?: string[];
+  };
   check?: { mode?: "strict" | "relaxed" };
+  trace?: {
+    tests?: string[];
+    specs?: string[];
+    testExtensions?: string[];
+    testNamePatterns?: string[];
+  };
   drift?: {
     sources?: string[];
     sourceExtensions?: string[];
