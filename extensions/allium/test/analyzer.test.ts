@@ -632,6 +632,20 @@ test("warns when rule trigger is not provided or emitted", () => {
   assert.ok(findings.some((f) => f.code === "allium.rule.unreachableTrigger"));
 });
 
+test("unreachable trigger diagnostic range is anchored to trigger call in when clause", () => {
+  const findings = analyzeAllium(
+    `rule InvalidModeIsRejected {\n  when: CheckCommandInvoked(mode)\n  ensures: Done()\n}\n`,
+  );
+  const finding = findings.find(
+    (item) => item.code === "allium.rule.unreachableTrigger",
+  );
+  assert.ok(finding);
+  assert.equal(finding?.start.line, 1);
+  assert.equal(finding?.start.character, 8);
+  assert.equal(finding?.end.line, 1);
+  assert.equal(finding?.end.character, 27);
+});
+
 test("does not warn when rule trigger is provided by a surface", () => {
   const findings = analyzeAllium(
     `surface Dashboard {\n  for user: User\n  provides:\n    InvitationExpired(invitation)\n}\n\nrule A {\n  when: InvitationExpired(invitation)\n  ensures: Done()\n}\n`,

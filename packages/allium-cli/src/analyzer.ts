@@ -132,7 +132,7 @@ export function analyzeAllium(
   findings.push(...findUnusedEntityIssues(text, lineStarts));
   findings.push(...findUnusedNamedDefinitionIssues(text, lineStarts));
   findings.push(...findUnusedFieldIssues(text, lineStarts));
-  findings.push(...findUnreachableRuleTriggerIssues(lineStarts, blocks));
+  findings.push(...findUnreachableRuleTriggerIssues(lineStarts, blocks, text));
   findings.push(...findExternalEntitySourceHints(text, lineStarts, blocks));
   findings.push(...findDeferredLocationHints(text, lineStarts));
   findings.push(...findImplicitLambdaIssues(text, lineStarts));
@@ -2230,6 +2230,7 @@ function findUnusedFieldIssues(text: string, lineStarts: number[]): Finding[] {
 function findUnreachableRuleTriggerIssues(
   lineStarts: number[],
   blocks: ReturnType<typeof parseAlliumBlocks>,
+  text: string,
 ): Finding[] {
   const findings: Finding[] = [];
   const surfaces = blocks.filter((block) => block.kind === "surface");
@@ -2276,9 +2277,15 @@ function findUnreachableRuleTriggerIssues(
       if (provided.has(callName) || produced.has(callName)) {
         continue;
       }
+      const ruleStart = rule.startOffset;
+      const ruleText = text.slice(ruleStart, rule.endOffset + 1);
+      const openBraceIndex = ruleText.indexOf("{");
+      if (openBraceIndex < 0) {
+        continue;
+      }
+      const bodyStartOffset = ruleStart + openBraceIndex + 1;
       const callOffset =
-        rule.startOffset +
-        1 +
+        bodyStartOffset +
         rule.body.indexOf(whenLine[0]) +
         whenLine[0].indexOf(callName);
       findings.push(
