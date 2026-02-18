@@ -1,0 +1,28 @@
+{
+  "name": "tree-sitter-allium",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the Allium language.",
+  "license": "MIT",
+  "main": "bindings/node",
+  "files": [
+    "grammar.js",
+    "binding.gyp",
+    "bindings/node/**",
+    "queries/**",
+    "src/**",
+    "README.md",
+    "package.json",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.0"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.3.0",
+    "node-gyp-build": "^4.8.4"
+  }
+}
