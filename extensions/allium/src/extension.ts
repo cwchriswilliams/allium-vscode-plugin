@@ -16,8 +16,8 @@ export function activate(context: vscode.ExtensionContext): void {
     path.join("dist", "allium-lsp.js"),
   );
   const serverOptions: ServerOptions = {
-    run: { module: serverModule, transport: TransportKind.stdio },
-    debug: { module: serverModule, transport: TransportKind.stdio },
+    run: { command: "node", args: [serverModule], transport: TransportKind.stdio },
+    debug: { command: "node", args: [serverModule], transport: TransportKind.stdio },
   };
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: ALLIUM_LANGUAGE_ID }],
