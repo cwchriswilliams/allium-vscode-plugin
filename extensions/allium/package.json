@@ -166,6 +166,9 @@
     "diagram:allium": "npm run build && node ./dist/src/diagram.js",
     "trace:allium": "npm run build && node ./dist/src/trace.js"
   },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
   "devDependencies": {
     "@types/node": "^22.13.5",
     "@types/vscode": "^1.91.0",

@@ -2,33 +2,17 @@ import * as vscode from "vscode";
 import { analyzeAllium } from "./language-tools/analyzer";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { planExtractInlineEnumToNamedEnum } from "./language-tools/extract-inline-enum-refactor";
-import {
-  findDefinitionsAtOffset,
-  importedSymbolAtOffset,
-  parseUseAliases,
-} from "./language-tools/definitions";
-import { collectUseImportPaths } from "./language-tools/document-links";
+import { parseUseAliases } from "./language-tools/definitions";
 import {
   planSafeFixesByCategory,
   type FixCategory,
 } from "./language-tools/fix-all";
-import { planExtractLiteralToConfig } from "./language-tools/extract-literal-refactor";
-import { collectTopLevelFoldingBlocks } from "./language-tools/folding";
-import { formatAlliumText } from "./format";
-import {
-  findLeadingDocComment,
-  hoverTextAtOffset,
-} from "./language-tools/hover";
-import { planInsertTemporalGuard } from "./language-tools/insert-temporal-guard-refactor";
 import {
   renderSimulationMarkdown,
   simulateRuleAtOffset,
 } from "./language-tools/rule-sim";
 import { parseDeclarationAst } from "./language-tools/typed-ast";
 import { buildRuleTestScaffold } from "./language-tools/test-scaffold";
-import { collectAlliumSymbols } from "./language-tools/outline";
-import { collectCompletionCandidates } from "./language-tools/completion";
 import {
   buildDiagramResult,
   renderDiagram,
@@ -36,33 +20,15 @@ import {
   type DiagramModel,
 } from "./language-tools/diagram";
 import { buildDiagramPreviewHtml } from "./language-tools/diagram-preview";
-import { findReferencesInText } from "./language-tools/references";
-import {
-  ALLIUM_SEMANTIC_TOKEN_TYPES,
-  collectSemanticTokenEntries,
-} from "./language-tools/semantic-tokens";
-import {
-  buildSuppressionDirectiveEdit,
-  removeStaleSuppressions,
-} from "./language-tools/suppression";
+import { removeStaleSuppressions } from "./language-tools/suppression";
 import { buildFindingExplanationMarkdown } from "./language-tools/finding-help";
 import {
   buildWorkspaceIndex,
   resolveImportedDefinition,
 } from "./language-tools/workspace-index";
-import { collectWorkspaceSymbolRecords } from "./language-tools/workspace-symbols";
-import { collectUndefinedImportedSymbolFindings } from "./language-tools/imported-symbols";
-import { planRename, prepareRenameTarget } from "./language-tools/rename";
+import { planRename } from "./language-tools/rename";
 import { resolveDiagnosticsModeForProfile } from "./language-tools/profile";
 import { planWorkspaceImportedRename } from "./language-tools/cross-file-rename";
-import {
-  collectCodeLensTargets,
-  countSymbolReferencesInTestBodies,
-} from "./language-tools/codelens";
-import {
-  buildExternalTriggerRuleScaffold,
-  extractUndefinedProvidesTriggerName,
-} from "./language-tools/provides-trigger-fix";
 import {
   buildDriftReport,
   extractAlliumDiagnosticCodes,
@@ -81,11 +47,14 @@ import {
   buildTestFileMatcher,
   resolveTestDiscoveryOptions,
 } from "./language-tools/test-discovery";
+import {
+  LanguageClient,
+  type LanguageClientOptions,
+  type ServerOptions,
+  TransportKind,
+} from "vscode-languageclient/node";
 
 const ALLIUM_LANGUAGE_ID = "allium";
-const semanticTokensLegend = new vscode.SemanticTokensLegend([
-  ...ALLIUM_SEMANTIC_TOKEN_TYPES,
-]);
 const DEFAULT_DRIFT_EXCLUDE_DIRS = [
   ".git",
   "node_modules",
@@ -99,79 +68,33 @@ const DEFAULT_DRIFT_EXCLUDE_DIRS = [
   "__pycache__",
 ];
 
+let client: LanguageClient | undefined;
+
 export function activate(context: vscode.ExtensionContext): void {
-  const diagnostics = vscode.languages.createDiagnosticCollection("allium");
-  context.subscriptions.push(diagnostics);
-
-  const refreshDocument = (document: vscode.TextDocument): void => {
-    if (document.languageId !== ALLIUM_LANGUAGE_ID) {
-      return;
-    }
-
-    const mode = readDiagnosticsMode();
-    const baseFindings = analyzeAllium(document.getText(), { mode });
-    const workspaceRoot = workspaceRootForUri(document.uri);
-    const importedFindings = workspaceRoot
-      ? collectUndefinedImportedSymbolFindings(
-          document.uri.fsPath,
-          document.getText(),
-          buildWorkspaceIndex(workspaceRoot),
-        )
-      : [];
-    const findings = [...baseFindings, ...importedFindings];
-    const converted = findings.map((finding) => {
-      const severity = toDiagnosticSeverity(finding.severity);
-      const diagnostic = new vscode.Diagnostic(
-        new vscode.Range(
-          new vscode.Position(finding.start.line, finding.start.character),
-          new vscode.Position(finding.end.line, finding.end.character),
-        ),
-        finding.message,
-        severity,
-      );
-      diagnostic.code = finding.code;
-      diagnostic.source = "allium";
-      return diagnostic;
-    });
-
-    diagnostics.set(document.uri, converted);
-  };
-
-  context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(refreshDocument),
-    vscode.workspace.onDidChangeTextDocument((event) =>
-      refreshDocument(event.document),
-    ),
-    vscode.workspace.onDidSaveTextDocument(refreshDocument),
-    vscode.workspace.onDidCloseTextDocument((document) =>
-      diagnostics.delete(document.uri),
-    ),
-    vscode.workspace.onDidChangeConfiguration((event) => {
-      if (!event.affectsConfiguration("allium.diagnostics.mode")) {
-        return;
-      }
-      for (const document of vscode.workspace.textDocuments) {
-        refreshDocument(document);
-      }
-    }),
+  const serverModule = context.asAbsolutePath(
+    path.join("dist", "allium-lsp.js"),
   );
-
-  for (const document of vscode.workspace.textDocuments) {
-    refreshDocument(document);
-  }
+  const serverOptions: ServerOptions = {
+    run: { module: serverModule, transport: TransportKind.stdio },
+    debug: { module: serverModule, transport: TransportKind.stdio },
+  };
+  const clientOptions: LanguageClientOptions = {
+    documentSelector: [{ scheme: "file", language: ALLIUM_LANGUAGE_ID }],
+  };
+  client = new LanguageClient(
+    "allium",
+    "Allium Language Server",
+    serverOptions,
+    clientOptions,
+  );
+  void client.start();
+  context.subscriptions.push({ dispose: () => void client?.stop() });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("allium.runChecks", () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
-        void vscode.window.showInformationMessage(
-          "Open an .allium file to run checks.",
-        );
-        return;
-      }
-
-      refreshDocument(editor.document);
-      void vscode.window.showInformationMessage("Allium checks completed.");
+      void vscode.window.showInformationMessage(
+        "Allium checks run automatically by the language server. Save the file to trigger a re-check.",
+      );
     }),
   );
   context.subscriptions.push(
@@ -279,7 +202,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("allium.explainFinding", async () => {
-      await explainFindingAtCursor(diagnostics);
+      await explainFindingAtCursor();
     }),
   );
   context.subscriptions.push(
@@ -308,307 +231,10 @@ export function activate(context: vscode.ExtensionContext): void {
       await manageWorkspaceBaseline();
     }),
   );
-
-  context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(
-      ALLIUM_LANGUAGE_ID,
-      new AlliumQuickFixProvider(),
-      {
-        providedCodeActionKinds: [
-          vscode.CodeActionKind.QuickFix,
-          vscode.CodeActionKind.RefactorExtract,
-          vscode.CodeActionKind.RefactorRewrite,
-        ],
-      },
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumCodeLensProvider(),
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerDocumentSymbolProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumDocumentSymbolProvider(),
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerDefinitionProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumDefinitionProvider(),
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerRenameProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumRenameProvider(),
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerReferenceProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumReferenceProvider(),
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerHoverProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumHoverProvider(),
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerFoldingRangeProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumFoldingRangeProvider(),
-    ),
-  );
-
-  context.subscriptions.push(
-    vscode.languages.registerDocumentFormattingEditProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumFormattingProvider(),
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerDocumentSemanticTokensProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumSemanticTokensProvider(),
-      semanticTokensLegend,
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumCompletionProvider(),
-      ".",
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerWorkspaceSymbolProvider(
-      new AlliumWorkspaceSymbolProvider(),
-    ),
-  );
-  context.subscriptions.push(
-    vscode.languages.registerDocumentLinkProvider(
-      { language: ALLIUM_LANGUAGE_ID },
-      new AlliumDocumentLinkProvider(),
-    ),
-  );
 }
 
-export function deactivate(): void {
-  // no-op
-}
-
-class AlliumQuickFixProvider implements vscode.CodeActionProvider {
-  provideCodeActions(
-    document: vscode.TextDocument,
-    range: vscode.Range,
-    context: vscode.CodeActionContext,
-  ): vscode.CodeAction[] {
-    const actions: vscode.CodeAction[] = [];
-
-    for (const diagnostic of context.diagnostics) {
-      if (diagnostic.code === "allium.rule.missingWhen") {
-        const action = new vscode.CodeAction(
-          "Insert when scaffold",
-          vscode.CodeActionKind.QuickFix,
-        );
-        action.diagnostics = [diagnostic];
-        const edit = new vscode.WorkspaceEdit();
-        const insertPosition = new vscode.Position(
-          diagnostic.range.start.line + 1,
-          0,
-        );
-        edit.insert(document.uri, insertPosition, "    when: TODO()\n");
-        action.edit = edit;
-        actions.push(action);
-      }
-
-      if (diagnostic.code === "allium.rule.missingEnsures") {
-        const action = new vscode.CodeAction(
-          "Insert ensures scaffold",
-          vscode.CodeActionKind.QuickFix,
-        );
-        action.diagnostics = [diagnostic];
-        action.isPreferred = true;
-
-        const edit = new vscode.WorkspaceEdit();
-        const insertPosition = new vscode.Position(
-          diagnostic.range.start.line,
-          0,
-        );
-        edit.insert(document.uri, insertPosition, "    ensures: TODO()\n");
-        action.edit = edit;
-        actions.push(action);
-      }
-
-      if (diagnostic.code === "allium.temporal.missingGuard") {
-        const action = new vscode.CodeAction(
-          "Insert requires guard",
-          vscode.CodeActionKind.QuickFix,
-        );
-        action.diagnostics = [diagnostic];
-
-        const whenLine = diagnostic.range.start.line;
-        const whenText = document.lineAt(whenLine).text;
-        const indent = whenText.match(/^\s*/)?.[0] ?? "    ";
-
-        const edit = new vscode.WorkspaceEdit();
-        const insertPosition = new vscode.Position(whenLine + 1, 0);
-        edit.insert(
-          document.uri,
-          insertPosition,
-          `${indent}requires: /* add temporal guard */\n`,
-        );
-        action.edit = edit;
-        actions.push(action);
-      }
-
-      if (diagnostic.code === "allium.surface.undefinedProvidesTrigger") {
-        const triggerName = extractUndefinedProvidesTriggerName(
-          diagnostic.message,
-        );
-        if (triggerName) {
-          const action = new vscode.CodeAction(
-            "Create external trigger rule scaffold",
-            vscode.CodeActionKind.QuickFix,
-          );
-          action.diagnostics = [diagnostic];
-          const edit = new vscode.WorkspaceEdit();
-          const end = document.positionAt(document.getText().length);
-          edit.insert(
-            document.uri,
-            end,
-            buildExternalTriggerRuleScaffold(triggerName),
-          );
-          action.edit = edit;
-          actions.push(action);
-        }
-      }
-
-      if (diagnostic.code === "allium.import.undefinedSymbol") {
-        const imported = parseImportedSymbolFromDiagnostic(diagnostic.message);
-        if (imported) {
-          const action = new vscode.CodeAction(
-            `Create '${imported.symbol}' stub in imported spec`,
-            vscode.CodeActionKind.QuickFix,
-          );
-          action.diagnostics = [diagnostic];
-          action.command = {
-            command: "allium.createImportedSymbolStub",
-            title: "Create imported symbol stub",
-            arguments: [document.uri, imported.alias, imported.symbol],
-          };
-          actions.push(action);
-        }
-      }
-
-      const diagnosticCode = String(diagnostic.code ?? "");
-      if (diagnosticCode.startsWith("allium.")) {
-        const suppression = buildSuppressionDirectiveEdit(
-          document.getText(),
-          diagnosticCode,
-          diagnostic.range.start.line,
-        );
-        if (suppression) {
-          const action = new vscode.CodeAction(
-            "Suppress this diagnostic here",
-            vscode.CodeActionKind.QuickFix,
-          );
-          action.diagnostics = [diagnostic];
-          const edit = new vscode.WorkspaceEdit();
-          edit.insert(
-            document.uri,
-            document.positionAt(suppression.offset),
-            suppression.text,
-          );
-          action.edit = edit;
-          actions.push(action);
-        }
-        const explain = new vscode.CodeAction(
-          "Explain this finding",
-          vscode.CodeActionKind.QuickFix,
-        );
-        explain.diagnostics = [diagnostic];
-        explain.command = {
-          command: "allium.explainFindingDiagnostic",
-          title: "Explain finding",
-          arguments: [diagnosticCode, diagnostic.message],
-        };
-        actions.push(explain);
-      }
-    }
-
-    const extractPlan = planExtractLiteralToConfig(
-      document.getText(),
-      document.offsetAt(range.start),
-      document.offsetAt(range.end),
-    );
-    if (extractPlan) {
-      const action = new vscode.CodeAction(
-        extractPlan.title,
-        vscode.CodeActionKind.RefactorExtract,
-      );
-      const edit = new vscode.WorkspaceEdit();
-      for (const change of extractPlan.edits) {
-        const start = document.positionAt(change.startOffset);
-        const end = document.positionAt(change.endOffset);
-        edit.replace(document.uri, new vscode.Range(start, end), change.text);
-      }
-      action.edit = edit;
-      actions.push(action);
-    }
-
-    const temporalGuardPlan = planInsertTemporalGuard(
-      document.getText(),
-      document.offsetAt(range.start),
-    );
-    if (temporalGuardPlan) {
-      const action = new vscode.CodeAction(
-        temporalGuardPlan.title,
-        vscode.CodeActionKind.RefactorRewrite,
-      );
-      const edit = new vscode.WorkspaceEdit();
-      const start = document.positionAt(temporalGuardPlan.edit.startOffset);
-      const end = document.positionAt(temporalGuardPlan.edit.endOffset);
-      edit.replace(
-        document.uri,
-        new vscode.Range(start, end),
-        temporalGuardPlan.edit.text,
-      );
-      action.edit = edit;
-      actions.push(action);
-    }
-
-    const inlineEnumPlan = planExtractInlineEnumToNamedEnum(
-      document.getText(),
-      document.offsetAt(range.start),
-    );
-    if (inlineEnumPlan) {
-      const action = new vscode.CodeAction(
-        inlineEnumPlan.title,
-        vscode.CodeActionKind.RefactorRewrite,
-      );
-      const edit = new vscode.WorkspaceEdit();
-      for (const change of inlineEnumPlan.edits) {
-        const start = document.positionAt(change.startOffset);
-        const end = document.positionAt(change.endOffset);
-        edit.replace(document.uri, new vscode.Range(start, end), change.text);
-      }
-      action.edit = edit;
-      actions.push(action);
-    }
-
-    return actions;
-  }
+export function deactivate(): Thenable<void> | undefined {
+  return client?.stop();
 }
 
 function readDiagnosticsMode(): "strict" | "relaxed" {
@@ -637,581 +263,6 @@ function readAlliumConfigDiagnosticsMode(): "strict" | "relaxed" | undefined {
     return undefined;
   }
   return readWorkspaceAlliumConfig(root)?.check?.mode;
-}
-
-function toDiagnosticSeverity(
-  severity: "error" | "warning" | "info",
-): vscode.DiagnosticSeverity {
-  if (severity === "error") {
-    return vscode.DiagnosticSeverity.Error;
-  }
-  if (severity === "warning") {
-    return vscode.DiagnosticSeverity.Warning;
-  }
-  return vscode.DiagnosticSeverity.Information;
-}
-
-class AlliumDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
-  provideDocumentSymbols(
-    document: vscode.TextDocument,
-  ): vscode.DocumentSymbol[] {
-    const text = document.getText();
-    const symbols = collectAlliumSymbols(text);
-    return symbols.map((symbol) => {
-      const range = new vscode.Range(
-        document.positionAt(symbol.startOffset),
-        document.positionAt(symbol.endOffset + 1),
-      );
-      const selectionRange = new vscode.Range(
-        document.positionAt(symbol.nameStartOffset),
-        document.positionAt(symbol.nameEndOffset),
-      );
-      return new vscode.DocumentSymbol(
-        symbol.name,
-        symbol.type,
-        toSymbolKind(symbol.type),
-        range,
-        selectionRange,
-      );
-    });
-  }
-}
-
-class AlliumCodeLensProvider implements vscode.CodeLensProvider {
-  async provideCodeLenses(
-    document: vscode.TextDocument,
-  ): Promise<vscode.CodeLens[]> {
-    const text = document.getText();
-    const targets = collectCodeLensTargets(text);
-    const workspaceRoot = workspaceRootForUri(document.uri);
-    const alliumConfig = workspaceRoot
-      ? readWorkspaceAlliumConfig(workspaceRoot)
-      : undefined;
-    const testOptions = resolveTestDiscoveryOptions(alliumConfig);
-    const testBodies = workspaceRoot
-      ? collectWorkspaceFiles(
-          workspaceRoot,
-          testOptions.testInputs,
-          testOptions.testExtensions,
-          alliumConfig?.drift?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS,
-        )
-          .filter(
-            buildTestFileMatcher(
-              testOptions.testExtensions,
-              testOptions.testNamePatterns,
-            ),
-          )
-          .map((filePath) => fs.readFileSync(filePath, "utf8"))
-      : [];
-    const counts = countSymbolReferencesInTestBodies(
-      targets.map((target) => target.name),
-      testBodies,
-    );
-    const lenses: vscode.CodeLens[] = [];
-    for (const target of targets) {
-      const range = new vscode.Range(
-        document.positionAt(target.startOffset),
-        document.positionAt(target.endOffset),
-      );
-      lenses.push(
-        new vscode.CodeLens(range, {
-          title: "Find references",
-          command: "editor.action.referenceSearch.trigger",
-          arguments: [document.uri, range.start],
-        }),
-      );
-      lenses.push(
-        new vscode.CodeLens(range, {
-          title: `Referenced in ${counts.get(target.name) ?? 0} tests`,
-          command: "workbench.action.findInFiles",
-          arguments: [
-            {
-              query: target.name,
-              isRegex: false,
-              triggerSearch: true,
-              filesToInclude: buildFindInFilesIncludePattern(
-                testOptions.testInputs,
-              ),
-            },
-          ],
-        }),
-      );
-    }
-    return lenses;
-  }
-}
-
-function toSymbolKind(
-  type:
-    | ReturnType<typeof collectAlliumSymbols>[number]["type"]
-    | "external_entity"
-    | "value"
-    | "variant"
-    | "enum"
-    | "default"
-    | "default_instance"
-    | "config_key",
-): vscode.SymbolKind {
-  if (type === "entity" || type === "external_entity") {
-    return vscode.SymbolKind.Class;
-  }
-  if (type === "value" || type === "variant") {
-    return vscode.SymbolKind.EnumMember;
-  }
-  if (type === "enum") {
-    return vscode.SymbolKind.Enum;
-  }
-  if (type === "rule") {
-    return vscode.SymbolKind.Method;
-  }
-  if (type === "surface") {
-    return vscode.SymbolKind.Interface;
-  }
-  if (type === "actor") {
-    return vscode.SymbolKind.Class;
-  }
-  if (type === "config_key") {
-    return vscode.SymbolKind.Property;
-  }
-  if (type === "default" || type === "default_instance") {
-    return vscode.SymbolKind.Constant;
-  }
-  if (type === "config") {
-    return vscode.SymbolKind.Module;
-  }
-  return vscode.SymbolKind.Variable;
-}
-
-class AlliumDefinitionProvider implements vscode.DefinitionProvider {
-  provideDefinition(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.Location[] {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const localMatches = findDefinitionsAtOffset(text, offset);
-    if (localMatches.length > 0) {
-      return localMatches.map((match) => {
-        const start = document.positionAt(match.startOffset);
-        const end = document.positionAt(match.endOffset);
-        return new vscode.Location(document.uri, new vscode.Range(start, end));
-      });
-    }
-
-    const workspaceRoot = workspaceRootForUri(document.uri);
-    if (!workspaceRoot) {
-      return [];
-    }
-
-    const index = buildWorkspaceIndex(workspaceRoot);
-    const matches = resolveImportedDefinition(
-      document.uri.fsPath,
-      text,
-      offset,
-      index,
-    );
-    return matches.map((match) => {
-      const start = offsetToPositionForFile(
-        match.filePath,
-        match.definition.startOffset,
-        index,
-      );
-      const end = offsetToPositionForFile(
-        match.filePath,
-        match.definition.endOffset,
-        index,
-      );
-      return new vscode.Location(
-        vscode.Uri.file(match.filePath),
-        new vscode.Range(start, end),
-      );
-    });
-  }
-}
-
-class AlliumRenameProvider implements vscode.RenameProvider {
-  provideRenameEdits(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-    newName: string,
-  ): vscode.WorkspaceEdit | null {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const workspaceRoot = workspaceRootForUri(document.uri);
-    const index = workspaceRoot ? buildWorkspaceIndex(workspaceRoot) : null;
-
-    const localRename = planRename(text, offset, newName);
-    if (localRename.plan) {
-      const edit = new vscode.WorkspaceEdit();
-      for (const reference of localRename.plan.references) {
-        edit.replace(
-          document.uri,
-          new vscode.Range(
-            document.positionAt(reference.startOffset),
-            document.positionAt(reference.endOffset),
-          ),
-          newName,
-        );
-      }
-
-      if (index) {
-        const workspacePlan = planWorkspaceImportedRename(
-          index,
-          document.uri.fsPath,
-          localRename.plan.definition,
-          newName,
-        );
-        if (workspacePlan.error) {
-          throw new Error(workspacePlan.error);
-        }
-        for (const change of workspacePlan.edits) {
-          edit.replace(
-            vscode.Uri.file(change.filePath),
-            new vscode.Range(
-              offsetToPositionForFile(
-                change.filePath,
-                change.startOffset,
-                index,
-              ),
-              offsetToPositionForFile(change.filePath, change.endOffset, index),
-            ),
-            newName,
-          );
-        }
-      }
-
-      return edit;
-    }
-
-    if (!localRename.plan && localRename.error) {
-      const importedMatches =
-        index &&
-        resolveImportedDefinition(document.uri.fsPath, text, offset, index);
-      if (!importedMatches || importedMatches.length === 0) {
-        throw new Error(localRename.error);
-      }
-    }
-
-    if (!index) {
-      return null;
-    }
-    const importedMatches = resolveImportedDefinition(
-      document.uri.fsPath,
-      text,
-      offset,
-      index,
-    );
-    if (importedMatches.length === 0) {
-      return null;
-    }
-
-    const target = importedMatches[0];
-    const targetText = textForFile(target.filePath, index);
-    const localTargetRename = planRename(
-      targetText,
-      target.definition.startOffset,
-      newName,
-    );
-    if (!localTargetRename.plan) {
-      throw new Error(
-        localTargetRename.error ?? "Unable to rename imported symbol.",
-      );
-    }
-
-    const workspacePlan = planWorkspaceImportedRename(
-      index,
-      target.filePath,
-      target.definition,
-      newName,
-    );
-    if (workspacePlan.error) {
-      throw new Error(workspacePlan.error);
-    }
-
-    const edit = new vscode.WorkspaceEdit();
-    for (const change of workspacePlan.edits) {
-      edit.replace(
-        vscode.Uri.file(change.filePath),
-        new vscode.Range(
-          offsetToPositionForFile(change.filePath, change.startOffset, index),
-          offsetToPositionForFile(change.filePath, change.endOffset, index),
-        ),
-        newName,
-      );
-    }
-    return edit;
-  }
-
-  prepareRename(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.Range | null {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const tokenRange = prepareRenameTarget(text, offset);
-    if (!tokenRange) {
-      return null;
-    }
-    return new vscode.Range(
-      document.positionAt(tokenRange.startOffset),
-      document.positionAt(tokenRange.endOffset),
-    );
-  }
-}
-
-class AlliumHoverProvider implements vscode.HoverProvider {
-  provideHover(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.Hover | null {
-    const text = document.getText();
-    const message = hoverTextAtOffset(text, document.offsetAt(position));
-    const definitions = findDefinitionsAtOffset(
-      text,
-      document.offsetAt(position),
-    );
-    if (!message && definitions.length === 0) {
-      return null;
-    }
-
-    const lines: string[] = [];
-    if (message) {
-      lines.push(message);
-    }
-    if (definitions.length > 0) {
-      const symbol = definitions[0];
-      const docComment = findLeadingDocComment(text, symbol.startOffset);
-      if (docComment) {
-        lines.push(`\n${docComment}`);
-      }
-      lines.push(`\nDeclared as \`${symbol.kind}\` in this file.`);
-    } else {
-      const imported = importedSymbolAtOffset(
-        text,
-        document.offsetAt(position),
-      );
-      if (imported) {
-        const alias = parseUseAliases(text).find(
-          (entry) => entry.alias === imported.alias,
-        );
-        if (alias) {
-          lines.push(
-            `\nImported via \`${imported.alias}\` from \`${alias.sourcePath}\`.`,
-          );
-        }
-      }
-    }
-
-    return new vscode.Hover(lines.join(""));
-  }
-}
-
-class AlliumFoldingRangeProvider implements vscode.FoldingRangeProvider {
-  provideFoldingRanges(document: vscode.TextDocument): vscode.FoldingRange[] {
-    const blocks = collectTopLevelFoldingBlocks(document.getText());
-    return blocks.map(
-      (block) => new vscode.FoldingRange(block.startLine, block.endLine),
-    );
-  }
-}
-
-class AlliumFormattingProvider
-  implements vscode.DocumentFormattingEditProvider
-{
-  provideDocumentFormattingEdits(
-    document: vscode.TextDocument,
-  ): vscode.TextEdit[] {
-    const original = document.getText();
-    const config = vscode.workspace.getConfiguration("allium");
-    const formatted = formatAlliumText(original, {
-      indentWidth: config.get<number>("format.indentWidth", 4),
-      topLevelSpacing: config.get<number>("format.topLevelSpacing", 1),
-    });
-    if (formatted === original) {
-      return [];
-    }
-
-    const wholeDocument = new vscode.Range(
-      document.positionAt(0),
-      document.positionAt(original.length),
-    );
-    return [vscode.TextEdit.replace(wholeDocument, formatted)];
-  }
-}
-
-class AlliumSemanticTokensProvider
-  implements vscode.DocumentSemanticTokensProvider
-{
-  provideDocumentSemanticTokens(
-    document: vscode.TextDocument,
-  ): vscode.SemanticTokens {
-    const builder = new vscode.SemanticTokensBuilder(semanticTokensLegend);
-    const entries = collectSemanticTokenEntries(document.getText());
-    for (const entry of entries) {
-      const tokenTypeIndex = ALLIUM_SEMANTIC_TOKEN_TYPES.indexOf(
-        entry.tokenType,
-      );
-      if (tokenTypeIndex < 0) {
-        continue;
-      }
-      builder.push(
-        entry.line,
-        entry.character,
-        entry.length,
-        tokenTypeIndex,
-        0,
-      );
-    }
-    return builder.build();
-  }
-}
-
-class AlliumCompletionProvider implements vscode.CompletionItemProvider {
-  provideCompletionItems(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.CompletionItem[] {
-    const candidates = collectCompletionCandidates(
-      document.getText(),
-      document.offsetAt(position),
-    );
-    return candidates.map((candidate) => {
-      const kind =
-        candidate.kind === "property"
-          ? vscode.CompletionItemKind.Property
-          : vscode.CompletionItemKind.Keyword;
-      return new vscode.CompletionItem(candidate.label, kind);
-    });
-  }
-}
-
-class AlliumWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
-  provideWorkspaceSymbols(query: string): vscode.SymbolInformation[] {
-    const folders = vscode.workspace.workspaceFolders ?? [];
-    const out: vscode.SymbolInformation[] = [];
-    for (const folder of folders) {
-      const index = buildWorkspaceIndex(folder.uri.fsPath);
-      const records = collectWorkspaceSymbolRecords(index, query);
-      for (const record of records) {
-        out.push(
-          new vscode.SymbolInformation(
-            record.name,
-            toSymbolKind(record.kind),
-            path.basename(record.filePath),
-            new vscode.Location(
-              vscode.Uri.file(record.filePath),
-              new vscode.Range(
-                offsetToPositionForFile(
-                  record.filePath,
-                  record.startOffset,
-                  index,
-                ),
-                offsetToPositionForFile(
-                  record.filePath,
-                  record.endOffset,
-                  index,
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-    return out;
-  }
-}
-
-class AlliumDocumentLinkProvider implements vscode.DocumentLinkProvider {
-  provideDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
-    const links = collectUseImportPaths(document.getText());
-    return links.map((link) => {
-      const start = document.positionAt(link.startOffset);
-      const end = document.positionAt(link.endOffset);
-      const targetPath = resolveImportPath(
-        document.uri.fsPath,
-        link.sourcePath,
-      );
-      return new vscode.DocumentLink(
-        new vscode.Range(start, end),
-        vscode.Uri.file(targetPath),
-      );
-    });
-  }
-}
-
-class AlliumReferenceProvider implements vscode.ReferenceProvider {
-  provideReferences(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-    context: vscode.ReferenceContext,
-  ): vscode.Location[] {
-    const text = document.getText();
-    const offset = document.offsetAt(position);
-    const localDefinitions = findDefinitionsAtOffset(text, offset);
-    if (localDefinitions.length > 0) {
-      const definition = localDefinitions[0];
-      const references = findReferencesInText(text, definition);
-      return references
-        .filter(
-          (reference) =>
-            context.includeDeclaration ||
-            !isDefinitionReference(definition, reference),
-        )
-        .map((reference) => {
-          const start = document.positionAt(reference.startOffset);
-          const end = document.positionAt(reference.endOffset);
-          return new vscode.Location(
-            document.uri,
-            new vscode.Range(start, end),
-          );
-        });
-    }
-
-    const workspaceRoot = workspaceRootForUri(document.uri);
-    if (!workspaceRoot) {
-      return [];
-    }
-    const index = buildWorkspaceIndex(workspaceRoot);
-    const importedMatches = resolveImportedDefinition(
-      document.uri.fsPath,
-      text,
-      offset,
-      index,
-    );
-    const locations: vscode.Location[] = [];
-    for (const match of importedMatches) {
-      const references = findReferencesInText(
-        textForFile(match.filePath, index),
-        match.definition,
-      );
-      for (const reference of references) {
-        if (
-          !context.includeDeclaration &&
-          isDefinitionReference(match.definition, reference)
-        ) {
-          continue;
-        }
-        locations.push(
-          new vscode.Location(
-            vscode.Uri.file(match.filePath),
-            new vscode.Range(
-              offsetToPositionForFile(
-                match.filePath,
-                reference.startOffset,
-                index,
-              ),
-              offsetToPositionForFile(
-                match.filePath,
-                reference.endOffset,
-                index,
-              ),
-            ),
-          ),
-        );
-      }
-    }
-    return locations;
-  }
 }
 
 async function applySafeFixes(
@@ -2037,17 +1088,19 @@ async function showDiagramPreview(): Promise<void> {
   );
 }
 
-async function explainFindingAtCursor(
-  diagnostics: vscode.DiagnosticCollection,
-): Promise<void> {
+async function explainFindingAtCursor(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== ALLIUM_LANGUAGE_ID) {
     void vscode.window.showInformationMessage("Open an .allium file first.");
     return;
   }
   const position = editor.selection.active;
-  const entry = (diagnostics.get(editor.document.uri) ?? []).find(
-    (diagnostic) => diagnostic.range.contains(position),
+  const allDiagnostics = vscode.languages.getDiagnostics(editor.document.uri);
+  const entry = allDiagnostics.find(
+    (diagnostic) =>
+      diagnostic.source === "allium" &&
+      typeof diagnostic.code === "string" &&
+      diagnostic.range.contains(position),
   );
   if (!entry || typeof entry.code !== "string") {
     void vscode.window.showInformationMessage(
@@ -2068,18 +1121,6 @@ async function showFindingExplanation(
     language: "markdown",
   });
   await vscode.window.showTextDocument(doc, { preview: true });
-}
-
-function parseImportedSymbolFromDiagnostic(
-  message: string,
-): { alias: string; symbol: string } | null {
-  const match = message.match(
-    /Imported symbol '([A-Za-z_][A-Za-z0-9_]*)\/([A-Za-z_][A-Za-z0-9_]*)'/,
-  );
-  if (!match) {
-    return null;
-  }
-  return { alias: match[1], symbol: match[2] };
 }
 
 async function createImportedSymbolStub(
@@ -2219,16 +1260,6 @@ function offsetToPositionForFile(
   index: ReturnType<typeof buildWorkspaceIndex>,
 ): vscode.Position {
   return offsetToPosition(textForFile(filePath, index), offset);
-}
-
-function isDefinitionReference(
-  definition: { startOffset: number; endOffset: number },
-  reference: { startOffset: number; endOffset: number },
-): boolean {
-  return (
-    definition.startOffset === reference.startOffset &&
-    definition.endOffset === reference.endOffset
-  );
 }
 
 function resolveImportPath(
