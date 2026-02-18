@@ -29,10 +29,9 @@
   (let ((st (make-syntax-table)))
     ;; Comments: -- to end of line
     (modify-syntax-entry ?- ". 12b" st)
-    (modify-syntax-entry ?
- "> b" st)
+    (modify-syntax-entry ?\n "> b" st)
     ;; Strings: "..."
-    (modify-syntax-entry ?" """ st)
+    (modify-syntax-entry ?\" "\"" st)
     st)
   "Syntax table for `allium-mode'.")
 
@@ -44,17 +43,17 @@
          (clause-keywords '("when" "requires" "ensures" "trigger" "provides" "tags"
                             "guidance" "invariant" "becomes" "related" "exposes"
                             "identified_by" "for"))
-         (clause-regexp (concat "\_<" (regexp-opt clause-keywords) ":")))
+         (clause-regexp (concat "\\_<" (regexp-opt clause-keywords) ":")))
     `((,keyword-regexp . font-lock-keyword-face)
       (,clause-regexp . font-lock-keyword-face)
-      ("\_<\(true\|false\|null\)\_>" . font-lock-constant-face)
-      ("\_<[0-9]+\(\.[0-9]+\)?\(?:\.\(?:seconds\|minutes\|hours\|days\)\)?\_>" . font-lock-constant-face)
+      ("\\_<\\(true\\|false\\|null\\)\\_>" . font-lock-constant-face)
+      ("\\_<[0-9]+\\(\\.[0-9]+\\)?\\(?:\\.\\(?:seconds\\|minutes\\|hours\\|days\\)\\)?\\_>" . font-lock-constant-face)
       ;; Declarations: kind Name
-      (,(concat "\_<" (regexp-opt '("rule" "entity" "value" "enum" "surface" "actor" "variant") 'symbols)
-                "\s-+\([A-Za-z_][A-Za-z0-9_]*\)")
+      (,(concat "\\_<" (regexp-opt '("rule" "entity" "value" "enum" "surface" "actor" "variant") 'symbols)
+                "\\s-+\\([A-Za-z_][A-Za-z0-9_]*\\)")
        2 font-lock-type-face)
       ;; Field assignments: key:
-      ("\([A-Za-z_][A-Za-z0-9_]*\):" 1 font-lock-variable-name-face)))
+      ("\\([A-Za-z_][A-Za-z0-9_]*\\):" 1 font-lock-variable-name-face)))
   "Font lock keywords for `allium-mode'.")
 
 (defun allium-indent-line ()
@@ -69,15 +68,123 @@
                           (save-excursion
                             (back-to-indentation)
                             (cond
-                             ((looking-at ".*{\s-*$")
+                             ((looking-at ".*{\\s-*$")
                               (+ cur-indent allium-indent-offset))
-                             ((looking-at "^\s-*}")
+                             ((looking-at "^\\s-*}")
                               (max 0 (- cur-indent allium-indent-offset)))
                              (t cur-indent))))))
                   (error 0))))
     (indent-line-to indent)
     (when (< (point) savep)
       (goto-char savep))))
+
+;; --- Tree-sitter Support (Emacs 29+) ---
+
+(declare-function treesit-parser-create "treesit.c")
+(declare-function treesit-node-child-by-field-name "treesit.c")
+(declare-function treesit-node-text "treesit.c")
+(declare-function treesit-node-type "treesit.c")
+
+(defvar allium--treesit-font-lock-rules
+  (when (fboundp 'treesit-font-lock-rules)
+    (treesit-font-lock-rules
+     :language 'allium
+     :feature 'comment
+     '((comment) @font-lock-comment-face)
+
+     :language 'allium
+     :feature 'keyword
+     '([
+        "module" "use" "as" "rule" "entity" "external" "value" "enum"
+        "context" "config" "surface" "actor" "default" "variant"
+        "let" "not" "and" "or"
+       ] @font-lock-keyword-face
+       (clause_keyword) @font-lock-keyword-face)
+
+     :language 'allium
+     :feature 'definition
+     '((rule_declaration name: (identifier) @font-lock-type-face)
+       (entity_declaration name: (identifier) @font-lock-type-face)
+       (external_entity_declaration name: (identifier) @font-lock-type-face)
+       (value_declaration name: (identifier) @font-lock-type-face)
+       (enum_declaration name: (identifier) @font-lock-type-face)
+       (surface_declaration name: (identifier) @font-lock-type-face)
+       (actor_declaration name: (identifier) @font-lock-type-face)
+       (default_declaration type: (identifier) @font-lock-type-face)
+       (variant_declaration name: (identifier) @font-lock-type-face))
+
+     :language 'allium
+     :feature 'variable
+     '((field_assignment key: (identifier) @font-lock-variable-name-face)
+       (let_binding name: (identifier) @font-lock-variable-name-face)
+       (named_argument name: (identifier) @font-lock-variable-name-face))
+
+     :language 'allium
+     :feature 'function
+     '((call_expression
+        function: (identifier) @font-lock-function-name-face)
+       (call_expression
+        function: (member_expression
+                   property: (identifier) @font-lock-function-name-face)))
+
+     :language 'allium
+     :feature 'string
+     '((string_literal) @font-lock-string-face
+       (string_interpolation
+        "{" @font-lock-punctuation-face
+        (identifier) @font-lock-variable-name-face
+        "}" @font-lock-punctuation-face))
+
+     :language 'allium
+     :feature 'constant
+     '((boolean_literal) @font-lock-constant-face
+       (null_literal) @font-lock-constant-face
+       (number_literal) @font-lock-constant-face
+       (duration_literal) @font-lock-constant-face)
+
+     :language 'allium
+     :feature 'operator
+     '([
+        "=" "==" "!=" "<" ">" "<=" ">=" "=>"
+        "+" "-" "*" "/" "|"
+       ] @font-lock-warning-face)
+
+     :language 'allium
+     :feature 'punctuation
+     '([ "(" ")" "{" "}" ":" "," "." ] @font-lock-punctuation-face))))
+
+(defvar allium--treesit-defun-type-regexp
+  (rx (or "rule_declaration"
+          "entity_declaration"
+          "external_entity_declaration"
+          "value_declaration"
+          "enum_declaration"
+          "surface_declaration"
+          "actor_declaration"
+          "context_block"
+          "config_block"
+          "default_declaration"
+          "variant_declaration")))
+
+(defun allium--treesit-defun-name (node)
+  "Return the name of the defun NODE."
+  (pcase (treesit-node-type node)
+    ((or "rule_declaration" "entity_declaration" "external_entity_declaration"
+         "value_declaration" "enum_declaration" "surface_declaration"
+         "actor_declaration" "variant_declaration")
+     (treesit-node-text (treesit-node-child-by-field-name node "name") t))
+    ("default_declaration"
+     (treesit-node-text (treesit-node-child-by-field-name node "name") t))
+    ("context_block" "context")
+    ("config_block" "config")))
+
+(defvar allium--treesit-imenu-settings
+  '(("Rule" "\\`rule_declaration\\'" nil nil)
+    ("Entity" "\\`e\\(?:ntity\\|xternal_entity\\)_declaration\\'" nil nil)
+    ("Value" "\\`value_declaration\\'" nil nil)
+    ("Enum" "\\`enum_declaration\\'" nil nil)
+    ("Config" "\\`config_block\\'" nil nil)
+    ("Context" "\\`context_block\\'" nil nil)))
 
 ;;;###autoload
 (define-derived-mode allium-mode prog-mode "Allium"
@@ -89,7 +196,25 @@
   (setq-local indent-line-function 'allium-indent-line))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\.allium'" . allium-mode))
+(define-derived-mode allium-ts-mode allium-mode "Allium[TS]"
+  "Major mode for editing Allium specifications using tree-sitter."
+  :syntax-table allium-mode-syntax-table
+  (when (and (fboundp 'treesit-ready-p)
+             (treesit-ready-p 'allium))
+    (treesit-parser-create 'allium)
+    (setq-local treesit-font-lock-settings allium--treesit-font-lock-rules)
+    (setq-local treesit-font-lock-feature-list
+                '((comment definition)
+                  (keyword variable function)
+                  (string constant operator)
+                  (punctuation)))
+    (setq-local treesit-defun-type-regexp allium--treesit-defun-type-regexp)
+    (setq-local treesit-defun-name-function #'allium--treesit-defun-name)
+    (setq-local treesit-simple-imenu-settings allium--treesit-imenu-settings)
+    (treesit-major-mode-setup)))
+
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.allium\\'" . allium-mode))
 
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
