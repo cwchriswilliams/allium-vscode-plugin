@@ -2,8 +2,6 @@
 
 Rich language support for the **Allium** specification language, powered by the Allium Language Server.
 
-![Allium Banner](https://raw.githubusercontent.com/cwchriswilliams/allium-vscode-plugin/main/extensions/allium/banner.png)
-
 ## Features
 
 ### 🌈 Syntax Highlighting & Snippets
