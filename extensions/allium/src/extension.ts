@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import * as fs from "node:fs";
 import * as path from "node:path";
 import {
   LanguageClient,
@@ -551,8 +550,11 @@ async function showDiagramPreview(): Promise<void> {
 
   const result = await client.sendRequest<{
     diagramText: string;
-    issues: any[];
-    model: any;
+    issues: Array<{ message: string }>;
+    model: {
+      nodes: Array<{ id: string; label: string }>;
+      edges: Array<{ from: string; to: string; label: string }>;
+    };
     sourceByNodeId: Record<string, { uri: string; offset: number }>;
     sourceByEdgeId: Record<string, { uri: string; offset: number }>;
   }>("allium/getDiagram", { uris, format: formatPick });
@@ -567,18 +569,24 @@ async function showDiagramPreview(): Promise<void> {
     format: formatPick,
     diagramText: result.diagramText,
     issues: result.issues,
-    nodes: result.model.nodes.map((node: any) => ({
+    nodes: result.model.nodes.map((node: { id: string; label: string }) => ({
       id: node.id,
       label: node.label,
     })),
-    edges: result.model.edges.map((edge: any) => ({
-      id: `${edge.from}|${edge.to}|${edge.label}`,
-      label: `${edge.from} -> ${edge.to} (${edge.label})`,
-    })),
+    edges: result.model.edges.map(
+      (edge: { from: string; to: string; label: string }) => ({
+        id: `${edge.from}|${edge.to}|${edge.label}`,
+        label: `${edge.from} -> ${edge.to} (${edge.label})`,
+      }),
+    ),
   });
 
   panel.webview.onDidReceiveMessage(
-    async (message: any) => {
+    async (message: {
+      type: string;
+      nodeId?: string;
+      edgeId?: string;
+    }) => {
       if (message.type === "copy") {
         await vscode.env.clipboard.writeText(result.diagramText);
         void vscode.window.showInformationMessage("Allium diagram copied.");
@@ -600,6 +608,7 @@ async function showDiagramPreview(): Promise<void> {
         return;
       }
       if (message.type === "reveal") {
+        if (!message.nodeId) return;
         const source = result.sourceByNodeId[message.nodeId];
         if (!source) return;
         const document = await vscode.workspace.openTextDocument(
@@ -611,6 +620,7 @@ async function showDiagramPreview(): Promise<void> {
         editor.revealRange(new vscode.Range(position, position));
       }
       if (message.type === "revealEdge") {
+        if (!message.edgeId) return;
         const source = result.sourceByEdgeId[message.edgeId];
         if (!source) return;
         const document = await vscode.workspace.openTextDocument(
@@ -728,12 +738,12 @@ async function createImportedSymbolStub(
 function buildDiagramPreviewHtml(params: {
   format: string;
   diagramText: string;
-  issues: any[];
-  nodes: any[];
-  edges: any[];
+  issues: Array<{ message: string }>;
+  nodes: Array<{ id: string; label: string }>;
+  edges: Array<{ id: string; label: string }>;
 }): string {
   const issuesHtml = params.issues
-    .map((issue: any) => `<li>${issue.message}</li>`)
+    .map((issue: { message: string }) => `<li>${issue.message}</li>`)
     .join("");
   const nodesJson = JSON.stringify(params.nodes);
   const edgesJson = JSON.stringify(params.edges);

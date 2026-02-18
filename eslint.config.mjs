@@ -14,14 +14,49 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ["**/*.ts", "**/*.js", "**/*.mjs"],
+    rules: {
+      "no-console": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+      ],
+    },
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       globals: {
         ...globals.node,
       },
     },
+  },
+  {
+    files: ["packages/tree-sitter-allium/grammar.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        grammar: "readonly",
+        seq: "readonly",
+        optional: "readonly",
+        repeat: "readonly",
+        choice: "readonly",
+        token: "readonly",
+        field: "readonly",
+        prec: "readonly",
+      },
+    },
+  },
+  {
+    files: ["**/*.js", "**/*.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
     rules: {
-      "no-console": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-unused-vars": "off", // Be even more lenient for pure JS
     },
   },
 );

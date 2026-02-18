@@ -21,6 +21,7 @@
     "build:wasm": "tree-sitter build --wasm && mkdir -p dist && mv tree-sitter-allium.wasm dist/",
     "build": "npm run generate && npm run build:native && npm run build:wasm",
     "prepack": "npm run build",
+    "lint": "eslint grammar.js bindings/",
     "test": "tree-sitter test"
   },
   "devDependencies": {

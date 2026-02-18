@@ -27,13 +27,13 @@ import {
   type TextEdit,
   type Diagnostic,
   type Position,
-  type TextDocumentEdit,
   ResponseError,
   ErrorCodes,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import * as path from "node:path";
+import * as fs from "node:fs";
 
 import { analyzeAllium } from "../../../extensions/allium/src/language-tools/analyzer";
 import {
@@ -42,7 +42,7 @@ import {
 } from "../../../extensions/allium/src/language-tools/hover";
 import {
   findDefinitionsAtOffset,
-  buildDefinitionLookup,
+  parseUseAliases,
   type DefinitionSite,
 } from "../../../extensions/allium/src/language-tools/definitions";
 import { findReferencesInText } from "../../../extensions/allium/src/language-tools/references";
@@ -57,7 +57,6 @@ import { planExtractInlineEnumToNamedEnum } from "../../../extensions/allium/src
 import { planInsertTemporalGuard } from "../../../extensions/allium/src/language-tools/insert-temporal-guard-refactor";
 import {
   planSafeFixesByCategory,
-  type FixCategory,
 } from "../../../extensions/allium/src/language-tools/fix-all";
 import {
   renderSimulationMarkdown,
@@ -70,7 +69,10 @@ import {
   type DiagramModel,
 } from "../../../extensions/allium/src/language-tools/diagram";
 import { buildRuleTestScaffold } from "../../../extensions/allium/src/language-tools/test-scaffold";
-import { removeStaleSuppressions } from "../../../extensions/allium/src/language-tools/suppression";
+import {
+  removeStaleSuppressions,
+  buildSuppressionDirectiveEdit,
+} from "../../../extensions/allium/src/language-tools/suppression";
 import { buildFindingExplanationMarkdown } from "../../../extensions/allium/src/language-tools/finding-help";
 import {
   buildDriftReport,
@@ -89,7 +91,6 @@ import {
   buildTestFileMatcher,
   resolveTestDiscoveryOptions,
 } from "../../../extensions/allium/src/language-tools/test-discovery";
-import { parseDeclarationAst } from "../../../extensions/allium/src/language-tools/typed-ast";
 import {
   prepareRenameTarget,
   planRename,
@@ -889,7 +890,7 @@ connection.onRequest(
       const text = doc
         ? doc.getText()
         : path.resolve(uriToPath(uri)).endsWith(".allium")
-          ? require("node:fs").readFileSync(uriToPath(uri), "utf8")
+          ? fs.readFileSync(uriToPath(uri), "utf8")
           : "";
       return {
         uri,
@@ -934,8 +935,8 @@ connection.onRequest(
 connection.onRequest("allium/getSpecHealth", () => {
   if (!workspaceRoot)
     return { summaries: [], totalErrors: 0, totalWarnings: 0, totalInfos: 0 };
-  const files = require("node:fs")
-    .readdirSync(workspaceRoot, { recursive: true })
+  const files = (fs
+    .readdirSync(workspaceRoot, { recursive: true }) as string[])
     .filter((f: string) => f.endsWith(".allium"));
   let errors = 0;
   let warnings = 0;
@@ -944,7 +945,7 @@ connection.onRequest("allium/getSpecHealth", () => {
 
   for (const f of files) {
     const filePath = path.join(workspaceRoot, f);
-    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const text = fs.readFileSync(filePath, "utf8");
     const findings = analyzeAllium(text);
     const e = findings.filter((f) => f.severity === "error").length;
     const w = findings.filter((f) => f.severity === "warning").length;
@@ -959,13 +960,13 @@ connection.onRequest("allium/getSpecHealth", () => {
 
 connection.onRequest("allium/getProblemsSummary", () => {
   if (!workspaceRoot) return { items: [] };
-  const files = require("node:fs")
-    .readdirSync(workspaceRoot, { recursive: true })
+  const files = (fs
+    .readdirSync(workspaceRoot, { recursive: true }) as string[])
     .filter((f: string) => f.endsWith(".allium"));
   const codeCounts = new Map<string, number>();
   for (const f of files) {
     const filePath = path.join(workspaceRoot, f);
-    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const text = fs.readFileSync(filePath, "utf8");
     const findings = analyzeAllium(text);
     for (const finding of findings) {
       codeCounts.set(finding.code, (codeCounts.get(finding.code) ?? 0) + 1);
@@ -980,13 +981,13 @@ connection.onRequest("allium/getProblemsSummary", () => {
 
 connection.onRequest("allium/getProblemsByCode", (params: { code: string }) => {
   if (!workspaceRoot) return { items: [] };
-  const files = require("node:fs")
-    .readdirSync(workspaceRoot, { recursive: true })
+  const files = (fs
+    .readdirSync(workspaceRoot, { recursive: true }) as string[])
     .filter((f: string) => f.endsWith(".allium"));
   const fileCounts = new Map<string, number>();
   for (const f of files) {
     const filePath = path.join(workspaceRoot, f);
-    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const text = fs.readFileSync(filePath, "utf8");
     const findings = analyzeAllium(text);
     const count = findings.filter((f) => f.code === params.code).length;
     if (count > 0) {
@@ -1028,10 +1029,10 @@ connection.onRequest("allium/getDriftReport", () => {
   if (specFiles.length === 0) return { markdown: "No .allium files found." };
 
   const sourceText = sourceFiles
-    .map((f) => require("node:fs").readFileSync(f, "utf8"))
+    .map((f) => fs.readFileSync(f, "utf8"))
     .join("\n");
   const specText = specFiles
-    .map((f) => require("node:fs").readFileSync(f, "utf8"))
+    .map((f) => fs.readFileSync(f, "utf8"))
     .join("\n");
 
   const implementedDiagnostics = new Set(
@@ -1111,7 +1112,7 @@ connection.onRequest(
     const searchIn = (filePaths: string[]): void => {
       for (const filePath of filePaths) {
         if (filePath === uriToPath(params.uri)) continue;
-        const text = require("node:fs").readFileSync(filePath, "utf8");
+        const text = fs.readFileSync(filePath, "utf8");
         if (matcher.test(text)) {
           matches.push({
             label: path.basename(filePath),
@@ -1151,10 +1152,10 @@ connection.onRequest(
     const doc = documents.get(params.uri);
     if (!doc) return null;
     const sourceText = doc.getText();
-    const useAliases = require("../../../extensions/allium/src/language-tools/definitions").parseUseAliases(
+    const useAliases = parseUseAliases(
       sourceText,
     );
-    const useAlias = useAliases.find((entry: any) => entry.alias === params.alias);
+    const useAlias = useAliases.find((entry: { alias: string; sourcePath: string }) => entry.alias === params.alias);
     if (!useAlias) return null;
 
     const currentFilePath = uriToPath(params.uri);
@@ -1168,7 +1169,7 @@ connection.onRequest(
     let existingText = "";
     let fileExists = false;
     try {
-      existingText = require("node:fs").readFileSync(targetPath, "utf8");
+      existingText = fs.readFileSync(targetPath, "utf8");
       fileExists = true;
     } catch { /* ignore */ }
 
@@ -1193,13 +1194,13 @@ connection.onRequest(
   "allium/manageBaseline",
   (params: { action: "write" | "preview"; baselinePath: string }) => {
     if (!workspaceRoot) return { findings: [] };
-    const files = require("node:fs")
-      .readdirSync(workspaceRoot, { recursive: true })
+    const files = (fs
+      .readdirSync(workspaceRoot, { recursive: true }) as string[])
       .filter((f: string) => f.endsWith(".allium"));
     const records: string[] = [];
     for (const f of files) {
       const filePath = path.join(workspaceRoot, f);
-      const text = require("node:fs").readFileSync(filePath, "utf8");
+      const text = fs.readFileSync(filePath, "utf8");
       const findings = analyzeAllium(text);
       for (const finding of findings) {
         const rel = path.relative(workspaceRoot, filePath);
@@ -1215,8 +1216,8 @@ connection.onRequest(
         findings: unique.map((fingerprint) => ({ fingerprint })),
       };
       const target = path.resolve(workspaceRoot, params.baselinePath);
-      require("node:fs").mkdirSync(path.dirname(target), { recursive: true });
-      require("node:fs").writeFileSync(
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(
         target,
         `${JSON.stringify(output, null, 2)}\n`,
         "utf8",
