@@ -159,6 +159,8 @@
   },
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
+    "bundle-lsp": "node -e \"const {existsSync,mkdirSync,copyFileSync}=require('fs');const src='../../packages/allium-lsp/dist/bin.js';if(existsSync(src)){mkdirSync('dist',{recursive:true});copyFileSync(src,'dist/allium-lsp.js');console.log('Bundled allium-lsp into dist/allium-lsp.js');}else{console.warn('allium-lsp not yet built, skipping. Run: npm run build -w packages/allium-lsp');}\"",
+    "build:release": "npm run build && npm run bundle-lsp",
     "test": "npm run build && node ../../scripts/run-node-tests.mjs ./dist/test",
     "lint": "tsc -p ./tsconfig.json --noEmit",
     "check": "npm run build && node ./dist/src/check.js",

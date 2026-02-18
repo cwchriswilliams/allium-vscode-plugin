@@ -11,9 +11,11 @@ rm -f "$ARTIFACT_DIR"/*.vsix "$ARTIFACT_DIR"/*.tgz "$ARTIFACT_DIR"/*.tar.gz "$AR
 
 VERSION="$(node -p "require('./extensions/allium/package.json').version")"
 
-echo "Building extension, LSP server, and CLI workspaces..."
-npm run --workspace extensions/allium build
+echo "Building LSP server..."
 npm run --workspace packages/allium-lsp build
+
+echo "Building extension (with bundled LSP binary) and CLI..."
+npm run --workspace extensions/allium build:release
 npm run --workspace packages/allium-cli build
 
 VSIX_NAME="allium-vscode-${VERSION}.vsix"
