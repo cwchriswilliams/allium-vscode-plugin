@@ -220,5 +220,13 @@
   (add-to-list 'eglot-server-programs
                `(allium-mode . ,allium-lsp-server-command)))
 
+(with-eval-after-load 'lsp-mode
+  (lsp-register-client
+   (make-lsp-client :new-connection (lsp-stdio-connection (lambda () allium-lsp-server-command))
+                    :major-modes '(allium-mode allium-ts-mode)
+                    :priority 0
+                    :server-id 'allium-lsp
+                    :language-id "allium")))
+
 (provide 'allium-mode)
 ;;; allium-mode.el ends here
