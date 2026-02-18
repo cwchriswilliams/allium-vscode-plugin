@@ -12,134 +12,141 @@ const ALLIUM_LANGUAGE_ID = "allium";
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
-  const serverModule = context.asAbsolutePath(
-    path.join("dist", "allium-lsp.js"),
-  );
-  const serverOptions: ServerOptions = {
-    run: { command: "node", args: [serverModule], transport: TransportKind.stdio },
-    debug: { command: "node", args: [serverModule], transport: TransportKind.stdio },
-  };
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [{ scheme: "file", language: ALLIUM_LANGUAGE_ID }],
-  };
-  client = new LanguageClient(
-    "allium",
-    "Allium Language Server",
-    serverOptions,
-    clientOptions,
-  );
-  void client.start();
-  context.subscriptions.push({ dispose: () => void client?.stop() });
+  console.log("Allium extension activating...");
+  try {
+    const serverModule = context.asAbsolutePath(
+      path.join("dist", "allium-lsp.js"),
+    );
+    const serverOptions: ServerOptions = {
+      run: { command: "node", args: [serverModule], transport: TransportKind.stdio },
+      debug: { command: "node", args: [serverModule], transport: TransportKind.stdio },
+    };
+    const clientOptions: LanguageClientOptions = {
+      documentSelector: [{ scheme: "file", language: ALLIUM_LANGUAGE_ID }],
+    };
+    client = new LanguageClient(
+      "allium",
+      "Allium Language Server",
+      serverOptions,
+      clientOptions,
+    );
+    void client.start();
+    context.subscriptions.push({ dispose: () => void client?.stop() });
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.runChecks", () => {
-      void vscode.window.showInformationMessage(
-        "Allium checks run automatically by the language server. Save the file to trigger a re-check.",
-      );
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.applySafeFixes", async () => {
-      await vscode.commands.executeCommand("editor.action.sourceAction", {
-        kind: "source.fixAll.allium",
-        apply: "always",
-      });
-    }),
-  );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.runChecks", () => {
+        void vscode.window.showInformationMessage(
+          "Allium checks run automatically by the language server. Save the file to trigger a re-check.",
+        );
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.applySafeFixes", async () => {
+        await vscode.commands.executeCommand("editor.action.sourceAction", {
+          kind: "source.fixAll.allium",
+          apply: "always",
+        });
+      }),
+    );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.showSpecHealth", async () => {
-      await showSpecHealthSummary();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.showProblemsSummary", async () => {
-      await showProblemsSummary();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.generateDiagram", async () => {
-      await showDiagramPreview();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.previewRename", async () => {
-      void vscode.window.showInformationMessage(
-        "Renaming is handled by the language server. Use the standard Rename command (F2).",
-      );
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.previewRuleSimulation",
-      async () => {
-        await previewRuleSimulation();
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.generateRuleTestScaffold",
-      async () => {
-        await generateRuleTestScaffold();
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.applyQuickFixesInFile",
-      async () => {
-        await applyAllQuickFixesInActiveFile();
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.cleanStaleSuppressions",
-      async () => {
-        await cleanStaleSuppressions();
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.openRelatedSpecOrTest",
-      async () => {
-        await openRelatedSpecOrTest();
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.explainFinding", async () => {
-      await explainFindingAtCursor();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.checkSpecDrift", async () => {
-      await checkSpecDriftReport();
-    }),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.explainFindingDiagnostic",
-      async (code: string, message: string) => {
-        await showFindingExplanation(code, message);
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "allium.createImportedSymbolStub",
-      async (uri: vscode.Uri, alias: string, symbol: string) => {
-        await createImportedSymbolStub(uri, alias, symbol);
-      },
-    ),
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("allium.manageBaseline", async () => {
-      await manageWorkspaceBaseline();
-    }),
-  );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.showSpecHealth", async () => {
+        await showSpecHealthSummary();
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.showProblemsSummary", async () => {
+        await showProblemsSummary();
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.generateDiagram", async () => {
+        await showDiagramPreview();
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.previewRename", async () => {
+        void vscode.window.showInformationMessage(
+          "Renaming is handled by the language server. Use the standard Rename command (F2).",
+        );
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.previewRuleSimulation",
+        async () => {
+          await previewRuleSimulation();
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.generateRuleTestScaffold",
+        async () => {
+          await generateRuleTestScaffold();
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.applyQuickFixesInFile",
+        async () => {
+          await applyAllQuickFixesInActiveFile();
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.cleanStaleSuppressions",
+        async () => {
+          await cleanStaleSuppressions();
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.openRelatedSpecOrTest",
+        async () => {
+          await openRelatedSpecOrTest();
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.explainFinding", async () => {
+        await explainFindingAtCursor();
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.checkSpecDrift", async () => {
+        await checkSpecDriftReport();
+      }),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.explainFindingDiagnostic",
+        async (code: string, message: string) => {
+          await showFindingExplanation(code, message);
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand(
+        "allium.createImportedSymbolStub",
+        async (uri: vscode.Uri, alias: string, symbol: string) => {
+          await createImportedSymbolStub(uri, alias, symbol);
+        },
+      ),
+    );
+    context.subscriptions.push(
+      vscode.commands.registerCommand("allium.manageBaseline", async () => {
+        await manageWorkspaceBaseline();
+      }),
+    );
+    console.log("Allium extension activated successfully.");
+  } catch (err) {
+    console.error("Failed to activate Allium extension:", err);
+    void vscode.window.showErrorMessage(`Allium extension failed to activate: ${err}`);
+  }
 }
 
 export function deactivate(): Thenable<void> | undefined {

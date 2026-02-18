@@ -32,24 +32,7 @@
     "vscode": "^1.91.0"
   },
   "categories": ["Programming Languages"],
-  "activationEvents": [
-    "onLanguage:allium",
-    "onCommand:allium.runChecks",
-    "onCommand:allium.applySafeFixes",
-    "onCommand:allium.showSpecHealth",
-    "onCommand:allium.showProblemsSummary",
-    "onCommand:allium.generateDiagram",
-    "onCommand:allium.previewRuleSimulation",
-    "onCommand:allium.generateRuleTestScaffold",
-    "onCommand:allium.applyQuickFixesInFile",
-    "onCommand:allium.cleanStaleSuppressions",
-    "onCommand:allium.openRelatedSpecOrTest",
-    "onCommand:allium.explainFinding",
-    "onCommand:allium.checkSpecDrift",
-    "onCommand:allium.manageBaseline",
-    "onCommand:allium.explainFindingDiagnostic",
-    "onCommand:allium.createImportedSymbolStub"
-  ],
+  "activationEvents": [],
   "main": "./dist/src/extension.js",
   "bin": {
     "allium-check": "./dist/src/check.js",
