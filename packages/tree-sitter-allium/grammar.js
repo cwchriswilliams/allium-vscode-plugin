@@ -10,15 +10,18 @@
 // @ts-check
 
 const PREC = {
-  OR: 1,
-  AND: 2,
-  NOT: 3,
-  COMPARE: 4,
-  INFIX: 5,
-  PIPE: 6,
-  CALL: 7,
-  MEMBER: 8,
-  PRIMARY: 9,
+  COMMA: 1,
+  OR: 2,
+  AND: 3,
+  NOT: 4,
+  COMPARE: 5,
+  ADD: 6,
+  MULTIPLY: 7,
+  INFIX: 8,
+  PIPE: 9,
+  CALL: 10,
+  MEMBER: 11,
+  PRIMARY: 12,
 };
 
 module.exports = grammar({
@@ -29,8 +32,8 @@ module.exports = grammar({
   extras: ($) => [$.comment, /[ \t\r\n]+/],
 
   conflicts: ($) => [
-    // [$.default_declaration],
-    // [$.block_body],
+    [$.default_declaration],
+    [$._expression, $.infix_predicate_expression],
   ],
 
   rules: {
@@ -173,7 +176,7 @@ module.exports = grammar({
       seq(
         field("keyword", $.clause_keyword),
         ":",
-        field("value", $._expression),
+        field("value", choice($._expression, $.tuple_expression)),
       ),
 
     // Clause keywords are reserved — the `word` rule ensures they cannot be
@@ -226,6 +229,8 @@ module.exports = grammar({
         $.and_expression,
         $.not_expression,
         $.comparison_expression,
+        $.additive_expression,
+        $.multiplicative_expression,
         $.infix_predicate_expression,
         $.pipe_expression,
         $.call_expression,
@@ -236,6 +241,19 @@ module.exports = grammar({
         $.boolean_literal,
         $.null_literal,
         $.identifier,
+        $.block_expression,
+      ),
+
+    block_expression: ($) => $.block_body,
+
+    tuple_expression: ($) =>
+      prec.left(
+        PREC.COMMA,
+        seq(
+          field("left", choice($._expression, $.tuple_expression)),
+          ",",
+          field("right", choice($._expression, $.tuple_expression)),
+        ),
       ),
 
     // Boolean OR: lowest precedence
@@ -270,10 +288,27 @@ module.exports = grammar({
         PREC.COMPARE,
         seq(
           field("left", $._expression),
-          field(
-            "operator",
-            choice("=", "==", "!=", "<", ">", "<=", ">=", "=>", "+", "-", "*", "/"),
-          ),
+          field("operator", choice("=", "==", "!=", "<", ">", "<=", ">=", "=>")),
+          field("right", $._expression),
+        ),
+      ),
+
+    additive_expression: ($) =>
+      prec.left(
+        PREC.ADD,
+        seq(
+          field("left", $._expression),
+          field("operator", choice("+", "-")),
+          field("right", $._expression),
+        ),
+      ),
+
+    multiplicative_expression: ($) =>
+      prec.left(
+        PREC.MULTIPLY,
+        seq(
+          field("left", $._expression),
+          field("operator", choice("*", "/")),
           field("right", $._expression),
         ),
       ),

@@ -18,5 +18,13 @@
     "c": true,
     "go": true,
     "swift": true
-  }
+  },
+  "grammars": [
+    {
+      "name": "allium",
+      "path": ".",
+      "scope": "source.allium",
+      "file-types": [".allium"]
+    }
+  ]
 }
