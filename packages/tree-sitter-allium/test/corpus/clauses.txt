@@ -1,0 +1,68 @@
+==================
+All Clause Types
+==================
+rule AllClauses {
+  when: event
+  requires: pre_condition
+  ensures: post_condition
+  trigger: start
+  provides: capability
+  tags: "tag1", "tag2"
+  guidance: "help"
+  invariant: prop == true
+  becomes: new_state
+  related: other_entity
+  exposes: internal_val
+  identified_by: id_field
+  for: actor_name
+}
+
+---
+
+(source_file
+  (rule_declaration
+    name: (identifier)
+    body: (block_body
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (tuple_expression
+          left: (string_literal)
+          right: (string_literal)))
+      (clause
+        keyword: (clause_keyword)
+        value: (string_literal))
+      (clause
+        keyword: (clause_keyword)
+        value: (comparison_expression
+          left: (identifier)
+          right: (boolean_literal)))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier))
+      (clause
+        keyword: (clause_keyword)
+        value: (identifier)))))

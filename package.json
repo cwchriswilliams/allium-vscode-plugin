@@ -1,9 +1,9 @@
 {
-  "name": "allium-vscode-plugin-workspace",
+  "name": "allium-tools",
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
-  "workspaces": ["extensions/allium", "packages/allium-cli"],
+  "workspaces": ["extensions/allium", "packages/allium-cli", "packages/allium-lsp", "packages/tree-sitter-allium"],
   "scripts": {
     "build": "npm run --workspaces build",
     "test": "npm run --workspaces test",
