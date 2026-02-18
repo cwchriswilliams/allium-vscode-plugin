@@ -20,6 +20,11 @@
   :type 'integer
   :group 'allium)
 
+(defcustom allium-lsp-server-command '("allium-lsp" "--stdio")
+  "Command to start the Allium Language Server."
+  :type '(repeat string)
+  :group 'allium)
+
 (defvar allium-mode-syntax-table
   (let ((st (make-syntax-table)))
     ;; Comments: -- to end of line
@@ -85,6 +90,10 @@
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\.allium'" . allium-mode))
+
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               `(allium-mode . ,allium-lsp-server-command)))
 
 (provide 'allium-mode)
 ;;; allium-mode.el ends here
