@@ -1,17 +1,20 @@
-# Allium VS Code Extension + Standalone Tooling
+# Allium Tools
 
 > **Pre-release notice:** This software is currently in a pre-release state. Treat it as unstable, expect breaking changes, and validate it carefully before production use.
 
+Allium Tools is the language toolchain for Allium — providing editor support, CLI tools, and a Language Server that works across multiple editors.
+
 This project provides:
 
-1. A VS Code extension for `.allium` files.
-2. A standalone `allium-check` CLI for validation.
-3. A standalone `allium-format` CLI for formatting.
-4. A standalone `allium-diagram` CLI for text-first diagram generation from specs.
-5. A standalone `allium-trace` CLI for spec-to-test traceability checks.
-6. A standalone `allium-drift` CLI for implementation/spec coverage drift checks.
+1. A Language Server (`allium-lsp`) for use with VS Code, Neovim, Emacs, and any LSP-compatible editor.
+2. A VS Code extension powered by the language server.
+3. A standalone `allium-check` CLI for validation.
+4. A standalone `allium-format` CLI for formatting.
+5. A standalone `allium-diagram` CLI for text-first diagram generation from specs.
+6. A standalone `allium-trace` CLI for spec-to-test traceability checks.
+7. A standalone `allium-drift` CLI for implementation/spec coverage drift checks.
 
-The extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
+The VS Code extension is not yet published on the VS Code Marketplace. Consumers should install from GitHub Release assets (`.vsix` + standalone CLI npm package artifact) or from source.
 
 ## Consumer Installation (No Marketplace Yet)
 
