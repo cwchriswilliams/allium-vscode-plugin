@@ -10,13 +10,18 @@
     "bindings/node/**",
     "queries/**",
     "src/**",
+    "dist/**",
     "README.md",
     "package.json",
     "LICENSE"
   ],
   "scripts": {
-    "build": "[ -f grammar.js ] && tree-sitter generate || echo 'grammar.js not yet written, skipping tree-sitter generate'",
-    "test": "[ -f grammar.js ] && tree-sitter test || echo 'grammar.js not yet written, skipping tree-sitter test'"
+    "generate": "tree-sitter generate",
+    "build:native": "node-gyp rebuild && mkdir -p dist && cp build/Release/tree_sitter_allium_binding.node dist/tree-sitter-allium.node",
+    "build:wasm": "tree-sitter build --wasm && mkdir -p dist && mv tree-sitter-allium.wasm dist/",
+    "build": "npm run generate && npm run build:native && npm run build:wasm",
+    "prepack": "npm run build",
+    "test": "tree-sitter test"
   },
   "devDependencies": {
     "tree-sitter-cli": "^0.25.0"
