@@ -43,6 +43,7 @@ end
 function M.setup(opts)
   config.setup(opts)
   setup_lsp()
+  require("allium.treesitter").setup()
 end
 
 return M
