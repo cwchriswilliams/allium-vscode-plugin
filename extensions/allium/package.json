@@ -25,7 +25,8 @@
     "language-basics/**",
     "README.md",
     "LICENSE",
-    "package.json"
+    "package.json",
+    "icon.png"
   ],
   "engines": {
     "vscode": "^1.91.0"
