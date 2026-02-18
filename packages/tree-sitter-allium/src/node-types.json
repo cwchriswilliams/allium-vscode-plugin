@@ -26,7 +26,7 @@
     }
   },
   {
-    "type": "and_expression",
+    "type": "additive_expression",
     "named": true,
     "fields": {
       "left": {
@@ -34,7 +34,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -63,6 +71,178 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          }
+        ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "+",
+            "named": false
+          },
+          {
+            "type": "-",
+            "named": false
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "and_expression",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -96,7 +276,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -125,6 +313,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -164,7 +356,15 @@
       "required": true,
       "types": [
         {
+          "type": "additive_expression",
+          "named": true
+        },
+        {
           "type": "and_expression",
+          "named": true
+        },
+        {
+          "type": "block_expression",
           "named": true
         },
         {
@@ -193,6 +393,10 @@
         },
         {
           "type": "member_expression",
+          "named": true
+        },
+        {
+          "type": "multiplicative_expression",
           "named": true
         },
         {
@@ -254,6 +458,21 @@
     }
   },
   {
+    "type": "block_expression",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "block_body",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "boolean_literal",
     "named": true,
     "fields": {}
@@ -277,7 +496,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -306,6 +533,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -355,7 +586,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -384,6 +623,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -409,6 +652,10 @@
           {
             "type": "string_literal",
             "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
           }
         ]
       }
@@ -428,7 +675,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -457,6 +712,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -494,22 +753,6 @@
             "named": false
           },
           {
-            "type": "*",
-            "named": false
-          },
-          {
-            "type": "+",
-            "named": false
-          },
-          {
-            "type": "-",
-            "named": false
-          },
-          {
-            "type": "/",
-            "named": false
-          },
-          {
             "type": "<",
             "named": false
           },
@@ -544,7 +787,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -573,6 +824,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -664,7 +919,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -693,6 +956,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -820,7 +1087,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -849,6 +1124,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -898,7 +1177,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -927,6 +1214,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -976,7 +1267,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1005,6 +1304,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1044,7 +1347,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1073,6 +1384,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1130,25 +1445,23 @@
     }
   },
   {
-    "type": "named_argument",
+    "type": "multiplicative_expression",
     "named": true,
     "fields": {
-      "name": {
+      "left": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "identifier",
+            "type": "additive_expression",
             "named": true
-          }
-        ]
-      },
-      "value": {
-        "multiple": false,
-        "required": true,
-        "types": [
+          },
           {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1177,6 +1490,188 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          }
+        ]
+      },
+      "operator": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "*",
+            "named": false
+          },
+          {
+            "type": "/",
+            "named": false
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "named_argument",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "value": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1216,7 +1711,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1245,6 +1748,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1289,7 +1796,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1318,6 +1833,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1351,7 +1870,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1380,6 +1907,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1419,7 +1950,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1448,6 +1987,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1481,7 +2024,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1510,6 +2061,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {
@@ -1691,6 +2246,168 @@
     }
   },
   {
+    "type": "tuple_expression",
+    "named": true,
+    "fields": {
+      "left": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
+          }
+        ]
+      },
+      "right": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
+            "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
+            "named": true
+          },
+          {
+            "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "call_expression",
+            "named": true
+          },
+          {
+            "type": "comparison_expression",
+            "named": true
+          },
+          {
+            "type": "duration_literal",
+            "named": true
+          },
+          {
+            "type": "identifier",
+            "named": true
+          },
+          {
+            "type": "infix_predicate_expression",
+            "named": true
+          },
+          {
+            "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
+            "named": true
+          },
+          {
+            "type": "not_expression",
+            "named": true
+          },
+          {
+            "type": "null_literal",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "or_expression",
+            "named": true
+          },
+          {
+            "type": "pipe_expression",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          },
+          {
+            "type": "tuple_expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
     "type": "use_declaration",
     "named": true,
     "fields": {
@@ -1761,7 +2478,15 @@
         "required": true,
         "types": [
           {
+            "type": "additive_expression",
+            "named": true
+          },
+          {
             "type": "and_expression",
+            "named": true
+          },
+          {
+            "type": "block_expression",
             "named": true
           },
           {
@@ -1790,6 +2515,10 @@
           },
           {
             "type": "member_expression",
+            "named": true
+          },
+          {
+            "type": "multiplicative_expression",
             "named": true
           },
           {

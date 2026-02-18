@@ -609,8 +609,17 @@
           "type": "FIELD",
           "name": "value",
           "content": {
-            "type": "SYMBOL",
-            "name": "_expression"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_expression"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "tuple_expression"
+              }
+            ]
           }
         }
       ]
@@ -767,6 +776,14 @@
         },
         {
           "type": "SYMBOL",
+          "name": "additive_expression"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "multiplicative_expression"
+        },
+        {
+          "type": "SYMBOL",
           "name": "infix_predicate_expression"
         },
         {
@@ -804,12 +821,67 @@
         {
           "type": "SYMBOL",
           "name": "identifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "block_expression"
         }
       ]
     },
-    "or_expression": {
+    "block_expression": {
+      "type": "SYMBOL",
+      "name": "block_body"
+    },
+    "tuple_expression": {
       "type": "PREC_LEFT",
       "value": 1,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "tuple_expression"
+                }
+              ]
+            }
+          },
+          {
+            "type": "STRING",
+            "value": ","
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "_expression"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "tuple_expression"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "or_expression": {
+      "type": "PREC_LEFT",
+      "value": 2,
       "content": {
         "type": "SEQ",
         "members": [
@@ -838,7 +910,7 @@
     },
     "and_expression": {
       "type": "PREC_LEFT",
-      "value": 2,
+      "value": 3,
       "content": {
         "type": "SEQ",
         "members": [
@@ -867,7 +939,7 @@
     },
     "not_expression": {
       "type": "PREC",
-      "value": 3,
+      "value": 4,
       "content": {
         "type": "SEQ",
         "members": [
@@ -888,7 +960,7 @@
     },
     "comparison_expression": {
       "type": "PREC_LEFT",
-      "value": 4,
+      "value": 5,
       "content": {
         "type": "SEQ",
         "members": [
@@ -937,7 +1009,41 @@
                 {
                   "type": "STRING",
                   "value": "=>"
-                },
+                }
+              ]
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          }
+        ]
+      }
+    },
+    "additive_expression": {
+      "type": "PREC_LEFT",
+      "value": 6,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "operator",
+            "content": {
+              "type": "CHOICE",
+              "members": [
                 {
                   "type": "STRING",
                   "value": "+"
@@ -945,7 +1051,41 @@
                 {
                   "type": "STRING",
                   "value": "-"
-                },
+                }
+              ]
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "right",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          }
+        ]
+      }
+    },
+    "multiplicative_expression": {
+      "type": "PREC_LEFT",
+      "value": 7,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "FIELD",
+            "name": "left",
+            "content": {
+              "type": "SYMBOL",
+              "name": "_expression"
+            }
+          },
+          {
+            "type": "FIELD",
+            "name": "operator",
+            "content": {
+              "type": "CHOICE",
+              "members": [
                 {
                   "type": "STRING",
                   "value": "*"
@@ -970,7 +1110,7 @@
     },
     "infix_predicate_expression": {
       "type": "PREC_LEFT",
-      "value": 5,
+      "value": 8,
       "content": {
         "type": "SEQ",
         "members": [
@@ -995,7 +1135,7 @@
     },
     "pipe_expression": {
       "type": "PREC_LEFT",
-      "value": 6,
+      "value": 9,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1024,7 +1164,7 @@
     },
     "call_expression": {
       "type": "PREC",
-      "value": 7,
+      "value": 10,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1136,7 +1276,7 @@
     },
     "member_expression": {
       "type": "PREC",
-      "value": 8,
+      "value": 11,
       "content": {
         "type": "SEQ",
         "members": [
@@ -1174,7 +1314,15 @@
       "value": "[ \\t\\r\\n]+"
     }
   ],
-  "conflicts": [],
+  "conflicts": [
+    [
+      "default_declaration"
+    ],
+    [
+      "_expression",
+      "infix_predicate_expression"
+    ]
+  ],
   "precedences": [],
   "externals": [],
   "inline": [],
