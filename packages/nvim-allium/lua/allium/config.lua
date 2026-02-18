@@ -13,6 +13,18 @@ M.defaults = {
   treesitter = {
     ensure_installed = { "allium" },
   },
+  keymaps = {
+    enabled = true,
+    definition = "gd",
+    hover = "K",
+    references = "gr",
+    rename = "<leader>rn",
+    code_action = "<leader>ca",
+    format = "<leader>f",
+    prev_diagnostic = "[d",
+    next_diagnostic = "]d",
+    loclist = "<leader>q",
+  },
 }
 
 M.options = {}

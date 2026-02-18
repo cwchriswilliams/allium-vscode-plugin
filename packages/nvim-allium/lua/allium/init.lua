@@ -20,18 +20,26 @@ local function setup_lsp()
 
   lspconfig.allium.setup({
     on_attach = function(client, bufnr)
-      local function buf_set_keymap(...)
-        vim.api.nvim_buf_set_keymap(bufnr, ...)
-      end
-      local opts = { noremap = true, silent = true }
+      local keymaps = config.options.keymaps
+      if keymaps.enabled then
+        local function map(mode, lhs, rhs, desc)
+          if lhs then
+            vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = "Allium: " .. desc })
+          end
+        end
 
-      -- LSP Keymaps
-      buf_set_keymap("n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", opts)
-      buf_set_keymap("n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", opts)
-      buf_set_keymap("n", "gr", "<cmd>lua vim.lsp.buf.references()<CR>", opts)
-      buf_set_keymap("n", "<leader>rn", "<cmd>lua vim.lsp.buf.rename()<CR>", opts)
-      buf_set_keymap("n", "<leader>ca", "<cmd>lua vim.lsp.buf.code_action()<CR>", opts)
-      buf_set_keymap("n", "<leader>f", "<cmd>lua vim.lsp.buf.format({ async = true })<CR>", opts)
+        map("n", keymaps.definition, vim.lsp.buf.definition, "Go to definition")
+        map("n", keymaps.hover, vim.lsp.buf.hover, "Show hover documentation")
+        map("n", keymaps.references, vim.lsp.buf.references, "Find references")
+        map("n", keymaps.rename, vim.lsp.buf.rename, "Rename symbol")
+        map("n", keymaps.code_action, vim.lsp.buf.code_action, "Show code actions")
+        map("n", keymaps.format, function()
+          vim.lsp.buf.format({ async = true })
+        end, "Format buffer")
+        map("n", keymaps.prev_diagnostic, vim.diagnostic.goto_prev, "Previous diagnostic")
+        map("n", keymaps.next_diagnostic, vim.diagnostic.goto_next, "Next diagnostic")
+        map("n", keymaps.loclist, vim.diagnostic.setloclist, "Open diagnostic loclist")
+      end
 
       -- Set options
       vim.api.nvim_buf_set_option(bufnr, "omnifunc", "v:lua.vim.lsp.omnifunc")
