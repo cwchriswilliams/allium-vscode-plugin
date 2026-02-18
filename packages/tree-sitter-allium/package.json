@@ -15,8 +15,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tree-sitter generate",
-    "test": "tree-sitter test"
+    "build": "[ -f grammar.js ] && tree-sitter generate || echo 'grammar.js not yet written, skipping tree-sitter generate'",
+    "test": "[ -f grammar.js ] && tree-sitter test || echo 'grammar.js not yet written, skipping tree-sitter test'"
   },
   "devDependencies": {
     "tree-sitter-cli": "^0.25.0"
