@@ -31,9 +31,11 @@
   "engines": {
     "vscode": "^1.91.0"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "activationEvents": [],
-  "main": "./dist/src/extension.js",
+  "main": "./dist/extension.js",
   "bin": {
     "allium-check": "./dist/src/check.js",
     "allium-format": "./dist/src/format.js",
@@ -44,8 +46,13 @@
     "languages": [
       {
         "id": "allium",
-        "aliases": ["Allium", "allium"],
-        "extensions": [".allium"],
+        "aliases": [
+          "Allium",
+          "allium"
+        ],
+        "extensions": [
+          ".allium"
+        ],
         "configuration": "./language-basics/language-configuration.json"
       }
     ],
@@ -67,7 +74,10 @@
       "properties": {
         "allium.diagnostics.mode": {
           "type": "string",
-          "enum": ["strict", "relaxed"],
+          "enum": [
+            "strict",
+            "relaxed"
+          ],
           "default": "strict",
           "markdownDescription": "Controls diagnostics strictness. `strict` enables all checks. `relaxed` suppresses temporal-guard warnings and downgrades some diagnostics."
         },
@@ -175,8 +185,9 @@
   },
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --target=node20 --external:vscode --outfile=dist/extension.js",
     "bundle-lsp": "node -e \"const {existsSync,mkdirSync,copyFileSync}=require('fs');const src='../../packages/allium-lsp/dist/bin.js';if(existsSync(src)){mkdirSync('dist',{recursive:true});copyFileSync(src,'dist/allium-lsp.js');console.log('Bundled allium-lsp into dist/allium-lsp.js');}else{console.warn('allium-lsp not yet built, skipping. Run: npm run build -w packages/allium-lsp');}\"",
-    "build:release": "npm run build && npm run bundle-lsp",
+    "build:release": "npm run build && npm run bundle && npm run bundle-lsp",
     "test": "npm run build && node ../../scripts/run-node-tests.mjs ./dist/test",
     "lint": "tsc -p ./tsconfig.json --noEmit",
     "check": "npm run build && node ./dist/src/check.js",
@@ -190,6 +201,7 @@
   "devDependencies": {
     "@types/node": "^22.13.5",
     "@types/vscode": "^1.91.0",
+    "esbuild": "^0.25.12",
     "typescript": "^5.7.3"
   }
 }
