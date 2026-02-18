@@ -4,12 +4,17 @@ import {
   ProposedFeatures,
   TextDocumentSyncKind,
   DiagnosticSeverity,
+  SymbolKind,
+  CompletionItemKind,
+  FoldingRangeKind,
+  CodeActionKind,
   Range,
   type InitializeParams,
   type InitializeResult,
   type Hover,
   type Location,
   type CompletionList,
+  type CompletionItem,
   type DocumentSymbol,
   type WorkspaceSymbol,
   type CodeAction,
@@ -22,14 +27,52 @@ import {
   type TextEdit,
   type Diagnostic,
   type Position,
+  type TextDocumentEdit,
+  ResponseError,
+  ErrorCodes,
 } from "vscode-languageserver/node";
 import { TextDocument } from "vscode-languageserver-textdocument";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import * as path from "node:path";
 
 import { analyzeAllium } from "../../../extensions/allium/src/language-tools/analyzer";
-import { ALLIUM_SEMANTIC_TOKEN_TYPES } from "../../../extensions/allium/src/language-tools/semantic-tokens";
+import {
+  hoverTextAtOffset,
+  findLeadingDocComment,
+} from "../../../extensions/allium/src/language-tools/hover";
+import {
+  findDefinitionsAtOffset,
+  buildDefinitionLookup,
+  type DefinitionSite,
+} from "../../../extensions/allium/src/language-tools/definitions";
+import { findReferencesInText } from "../../../extensions/allium/src/language-tools/references";
+import {
+  collectAlliumSymbols,
+  type AlliumSymbolType,
+} from "../../../extensions/allium/src/language-tools/outline";
+import { collectWorkspaceSymbolRecords } from "../../../extensions/allium/src/language-tools/workspace-symbols";
+import { collectCompletionCandidates } from "../../../extensions/allium/src/language-tools/completion";
+import { planExtractLiteralToConfig } from "../../../extensions/allium/src/language-tools/extract-literal-refactor";
+import { planExtractInlineEnumToNamedEnum } from "../../../extensions/allium/src/language-tools/extract-inline-enum-refactor";
+import { planInsertTemporalGuard } from "../../../extensions/allium/src/language-tools/insert-temporal-guard-refactor";
+import { buildSuppressionDirectiveEdit } from "../../../extensions/allium/src/language-tools/suppression";
+import { planSafeFixesByCategory } from "../../../extensions/allium/src/language-tools/fix-all";
+import {
+  prepareRenameTarget,
+  planRename,
+} from "../../../extensions/allium/src/language-tools/rename";
+import { planWorkspaceImportedRename } from "../../../extensions/allium/src/language-tools/cross-file-rename";
+import { formatAlliumText } from "../../../extensions/allium/src/format";
+import { collectTopLevelFoldingBlocks } from "../../../extensions/allium/src/language-tools/folding";
+import {
+  collectSemanticTokenEntries,
+  ALLIUM_SEMANTIC_TOKEN_TYPES,
+} from "../../../extensions/allium/src/language-tools/semantic-tokens";
+import { collectCodeLensTargets } from "../../../extensions/allium/src/language-tools/codelens";
+import { collectUseImportPaths } from "../../../extensions/allium/src/language-tools/document-links";
 import {
   buildWorkspaceIndex,
+  resolveImportedDefinition,
   type WorkspaceIndex,
 } from "../../../extensions/allium/src/language-tools/workspace-index";
 
@@ -79,25 +122,83 @@ export function positionToOffset(text: string, position: Position): number {
   return offset;
 }
 
+function uriToPath(uri: string): string {
+  try {
+    return fileURLToPath(uri);
+  } catch {
+    return uri.replace(/^file:\/\//, "");
+  }
+}
+
+function pathToUri(filePath: string): string {
+  return pathToFileURL(filePath).toString();
+}
+
+// ---------------------------------------------------------------------------
+// SymbolKind mappings
+// ---------------------------------------------------------------------------
+
+function definitionKindToSymbolKind(kind: DefinitionSite["kind"]): SymbolKind {
+  switch (kind) {
+    case "entity":
+      return SymbolKind.Class;
+    case "external_entity":
+      return SymbolKind.Interface;
+    case "value":
+      return SymbolKind.Constant;
+    case "variant":
+      return SymbolKind.EnumMember;
+    case "enum":
+      return SymbolKind.Enum;
+    case "default_instance":
+      return SymbolKind.Object;
+    case "rule":
+      return SymbolKind.Function;
+    case "surface":
+      return SymbolKind.Interface;
+    case "actor":
+      return SymbolKind.Class;
+    case "config_key":
+      return SymbolKind.Property;
+  }
+}
+
+function alliumSymbolTypeToSymbolKind(type: AlliumSymbolType): SymbolKind {
+  switch (type) {
+    case "entity":
+      return SymbolKind.Class;
+    case "external entity":
+      return SymbolKind.Interface;
+    case "value":
+      return SymbolKind.Constant;
+    case "variant":
+      return SymbolKind.EnumMember;
+    case "enum":
+      return SymbolKind.Enum;
+    case "default":
+      return SymbolKind.Object;
+    case "rule":
+      return SymbolKind.Function;
+    case "surface":
+      return SymbolKind.Interface;
+    case "actor":
+      return SymbolKind.Class;
+    case "config":
+      return SymbolKind.Module;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------------------------
 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
   if (params.rootUri) {
-    try {
-      workspaceRoot = fileURLToPath(params.rootUri);
-    } catch {
-      workspaceRoot = params.rootUri.replace(/^file:\/\//, "");
-    }
+    workspaceRoot = uriToPath(params.rootUri);
   } else if (params.rootPath) {
     workspaceRoot = params.rootPath;
   } else if (params.workspaceFolders?.length) {
-    try {
-      workspaceRoot = fileURLToPath(params.workspaceFolders[0].uri);
-    } catch {
-      workspaceRoot = params.workspaceFolders[0].uri.replace(/^file:\/\//, "");
-    }
+    workspaceRoot = uriToPath(params.workspaceFolders[0].uri);
   }
 
   return {
@@ -181,84 +282,435 @@ documents.onDidClose((event) => {
 // Hover  (T1.4)
 // ---------------------------------------------------------------------------
 
-connection.onHover((_params): Hover | null => {
-  return null;
+connection.onHover((params): Hover | null => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+
+  const text = doc.getText();
+  const offset = positionToOffset(text, params.position);
+  const hoverText = hoverTextAtOffset(text, offset);
+  if (!hoverText) return null;
+
+  // Attach leading doc comment if hovering over a declaration
+  const defs = findDefinitionsAtOffset(text, offset);
+  let content = hoverText;
+  if (defs.length > 0) {
+    const docComment = findLeadingDocComment(text, defs[0].startOffset);
+    if (docComment) {
+      content = `${hoverText}\n\n---\n\n${docComment}`;
+    }
+  }
+
+  return {
+    contents: { kind: "markdown", value: content },
+  };
 });
 
 // ---------------------------------------------------------------------------
 // Go to definition  (T1.5)
 // ---------------------------------------------------------------------------
 
-connection.onDefinition((_params): Location | Location[] | null => {
-  return null;
+connection.onDefinition((params): Location[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const filePath = uriToPath(params.textDocument.uri);
+  const offset = positionToOffset(text, params.position);
+
+  // Cross-file (imported symbol resolution via use aliases)
+  const crossFile = resolveImportedDefinition(
+    filePath,
+    text,
+    offset,
+    workspaceIndex,
+  );
+  if (crossFile.length > 0) {
+    return crossFile.map(({ filePath: targetPath, definition }) => ({
+      uri: pathToUri(targetPath),
+      range: Range.create(
+        offsetToPosition(
+          workspaceIndex.documents.find(
+            (d) => path.resolve(d.filePath) === path.resolve(targetPath),
+          )?.text ?? "",
+          definition.startOffset,
+        ),
+        offsetToPosition(
+          workspaceIndex.documents.find(
+            (d) => path.resolve(d.filePath) === path.resolve(targetPath),
+          )?.text ?? "",
+          definition.endOffset,
+        ),
+      ),
+    }));
+  }
+
+  // Local definition lookup
+  const defs = findDefinitionsAtOffset(text, offset);
+  return defs.map((def) => ({
+    uri: params.textDocument.uri,
+    range: Range.create(
+      offsetToPosition(text, def.startOffset),
+      offsetToPosition(text, def.endOffset),
+    ),
+  }));
 });
 
 // ---------------------------------------------------------------------------
 // Find references  (T1.6)
 // ---------------------------------------------------------------------------
 
-connection.onReferences((_params): Location[] | null => {
-  return null;
+connection.onReferences((params): Location[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const offset = positionToOffset(text, params.position);
+  const defs = findDefinitionsAtOffset(text, offset);
+  if (defs.length === 0) return [];
+
+  const definition = defs[0];
+  const refs = findReferencesInText(text, definition);
+
+  const locations: Location[] = refs.map((ref) => ({
+    uri: params.textDocument.uri,
+    range: Range.create(
+      offsetToPosition(text, ref.startOffset),
+      offsetToPosition(text, ref.endOffset),
+    ),
+  }));
+
+  if (params.context.includeDeclaration) {
+    locations.unshift({
+      uri: params.textDocument.uri,
+      range: Range.create(
+        offsetToPosition(text, definition.startOffset),
+        offsetToPosition(text, definition.endOffset),
+      ),
+    });
+  }
+
+  return locations;
 });
 
 // ---------------------------------------------------------------------------
 // Document symbols  (T1.7)
 // ---------------------------------------------------------------------------
 
-connection.onDocumentSymbol((_params): DocumentSymbol[] => {
-  return [];
+connection.onDocumentSymbol((params): DocumentSymbol[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  return collectAlliumSymbols(text).map((symbol) => ({
+    name: symbol.name,
+    kind: alliumSymbolTypeToSymbolKind(symbol.type),
+    range: Range.create(
+      offsetToPosition(text, symbol.startOffset),
+      offsetToPosition(text, symbol.endOffset),
+    ),
+    selectionRange: Range.create(
+      offsetToPosition(text, symbol.nameStartOffset),
+      offsetToPosition(text, symbol.nameEndOffset),
+    ),
+  }));
 });
 
 // ---------------------------------------------------------------------------
 // Workspace symbols  (T1.8)
 // ---------------------------------------------------------------------------
 
-connection.onWorkspaceSymbol((_params): WorkspaceSymbol[] => {
-  return [];
+connection.onWorkspaceSymbol((params): WorkspaceSymbol[] => {
+  const records = collectWorkspaceSymbolRecords(workspaceIndex, params.query);
+  return records.map((record) => {
+    const doc = workspaceIndex.documents.find(
+      (d) => path.resolve(d.filePath) === path.resolve(record.filePath),
+    );
+    const text = doc?.text ?? "";
+    return {
+      name: record.name,
+      kind: definitionKindToSymbolKind(record.kind),
+      location: {
+        uri: pathToUri(record.filePath),
+        range: Range.create(
+          offsetToPosition(text, record.startOffset),
+          offsetToPosition(text, record.endOffset),
+        ),
+      },
+    };
+  });
 });
 
 // ---------------------------------------------------------------------------
 // Completions  (T1.9)
 // ---------------------------------------------------------------------------
 
-connection.onCompletion((_params): CompletionList => {
-  return { isIncomplete: false, items: [] };
+connection.onCompletion((params): CompletionList => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return { isIncomplete: false, items: [] };
+
+  const text = doc.getText();
+  const offset = positionToOffset(text, params.position);
+  const candidates = collectCompletionCandidates(text, offset);
+
+  const items: CompletionItem[] = candidates.map((c) => ({
+    label: c.label,
+    kind:
+      c.kind === "keyword"
+        ? CompletionItemKind.Keyword
+        : CompletionItemKind.Property,
+  }));
+
+  return { isIncomplete: false, items };
 });
 
 // ---------------------------------------------------------------------------
 // Code actions  (T1.10)
 // ---------------------------------------------------------------------------
 
-connection.onCodeAction((_params): CodeAction[] => {
-  return [];
+function offsetsToTextEdit(
+  text: string,
+  startOffset: number,
+  endOffset: number,
+  newText: string,
+): TextEdit {
+  return {
+    range: Range.create(
+      offsetToPosition(text, startOffset),
+      offsetToPosition(text, endOffset),
+    ),
+    newText,
+  };
+}
+
+connection.onCodeAction((params): CodeAction[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const uri = params.textDocument.uri;
+  const selectionStart = positionToOffset(text, params.range.start);
+  const selectionEnd = positionToOffset(text, params.range.end);
+  const actions: CodeAction[] = [];
+
+  // --- Refactors ---
+
+  const extractLiteral = planExtractLiteralToConfig(
+    text,
+    selectionStart,
+    selectionEnd,
+  );
+  if (extractLiteral) {
+    actions.push({
+      title: extractLiteral.title,
+      kind: CodeActionKind.Refactor,
+      edit: {
+        changes: {
+          [uri]: extractLiteral.edits.map((e) =>
+            offsetsToTextEdit(text, e.startOffset, e.endOffset, e.text),
+          ),
+        },
+      },
+    });
+  }
+
+  const extractEnum = planExtractInlineEnumToNamedEnum(text, selectionStart);
+  if (extractEnum) {
+    actions.push({
+      title: extractEnum.title,
+      kind: CodeActionKind.Refactor,
+      edit: {
+        changes: {
+          [uri]: extractEnum.edits.map((e) =>
+            offsetsToTextEdit(text, e.startOffset, e.endOffset, e.text),
+          ),
+        },
+      },
+    });
+  }
+
+  const temporalGuard = planInsertTemporalGuard(text, selectionStart);
+  if (temporalGuard) {
+    actions.push({
+      title: temporalGuard.title,
+      kind: CodeActionKind.QuickFix,
+      edit: {
+        changes: {
+          [uri]: [
+            offsetsToTextEdit(
+              text,
+              temporalGuard.edit.startOffset,
+              temporalGuard.edit.endOffset,
+              temporalGuard.edit.text,
+            ),
+          ],
+        },
+      },
+    });
+  }
+
+  // --- Suppression actions (per diagnostic in range) ---
+  for (const diagnostic of params.context.diagnostics) {
+    if (typeof diagnostic.code !== "string") continue;
+    const edit = buildSuppressionDirectiveEdit(
+      text,
+      diagnostic.code,
+      diagnostic.range.start.line,
+    );
+    if (edit) {
+      const insertPos = offsetToPosition(text, edit.offset);
+      actions.push({
+        title: `Suppress: ${diagnostic.code}`,
+        kind: CodeActionKind.QuickFix,
+        edit: {
+          changes: {
+            [uri]: [{ range: Range.create(insertPos, insertPos), newText: edit.text }],
+          },
+        },
+      });
+    }
+  }
+
+  // --- Fix all (source action) ---
+  const fixAllEdits = planSafeFixesByCategory(text, "strict", "all");
+  if (fixAllEdits.length > 0) {
+    actions.push({
+      title: "Allium: Apply All Safe Fixes",
+      kind: CodeActionKind.SourceFixAll,
+      edit: {
+        changes: {
+          [uri]: fixAllEdits.map((e) =>
+            offsetsToTextEdit(text, e.startOffset, e.endOffset, e.text),
+          ),
+        },
+      },
+    });
+  }
+
+  return actions;
 });
 
 // ---------------------------------------------------------------------------
 // Rename  (T1.11)
 // ---------------------------------------------------------------------------
 
-connection.onPrepareRename((_params) => {
-  return null;
+connection.onPrepareRename((params) => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+
+  const text = doc.getText();
+  const offset = positionToOffset(text, params.position);
+  const target = prepareRenameTarget(text, offset);
+  if (!target) {
+    throw new ResponseError(
+      ErrorCodes.InvalidRequest,
+      "No renameable symbol at cursor.",
+    );
+  }
+
+  return Range.create(
+    offsetToPosition(text, target.startOffset),
+    offsetToPosition(text, target.endOffset),
+  );
 });
 
-connection.onRenameRequest((_params): WorkspaceEdit | null => {
-  return null;
+connection.onRenameRequest((params): WorkspaceEdit | null => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return null;
+
+  const text = doc.getText();
+  const filePath = uriToPath(params.textDocument.uri);
+  const offset = positionToOffset(text, params.position);
+  const { plan, error } = planRename(text, offset, params.newName);
+
+  if (error || !plan) {
+    throw new ResponseError(
+      ErrorCodes.InvalidRequest,
+      error ?? "Rename failed.",
+    );
+  }
+
+  const changes: Record<string, TextEdit[]> = {};
+  const uri = params.textDocument.uri;
+
+  // Local edits (definition + references in this file)
+  const localEdits: TextEdit[] = [
+    offsetsToTextEdit(
+      text,
+      plan.definition.startOffset,
+      plan.definition.endOffset,
+      params.newName,
+    ),
+    ...plan.references.map((ref) =>
+      offsetsToTextEdit(text, ref.startOffset, ref.endOffset, params.newName),
+    ),
+  ];
+  changes[uri] = localEdits;
+
+  // Cross-file edits (files that import this symbol via `use`)
+  const { edits: crossFileEdits } = planWorkspaceImportedRename(
+    workspaceIndex,
+    filePath,
+    plan.definition,
+    params.newName,
+  );
+  for (const edit of crossFileEdits) {
+    const targetUri = pathToUri(edit.filePath);
+    const targetDoc = workspaceIndex.documents.find(
+      (d) => path.resolve(d.filePath) === path.resolve(edit.filePath),
+    );
+    const targetText = targetDoc?.text ?? "";
+    if (!changes[targetUri]) changes[targetUri] = [];
+    changes[targetUri].push(
+      offsetsToTextEdit(targetText, edit.startOffset, edit.endOffset, params.newName),
+    );
+  }
+
+  return { changes };
 });
 
 // ---------------------------------------------------------------------------
 // Formatting  (T1.12)
 // ---------------------------------------------------------------------------
 
-connection.onDocumentFormatting((_params): TextEdit[] => {
-  return [];
+connection.onDocumentFormatting((params): TextEdit[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const formatted = formatAlliumText(text);
+
+  if (formatted === text) return [];
+
+  // Replace entire document
+  const lineCount = doc.lineCount;
+  const lastLine = doc.getText({
+    start: { line: lineCount - 1, character: 0 },
+    end: { line: lineCount - 1, character: Number.MAX_SAFE_INTEGER },
+  });
+
+  return [
+    {
+      range: Range.create(0, 0, lineCount - 1, lastLine.length),
+      newText: formatted,
+    },
+  ];
 });
 
 // ---------------------------------------------------------------------------
 // Folding ranges  (T1.13)
 // ---------------------------------------------------------------------------
 
-connection.onFoldingRanges((_params): FoldingRange[] => {
-  return [];
+connection.onFoldingRanges((params): FoldingRange[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  return collectTopLevelFoldingBlocks(text).map((block) => ({
+    startLine: block.startLine,
+    endLine: block.endLine,
+    kind: FoldingRangeKind.Region,
+  }));
 });
 
 // ---------------------------------------------------------------------------
@@ -267,7 +719,36 @@ connection.onFoldingRanges((_params): FoldingRange[] => {
 
 connection.languages.semanticTokens.on(
   (_params: SemanticTokensParams): SemanticTokens => {
-    return { data: [] };
+    const doc = documents.get(_params.textDocument.uri);
+    if (!doc) return { data: [] };
+
+    const text = doc.getText();
+    const entries = collectSemanticTokenEntries(text);
+    const tokenTypeIndex = Object.fromEntries(
+      ALLIUM_SEMANTIC_TOKEN_TYPES.map((t, i) => [t, i]),
+    );
+
+    // Encode as delta-compressed [deltaLine, deltaChar, length, tokenType, modifiers]
+    const data: number[] = [];
+    let prevLine = 0;
+    let prevChar = 0;
+
+    for (const entry of entries) {
+      const deltaLine = entry.line - prevLine;
+      const deltaChar =
+        deltaLine === 0 ? entry.character - prevChar : entry.character;
+      data.push(
+        deltaLine,
+        deltaChar,
+        entry.length,
+        tokenTypeIndex[entry.tokenType] ?? 0,
+        0,
+      );
+      prevLine = entry.line;
+      prevChar = entry.character;
+    }
+
+    return { data };
   },
 );
 
@@ -275,16 +756,54 @@ connection.languages.semanticTokens.on(
 // Code lens  (T1.15)
 // ---------------------------------------------------------------------------
 
-connection.onCodeLens((_params): CodeLens[] => {
-  return [];
+connection.onCodeLens((params): CodeLens[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const targets = collectCodeLensTargets(text);
+
+  return targets.map((target) => {
+    const range = Range.create(
+      offsetToPosition(text, target.startOffset),
+      offsetToPosition(text, target.endOffset),
+    );
+    return {
+      range,
+      command: {
+        title: "Find references",
+        command: "allium.findReferences",
+        arguments: [params.textDocument.uri, range.start],
+      },
+    };
+  });
 });
 
 // ---------------------------------------------------------------------------
 // Document links  (T1.16)
 // ---------------------------------------------------------------------------
 
-connection.onDocumentLinks((_params): DocumentLink[] => {
-  return [];
+connection.onDocumentLinks((params): DocumentLink[] => {
+  const doc = documents.get(params.textDocument.uri);
+  if (!doc) return [];
+
+  const text = doc.getText();
+  const filePath = uriToPath(params.textDocument.uri);
+  const dir = path.dirname(filePath);
+
+  return collectUseImportPaths(text).map((imp) => {
+    const resolved = imp.sourcePath.endsWith(".allium")
+      ? path.resolve(dir, imp.sourcePath)
+      : path.resolve(dir, `${imp.sourcePath}.allium`);
+
+    return {
+      range: Range.create(
+        offsetToPosition(text, imp.startOffset),
+        offsetToPosition(text, imp.endOffset),
+      ),
+      target: pathToUri(resolved),
+    };
+  });
 });
 
 // ---------------------------------------------------------------------------
