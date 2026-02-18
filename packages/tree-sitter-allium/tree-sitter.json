@@ -1,0 +1,22 @@
+{
+  "name": "allium",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Tree-sitter grammar for the Allium language.",
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the Allium language.",
+    "links": {
+      "repository": "https://github.com/cwchriswilliams/allium-vscode-plugin"
+    }
+  },
+  "bindings": {
+    "node": true,
+    "rust": true,
+    "python": true,
+    "c": true,
+    "go": true,
+    "swift": true
+  }
+}
