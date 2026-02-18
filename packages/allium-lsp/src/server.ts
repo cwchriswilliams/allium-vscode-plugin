@@ -55,8 +55,41 @@ import { collectCompletionCandidates } from "../../../extensions/allium/src/lang
 import { planExtractLiteralToConfig } from "../../../extensions/allium/src/language-tools/extract-literal-refactor";
 import { planExtractInlineEnumToNamedEnum } from "../../../extensions/allium/src/language-tools/extract-inline-enum-refactor";
 import { planInsertTemporalGuard } from "../../../extensions/allium/src/language-tools/insert-temporal-guard-refactor";
-import { buildSuppressionDirectiveEdit } from "../../../extensions/allium/src/language-tools/suppression";
-import { planSafeFixesByCategory } from "../../../extensions/allium/src/language-tools/fix-all";
+import {
+  planSafeFixesByCategory,
+  type FixCategory,
+} from "../../../extensions/allium/src/language-tools/fix-all";
+import {
+  renderSimulationMarkdown,
+  simulateRuleAtOffset,
+} from "../../../extensions/allium/src/language-tools/rule-sim";
+import {
+  buildDiagramResult,
+  renderDiagram,
+  type DiagramFormat,
+  type DiagramModel,
+} from "../../../extensions/allium/src/language-tools/diagram";
+import { buildRuleTestScaffold } from "../../../extensions/allium/src/language-tools/test-scaffold";
+import { removeStaleSuppressions } from "../../../extensions/allium/src/language-tools/suppression";
+import { buildFindingExplanationMarkdown } from "../../../extensions/allium/src/language-tools/finding-help";
+import {
+  buildDriftReport,
+  extractAlliumDiagnosticCodes,
+  extractSpecCommands,
+  extractSpecDiagnosticCodes,
+  renderDriftMarkdown,
+} from "../../../extensions/allium/src/language-tools/spec-drift";
+import {
+  collectWorkspaceFiles,
+  readCommandManifest,
+  readDiagnosticsManifest,
+  readWorkspaceAlliumConfig,
+} from "../../../extensions/allium/src/language-tools/drift-workspace";
+import {
+  buildTestFileMatcher,
+  resolveTestDiscoveryOptions,
+} from "../../../extensions/allium/src/language-tools/test-discovery";
+import { parseDeclarationAst } from "../../../extensions/allium/src/language-tools/typed-ast";
 import {
   prepareRenameTarget,
   planRename,
@@ -805,6 +838,414 @@ connection.onDocumentLinks((params): DocumentLink[] => {
     };
   });
 });
+
+// ---------------------------------------------------------------------------
+// Custom requests
+// ---------------------------------------------------------------------------
+
+const DEFAULT_DRIFT_EXCLUDE_DIRS = [
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "target",
+  "out",
+  ".next",
+  ".venv",
+  "venv",
+  "__pycache__",
+];
+
+connection.onRequest(
+  "allium/simulateRule",
+  (params: {
+    uri: string;
+    position: Position;
+    bindings: Record<string, unknown>;
+  }) => {
+    const doc = documents.get(params.uri);
+    if (!doc) return null;
+    const text = doc.getText();
+    const offset = positionToOffset(text, params.position);
+    const preview = simulateRuleAtOffset(text, offset, params.bindings);
+    if (!preview) return null;
+    return { markdown: renderSimulationMarkdown(preview, params.bindings) };
+  },
+);
+
+connection.onRequest("allium/generateScaffold", (params: { uri: string }) => {
+  const doc = documents.get(params.uri);
+  if (!doc) return null;
+  const text = doc.getText();
+  const moduleName = path.basename(uriToPath(params.uri), ".allium");
+  return { scaffold: buildRuleTestScaffold(text, moduleName) };
+});
+
+connection.onRequest(
+  "allium/getDiagram",
+  (params: { uris: string[]; format: DiagramFormat }) => {
+    const results = params.uris.map((uri) => {
+      const doc = documents.get(uri);
+      const text = doc
+        ? doc.getText()
+        : path.resolve(uriToPath(uri)).endsWith(".allium")
+          ? require("node:fs").readFileSync(uriToPath(uri), "utf8")
+          : "";
+      return {
+        uri,
+        result: buildDiagramResult(text),
+      };
+    });
+
+    const models = results.map((r) => r.result.model);
+    const mergedModel = mergeDiagramModels(models);
+    const issues = results.flatMap((r) => r.result.issues);
+    const diagramText = renderDiagram(mergedModel, params.format);
+
+    const sourceByNodeId: Record<string, { uri: string; offset: number }> = {};
+    const sourceByEdgeId: Record<string, { uri: string; offset: number }> = {};
+
+    for (const r of results) {
+      for (const node of r.result.model.nodes) {
+        if (node.sourceOffset !== undefined && !sourceByNodeId[node.id]) {
+          sourceByNodeId[node.id] = { uri: r.uri, offset: node.sourceOffset };
+        }
+      }
+      for (const edge of r.result.model.edges) {
+        if (edge.sourceOffset !== undefined) {
+          const edgeId = `${edge.from}|${edge.to}|${edge.label}`;
+          if (!sourceByEdgeId[edgeId]) {
+            sourceByEdgeId[edgeId] = { uri: r.uri, offset: edge.sourceOffset };
+          }
+        }
+      }
+    }
+
+    return {
+      diagramText,
+      issues,
+      model: mergedModel,
+      sourceByNodeId,
+      sourceByEdgeId,
+    };
+  },
+);
+
+connection.onRequest("allium/getSpecHealth", () => {
+  if (!workspaceRoot)
+    return { summaries: [], totalErrors: 0, totalWarnings: 0, totalInfos: 0 };
+  const files = require("node:fs")
+    .readdirSync(workspaceRoot, { recursive: true })
+    .filter((f: string) => f.endsWith(".allium"));
+  let errors = 0;
+  let warnings = 0;
+  let infos = 0;
+  const summaries: string[] = [];
+
+  for (const f of files) {
+    const filePath = path.join(workspaceRoot, f);
+    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const findings = analyzeAllium(text);
+    const e = findings.filter((f) => f.severity === "error").length;
+    const w = findings.filter((f) => f.severity === "warning").length;
+    const i = findings.filter((f) => f.severity === "info").length;
+    errors += e;
+    warnings += w;
+    infos += i;
+    summaries.push(`${path.basename(filePath)}  E:${e} W:${w} I:${i}`);
+  }
+  return { summaries: summaries.sort(), totalErrors: errors, totalWarnings: warnings, totalInfos: infos };
+});
+
+connection.onRequest("allium/getProblemsSummary", () => {
+  if (!workspaceRoot) return { items: [] };
+  const files = require("node:fs")
+    .readdirSync(workspaceRoot, { recursive: true })
+    .filter((f: string) => f.endsWith(".allium"));
+  const codeCounts = new Map<string, number>();
+  for (const f of files) {
+    const filePath = path.join(workspaceRoot, f);
+    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const findings = analyzeAllium(text);
+    for (const finding of findings) {
+      codeCounts.set(finding.code, (codeCounts.get(finding.code) ?? 0) + 1);
+    }
+  }
+  return {
+    items: [...codeCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([code, count]) => ({ label: `${code} (${count})`, code })),
+  };
+});
+
+connection.onRequest("allium/getProblemsByCode", (params: { code: string }) => {
+  if (!workspaceRoot) return { items: [] };
+  const files = require("node:fs")
+    .readdirSync(workspaceRoot, { recursive: true })
+    .filter((f: string) => f.endsWith(".allium"));
+  const fileCounts = new Map<string, number>();
+  for (const f of files) {
+    const filePath = path.join(workspaceRoot, f);
+    const text = require("node:fs").readFileSync(filePath, "utf8");
+    const findings = analyzeAllium(text);
+    const count = findings.filter((f) => f.code === params.code).length;
+    if (count > 0) {
+      fileCounts.set(filePath, count);
+    }
+  }
+  return {
+    items: [...fileCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([filePath, count]) => ({
+        label: `${path.basename(filePath)} (${count})`,
+        filePath,
+      })),
+  };
+});
+
+connection.onRequest("allium/getDriftReport", () => {
+  if (!workspaceRoot) return { markdown: "No workspace root." };
+  const alliumConfig = readWorkspaceAlliumConfig(workspaceRoot);
+  const driftConfig = alliumConfig?.drift;
+  const sourceInputs = driftConfig?.sources ?? ["."];
+  const sourceExtensions = driftConfig?.sourceExtensions ?? [".ts"];
+  const excludeDirs = driftConfig?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS;
+  const specInputs = driftConfig?.specs ?? ["."];
+
+  const sourceFiles = collectWorkspaceFiles(
+    workspaceRoot,
+    sourceInputs,
+    sourceExtensions,
+    excludeDirs,
+  );
+  const specFiles = collectWorkspaceFiles(
+    workspaceRoot,
+    specInputs,
+    [".allium"],
+    excludeDirs,
+  );
+
+  if (specFiles.length === 0) return { markdown: "No .allium files found." };
+
+  const sourceText = sourceFiles
+    .map((f) => require("node:fs").readFileSync(f, "utf8"))
+    .join("\n");
+  const specText = specFiles
+    .map((f) => require("node:fs").readFileSync(f, "utf8"))
+    .join("\n");
+
+  const implementedDiagnostics = new Set(
+    extractAlliumDiagnosticCodes(sourceText),
+  );
+  if (driftConfig?.diagnosticsFrom) {
+    try {
+      for (const code of readDiagnosticsManifest(
+        workspaceRoot,
+        driftConfig.diagnosticsFrom,
+      )) {
+        implementedDiagnostics.add(code);
+      }
+    } catch { /* ignore */ }
+  }
+
+  const specifiedDiagnostics = extractSpecDiagnosticCodes(specText);
+  let implementedCommands = new Set<string>();
+  if (!driftConfig?.skipCommands && driftConfig?.commandsFrom) {
+    try {
+      implementedCommands = readCommandManifest(
+        workspaceRoot,
+        driftConfig.commandsFrom,
+      );
+    } catch { /* ignore */ }
+  }
+  const specifiedCommands = extractSpecCommands(specText);
+  const diagnosticsDrift = buildDriftReport(
+    implementedDiagnostics,
+    specifiedDiagnostics,
+  );
+  const commandsDrift = buildDriftReport(
+    driftConfig?.skipCommands ? new Set<string>() : implementedCommands,
+    specifiedCommands,
+  );
+  return { markdown: renderDriftMarkdown(diagnosticsDrift, commandsDrift) };
+});
+
+connection.onRequest(
+  "allium/explainFinding",
+  (params: { code: string; message: string }) => {
+    return { markdown: buildFindingExplanationMarkdown(params.code, params.message) };
+  },
+);
+
+connection.onRequest("allium/cleanSuppressions", (params: { uri: string }) => {
+  const doc = documents.get(params.uri);
+  if (!doc) return null;
+  const original = doc.getText();
+  const findings = analyzeAllium(original);
+  const activeCodes = new Set(findings.map((f) => f.code));
+  const cleanup = removeStaleSuppressions(original, activeCodes);
+  return {
+    text: cleanup.text,
+    removedLines: cleanup.removedLines,
+    removedCodes: cleanup.removedCodes,
+  };
+});
+
+connection.onRequest(
+  "allium/resolveRelatedFiles",
+  (params: { uri: string; symbol: string }) => {
+    if (!workspaceRoot) return { locations: [] };
+    const alliumConfig = readWorkspaceAlliumConfig(workspaceRoot);
+    const testOptions = resolveTestDiscoveryOptions(alliumConfig);
+    const testMatcher = buildTestFileMatcher(
+      testOptions.testExtensions,
+      testOptions.testNamePatterns,
+    );
+    const excludedDirs =
+      alliumConfig?.drift?.excludeDirs ?? DEFAULT_DRIFT_EXCLUDE_DIRS;
+    const specInputs = alliumConfig?.project?.specPaths ?? ["."];
+    const escaped = params.symbol.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const matcher = new RegExp(`\\b${escaped}\\b`, "m");
+    const matches: { label: string; description: string; uri: string }[] = [];
+
+    const searchIn = (filePaths: string[]): void => {
+      for (const filePath of filePaths) {
+        if (filePath === uriToPath(params.uri)) continue;
+        const text = require("node:fs").readFileSync(filePath, "utf8");
+        if (matcher.test(text)) {
+          matches.push({
+            label: path.basename(filePath),
+            description: path.relative(workspaceRoot!, filePath),
+            uri: pathToUri(filePath),
+          });
+        }
+      }
+    };
+
+    searchIn(
+      collectWorkspaceFiles(
+        workspaceRoot,
+        specInputs,
+        [".allium"],
+        excludedDirs,
+      ),
+    );
+    searchIn(
+      collectWorkspaceFiles(
+        workspaceRoot,
+        testOptions.testInputs,
+        testOptions.testExtensions,
+        excludedDirs,
+      ).filter(testMatcher),
+    );
+
+    return {
+      locations: matches.sort((a, b) => a.label.localeCompare(b.label)),
+    };
+  },
+);
+
+connection.onRequest(
+  "allium/createImportedSymbolStub",
+  (params: { uri: string; alias: string; symbol: string }) => {
+    const doc = documents.get(params.uri);
+    if (!doc) return null;
+    const sourceText = doc.getText();
+    const useAliases = require("../../../extensions/allium/src/language-tools/definitions").parseUseAliases(
+      sourceText,
+    );
+    const useAlias = useAliases.find((entry: any) => entry.alias === params.alias);
+    if (!useAlias) return null;
+
+    const currentFilePath = uriToPath(params.uri);
+    const targetPath = path.resolve(
+      path.dirname(currentFilePath),
+      useAlias.sourcePath.endsWith(".allium")
+        ? useAlias.sourcePath
+        : `${useAlias.sourcePath}.allium`,
+    );
+
+    let existingText = "";
+    let fileExists = false;
+    try {
+      existingText = require("node:fs").readFileSync(targetPath, "utf8");
+      fileExists = true;
+    } catch { /* ignore */ }
+
+    if (new RegExp(`\\b${params.symbol}\\b`).test(existingText)) {
+      return { alreadyExists: true, targetPath };
+    }
+
+    const needsLeadingNewline =
+      existingText.length > 0 && !existingText.endsWith("\n");
+    const insertion = `${needsLeadingNewline ? "\n" : ""}\nvalue ${params.symbol} {\n    value: TODO\n}\n`;
+
+    return {
+      targetUri: pathToUri(targetPath),
+      insertion,
+      offset: existingText.length,
+      fileExists,
+    };
+  },
+);
+
+connection.onRequest(
+  "allium/manageBaseline",
+  (params: { action: "write" | "preview"; baselinePath: string }) => {
+    if (!workspaceRoot) return { findings: [] };
+    const files = require("node:fs")
+      .readdirSync(workspaceRoot, { recursive: true })
+      .filter((f: string) => f.endsWith(".allium"));
+    const records: string[] = [];
+    for (const f of files) {
+      const filePath = path.join(workspaceRoot, f);
+      const text = require("node:fs").readFileSync(filePath, "utf8");
+      const findings = analyzeAllium(text);
+      for (const finding of findings) {
+        const rel = path.relative(workspaceRoot, filePath);
+        records.push(
+          `${rel}|${finding.start.line}|${finding.start.character}|${finding.code}|${finding.message}`,
+        );
+      }
+    }
+    const unique = [...new Set(records)].sort();
+    if (params.action === "write") {
+      const output = {
+        version: 1,
+        findings: unique.map((fingerprint) => ({ fingerprint })),
+      };
+      const target = path.resolve(workspaceRoot, params.baselinePath);
+      require("node:fs").mkdirSync(path.dirname(target), { recursive: true });
+      require("node:fs").writeFileSync(
+        target,
+        `${JSON.stringify(output, null, 2)}\n`,
+        "utf8",
+      );
+    }
+    return { findings: unique };
+  },
+);
+
+function mergeDiagramModels(models: DiagramModel[]): DiagramModel {
+  const nodes = new Map<string, DiagramModel["nodes"][number]>();
+  const edges = new Map<string, DiagramModel["edges"][number]>();
+  for (const model of models) {
+    for (const node of model.nodes) {
+      nodes.set(node.id, node);
+    }
+    for (const edge of model.edges) {
+      edges.set(`${edge.from}|${edge.to}|${edge.label}`, edge);
+    }
+  }
+  return {
+    nodes: [...nodes.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    edges: [...edges.values()].sort((a, b) =>
+      `${a.from}|${a.to}|${a.label}`.localeCompare(
+        `${b.from}|${b.to}|${b.label}`,
+      ),
+    ),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Start
