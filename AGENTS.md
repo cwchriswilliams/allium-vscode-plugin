@@ -63,7 +63,7 @@ When modifying code or tests:
 ## 5. Sources of truth
 
 * **Allium language semantics and syntax:** https://juxt.github.io/allium/language (authoritative for any language-level behaviour in this repository)
-* **Architecture & key concepts:** `README.md` (read at the start of each session)
+* **Architecture & key concepts:** `README.md` and `docs/project/architecture.md`.
 
 ---
 
@@ -71,27 +71,27 @@ When modifying code or tests:
 
 This is an npm workspace monorepo. Each package has its own `package.json`, `tsconfig.json`, and test suite.
 
-```
-extensions/allium/          VS Code extension (LSP client + VS Code-specific commands)
+```text
+extensions/allium/          VS Code extension (LSP client launcher)
 packages/allium-lsp/        Language Server Protocol server (wraps language-tools/)
 packages/allium-cli/        Standalone CLI package (allium-check, allium-format, etc.)
 packages/tree-sitter-allium/ Tree-sitter grammar for the Allium language
-packages/nvim-allium/       Neovim plugin (lazy.nvim compatible) [planned]
-packages/allium-mode/       Emacs major mode package [planned]
+packages/nvim-allium/       Neovim plugin (lazy.nvim compatible)
+packages/allium-mode/       Emacs major mode package
 ```
 
 ### Architecture
 
 The core language intelligence lives in `extensions/allium/src/language-tools/` — pure TypeScript with **zero editor API dependencies**. All functions accept plain text and return plain data.
 
-```
+```text
 language-tools/   Pure analysis engine: parser, analyzer, hover, definitions, rename, refactors, etc.
      |
      ├── packages/allium-lsp/      LSP server: wraps language-tools/ over JSON-RPC (stdio)
      |        |
-     |        ├── extensions/allium/   VS Code: vscode-languageclient pointing at allium-lsp
-     |        ├── packages/nvim-allium/ Neovim: nvim-lspconfig pointing at allium-lsp
-     |        └── packages/allium-mode/ Emacs: eglot/lsp-mode pointing at allium-lsp
+     |        ├── extensions/allium/   VS Code launcher
+     |        ├── packages/nvim-allium/ Neovim plugin
+     |        └── packages/allium-mode/ Emacs major mode
      |
      └── packages/allium-cli/      CLI tools: direct consumers of language-tools/
 
@@ -119,12 +119,21 @@ npm run --workspace extensions/allium test
 
 ### Build order
 
-When building from scratch: `extensions/allium` must be built before `packages/allium-cli` (the CLI package shares source via symlinks or copies). `packages/allium-lsp` is independent and can be built in any order.
+1. **`packages/tree-sitter-allium`**: Generate the parser first.
+2. **`packages/allium-lsp`**: Build the server.
+3. **`extensions/allium`**: The VS Code extension bundles the LSP server binary.
+4. **`packages/allium-cli`**: Shares logic from the extension source.
+
+### Testing Workflow
+
+- **Unit tests**: Run `npm run test` in the relevant package.
+- **Corpus tests**: Run `tree-sitter test` in `packages/tree-sitter-allium`.
+- **Integration tests**: Run `npm run test` in `extensions/allium` to test LSP-to-engine interactions.
 
 ### Adding new editor integrations
 
 New editor integrations live under `packages/`. Each should:
-1. Point its LSP client at the `allium-lsp` binary
-2. Use tree-sitter query files from `packages/tree-sitter-allium/queries/`
-3. Include a README with setup instructions
-4. Not be published to any package registry until explicitly ready
+1. Point its LSP client at the `allium-lsp` binary.
+2. Use tree-sitter query files from `packages/tree-sitter-allium/queries/`.
+3. Include a README with setup instructions.
+4. Provide a `docs/editors/<name>.md` guide.
